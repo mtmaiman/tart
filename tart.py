@@ -1,62 +1,32 @@
-import zipfile
-import shutil
+# Standard library
+import logging
+import argparse
 import json
 import sys
-import os
+import re
 
-from git import Repo, rmtree
+# Imported libraries
+import requests
 
 
-USAGE = '''
-A simple python CLI for tracking Tarkov quests, hideout modules, needed items, and barters
-
-USAGE: python tarkovtracker.py COMMAND [OPTION] ...
-
-COMMANDS:
-- PULL --> Pulls down latest game data from github (NOTICE: MAY CAUSE ISSUES)
-- RESET [QUESTS / HIDEOUT / BARTERS / ALL] --> Resets all [QUESTS / HIDEOUT / BARTERS / ALL]
-- COMPLETE/UNCOMPLETE [QUEST / HIDEOUT / BARTER NAME] --> Marks [QUEST / HIDEOUT NAME] as complete or incomplete or resets barter required items to 0
-- RECURSE [QUEST / HIDEOUT NAME] --> Marks [QUEST / HIDEOUT NAME] as complete and recursively marks all required quests or hideout modules as complete
-- COLLECT/UNCOLLECT [#] [ITEM SHORT NAME] --> Adds or subtracts [#] of [ITEM SHORT NAME] to appropriate quests, then modules, then barters
-- FIND/UNFIND [#] [ITEM SHORT NAME] --> Adds or subtracts [#] of [ITEM SHORT NAME] to appropriate quests as FIR, then quests as collected, then modules, then barters
-- TRACK/UNTRACK [QUEST / HIDEOUT NAME] --> Tracks [QUEST / HIDEOUT NAME] for item collection
-- TRACK [BARTER] [NAME] [GIVE [#] [ITEM SHORT NAME]][...] [GIVE [#] [ITEM SHORT NAME]][...] --> Creates the specified barter and tracks the required items for collection
-- UNTRACK [BARTER] [NAME] --> Destroys the [NAME] barter and stops tracking the required items for collection
-- SEARCH [ITEM SHORT NAME / QUEST / HIDEOUT / BARTER NAME] --> Searches the database for [ITEM SHORT NAME / QUEST / HIDEOUT / BARTER NAME]
-- CONTAINS [TEXT] --> Searches the database for any item, quest, hideout, or barter which contains [TEXT] (WARNING: THIS IS AN EXPENSIVE REQUEST)
-- LIST [QUEST / HIDEOUT / BARTER / ALL] ITEMS --> Lists the items needed for collection for [QUESTS / HIDEOUT / BARTERS / ALL]
-- LIST QUESTS [MAP / ANY / ALL / TRADER] --> Lists all eligible quests for [MAP / ANY / ALL] or all quests regardless for [TRADER]
-- LIST HIDEOUT -- Lists all hideout modules
-- LIST BARTERS -- Lists all tracked barters
-- LIST UNTRACKED -- Lists all untracked quests and hideout modules
-- REQUIRE [ITEM SHORT NAME] --> Lists all quests, modules, and barters which require [ITEM SHORT NAME]
-- LEVEL [[#] / UP] --> Sets player level to [NUMBER] or increments by one
-
-NOTES:
-- Hideout modules are named as "Module name - Level N". All modules have a level starting at 1
-- Inputted text does not have to include dashes, hyphens, apostrophes, commas, colons, or periods
-- Avoid naming barters the same as a quest or module.. may result in unpredictable behavior
+USAGE = f'''
+tart.py -Command "Arguments"\n\n
+A lightweigth python CLI for tracking task, hideout, and barter progression, including item collection, for Escape From Tarkov. Please read below for usage notes and command details.\n\n
+Notes:\n\n
+> Surround command arguments with whitespace in quotations \' or \"'
+> Command arguments expect the entity normalized names or GUIDs. Please use search functions to find these if you are unsure
 '''
-
-
-DEV_MODE = False
-REPO = 'https://github.com/TarkovTracker/tarkovdata.git'
-
-if (DEV_MODE):
-    TRACKER = './appdata/trackerdev.json'
-else:
-    TRACKER = './appdata/tracker.json'
-
-QUESTS = './appdata/quests.json'
-HIDEOUT = './appdata/hideout.json'
-ITEMS = './appdata/items.en.json'
-TRADERS = './appdata/traders.json'
-MAPS = './appdata/maps.json'
-
-ITEM_HEADER = '{:<25} {:<60} {:<30} {:<12}\n'.format('Item Short Name', 'Item Name', 'Item ID', 'Need (FIR)')
-QUEST_HEADER = '{:<40} {:<20} {:<20} {:<20} {:<20}\n'.format('Quest Title', 'Quest Giver', 'Quest Status', 'Tracked', 'Kappa')
-MODULE_HEADER = '{:<40} {:<20} {:<20}\n'.format('Module Name', 'Module Status', 'Tracked')
-BARTER_HEADER = '{:<40}\n'.format('Barter Name')
+DEV_MODE = True
+ITEM_HEADER = '{:<25} {:<60} {:<30} {:<25}\n'.format('Item Short Name', 'Item Normalized Name', 'Item GUID', 'Have (FIR) Need (FIR)')
+MAP_HEADER = '{:<30} {:<20}\n'.format('Map Normalized Name', 'Map GUID')
+TRADER_HEADER = '{:<30} {:<20}\n'.format('Trader Normalized Name', 'Trader GUID')
+INVENTORY_HEADER = '{:<20} {:<25} {:<20} {:<25} {:<20} {:<25} \n'.format('Item', 'Have (FIR) Need (FIR)', 'Item', 'Have (FIR) Need (FIR)', 'Item', 'Have (FIR) Need (FIR)')
+INVENTORY_HAVE_HEADER = '{:<20} {:<25} {:<20} {:<25} {:<20} {:<25} \n'.format('Item', 'Have (FIR)', 'Item', 'Have (FIR)', 'Item', 'Have (FIR)')
+INVENTORY_NEEDED_HEADER = '{:<20} {:<25} {:<20} {:<25} {:<20} {:<25} \n'.format('Item', 'Need (FIR)', 'Item', 'Need (FIR)', 'Item', 'Need (FIR)')
+TASK_HEADER = '{:<40} {:<20} {:<20} {:<20} {:<20}\n'.format('Task Title', 'Task Giver', 'Task Status', 'Tracked', 'Kappa?')
+HIDEOUT_HEADER = '{:<40} {:<20} {:<20}\n'.format('Station Name', 'Station Status', 'Tracked')
+BARTER_HEADER = '{:<40} {:<20} {:<20} {:<20}\n'.format('Barter GUID', 'Trader', 'Level', 'Tracked')
+UNTRACKED_HEADER = '{:<40} {:<20} {:<20}\n'.format('Entity Name', 'Type', 'Tracked')
 BUFFER = '-------------------------------------------------------------------------------------------------------------------------------------\n'
 
 
@@ -66,1220 +36,1980 @@ BUFFER = '----------------------------------------------------------------------
 #                                                 #
 ###################################################
 
-def read_command(command):
-    command = command.lower().strip('\n')
-    ran = False
 
-    if (command == 'quit' or command == 'exit' or command == 'stop'):
-        sys.exit()
+def parser(command):
+    if (DEV_MODE):
+        logging.info('RUNNING IN DEBUG MODE. All changes will affect only the debug database file!')
+        tracker_file = './bin/debug_tracker.json'
+    else:
+        tracker_file = './bin/tracker.json'
 
-    if (command == '' or command == 'help'):
-        print(USAGE)
+    parser = argparse.ArgumentParser(prog = 'tart.py', usage = USAGE)
 
-    if (command.startswith('list') and command.endswith('items')):
-        ran = list_items(command)
-    if (command.startswith('list quests')):
-        ran = list_quests(command)
-    if (command.startswith('list hideout')):
-        ran = list_hideout()
-    if (command.startswith('list barters')):
-        ran = list_barters()
-    if (command.startswith('list untracked')):
-        ran = list_untracked()
-    if (command.startswith('require')):
-        ran = requires_item(command)
-    if (command.startswith('reset quests') or command == 'reset all'):
-        ran = reset_quests()
-    if (command.startswith('reset hideout') or command == 'reset all'):
-        ran = reset_hideout()
-    if (command.startswith('reset items') or command == 'reset all'):
-        ran = reset_items()
-    if (command.startswith('reset barters') or command == 'reset all'):
-        ran = reset_barters()
-    if (command.startswith('complete') or command.startswith('uncomplete')):
-        ran = complete(command)
-    if (command.startswith('recurse')):
-        ran = recurse(command)
-    if (command.startswith('find') or command.startswith('unfind')):
-        ran = collect(command, True)
-    if (command.startswith('collect') or command.startswith('uncollect')):
-        ran = collect(command, False)
-    if (command.startswith('track') or command.startswith('untrack')):
-        ran = track(command)
-    if (command.startswith('search')):
-        ran = search(command, False)
-    if (command.startswith('contains')):
-        ran = search(command, True)
-    if (command.startswith('level')):
-        ran = set_level(command)
-    if (command.startswith('pull')):
-        ran = pull_repo()
-    if (not ran):
-        print('Command not recognized or run failed. Type "help" for usage')
+    # Inventory
+    parser.add_argument('-Inventory', '-inventory', '-i', action = "store_true", help = 'Lists all items in the player\'s inventory')
+    parser.add_argument('-InventoryTasks', '-inventorytasks', '-it', action = "store_true", help = 'Lists all items in the player\'s inventory pertaining to tasks')
+    parser.add_argument('-InventoryStations', '-inventorystations', '-is', action = "store_true", help = 'Lists all items in the player\'s inventory pertaining to hideout stations')
+    parser.add_argument('-InventoryBarters', '-inventorybarters', '-ib', action = "store_true", help = 'Lists all items in the player\'s inventory pertaining to barters')
+    parser.add_argument('-Have', '-have', action = "store_true", help = 'Lists all items the player currently has')
+    parser.add_argument('-Need', '-need', action = "store_true", help = 'Lists all remaining items that the player needs for tasks, hideout stations, and tracked barters')
+
+    # List entities
+    parser.add_argument('-Tasks', '-tasks', '-t', type = str, help = '"{str}" Lists tracked and available tasks by [All, Map, Trader]', nargs = 1, default = False)
+    parser.add_argument('-Stations', '-stations', '-Hideout', '-hideout', '-st', action = "store_true", help = 'Lists tracked and available hideout stations')
+    parser.add_argument('-Barters', '-barters', '-b', type = str, help = '"{str}" Lists tracked barters by [All, Trader]', nargs = 1, default = False)
+    parser.add_argument('-Untracked', '-untracked', '-u', action = "store_true", help = 'Lists all untracked hideout stations and Kappa required tasks')
+
+    # List consts
+    parser.add_argument('-Maps', '-maps', '-m', action = "store_true", help = 'Lists available maps')
+    parser.add_argument('-Traders', '-traders', '-tr', action = "store_true", help = 'Lists available traders')
+
+    # Reset
+    parser.add_argument('-ResetTasks', '-resettasks', action = "store_true", help = 'Resets all task progress')
+    parser.add_argument('-ResetStations', '-resetstations', '-ResetHideout', '-resethideout', action = "store_true", help = 'Resets all hideout station progress')
+    parser.add_argument('-ResetBarters', '-resetbarters', action = "store_true", help = 'Resets all barter progress and tracking')
+    parser.add_argument('-RestartBarter', '-restartbarter', type = str, help = '"{str}" Restarts the barter of given GUID and adds the required items to needed inventory again (Use after completing a barter and wishing to do it again', nargs = 1, default = False)
+    parser.add_argument('-ResetInventory', '-resetinventory', action = "store_true", help = 'Removes all items from the player\'s inventory')
+    parser.add_argument('-ResetAll', '-resetall', action = "store_true", help = 'Resets all progress and clears the player\'s inventory')
+    parser.add_argument('-Refresh', '-refresh', action = "store_true", help = 'Pulls updated game data from api.tarkov.dev. (WARNING: This will also reset all progression and clear the player\'s inventory!)')
+
+    # Searching
+    parser.add_argument('-Search', '-search', '-s', type = str, help = '"{str}" Searches for this normalized name', nargs = 1, default = False)
+    parser.add_argument('-GUID', '-guid', '-g', type = str, help = '"{str}" Searches for this GUID', nargs = 1, default = False)
+    parser.add_argument('-FuzzySearch', '-fuzzysearch', '-f', type = str, help = '"{str}" Searches for any entity containing this text. (WARNING: This may take a while!)', nargs = 1, default = False)
+    parser.add_argument('-Requires', '-requires', '-r', type = str, help = '"{str}" Lists all entites which require this item', nargs = 1, default = False)
+    parser.add_argument('-IgnoreBarters', '-ignorebarters', '-nob', action = "store_true", help = 'Ignores barters from searches')
+
+    # Tracking
+    parser.add_argument('-Track', '-track', type = str, help = '"{str}" Begins tracking the specified task, hideout station, or barter and adds required items to the needed inventory', nargs = '+', default = False)
+    parser.add_argument('-Untrack', '-untrack', type = str, help = '"{str}" Stops tracking the specified task, hideout station, or barter and removes required items from the needed inventory', nargs = '+', default = False)
+
+    # Completing
+    parser.add_argument('-Complete', '-complete', type = str, help = '"{str}" Marks the specified task, hideout station, or barter as complete', nargs = '+', default = False)
+    parser.add_argument('-Force', '-force', action = "store_true", help = 'Forces the entity to complete regardless if enough items are found in the player\'s inventory')
+    parser.add_argument('-RecursiveForce', '-recursiveforce', action = "store_true", help = 'Forces the entity and all prerequisite entities to recursively complete regardless if enough items are found in the player\'s inventory')
+
+    # Items
+    parser.add_argument('-AddItemFIR', '-additemfir', '-fir', type = str, help = '"{str}" Adds the specified item in shortname notation to the player\'s inventory with Found In Raid (FIR) status', nargs = '+', default = False)
+    parser.add_argument('-AddItemNIR', '-additemnir', '-nir', type = str, help = '"{str}" Adds the specified item in shortname notation to the player\'s inventory without Found In Raid (FIR) status', nargs = '+', default = False)
+    parser.add_argument('-Count', '-count', '-c', type = int, help = '{int} The amount of an item to add to the player\'s inventory. This is required with either -AddItem commands', default = False)
+
+    # Level
+    parser.add_argument('-Level', '-level', action = "store_true", help = 'Displays the player\'s current level')
+    parser.add_argument('-LevelUp', '-levelup', '-up', action = "store_true", help = 'Increments the player\'s level by one (1)')
+    parser.add_argument('-SetLevel', '-setlevel', type = int, help = '{int} Sets the player to the specified level', default = False)
+
+    parsed = parser.parse_args(command)
+
+    # Inventory
+    if (parsed.Inventory):
+        list_inventory(tracker_file)
+    if (parsed.InventoryTasks):
+        list_inventory_tasks(tracker_file)
+    if (parsed.InventoryStations):
+        list_inventory_stations(tracker_file)
+    if (parsed.InventoryBarters):
+        list_inventory_barters(tracker_file)
+    if (parsed.Have):
+        list_owned_items(tracker_file)
+    if (parsed.Need):
+        list_needed_items(tracker_file)
+
+    # List entities
+    if (parsed.Tasks):
+        list_tasks(tracker_file, normalize(''.join(parsed.Tasks)))
+    if (parsed.Stations):
+        list_stations(tracker_file)
+    if (parsed.Barters):
+        list_barters(tracker_file, normalize(''.join(parsed.Barters)))
+    if (parsed.Untracked):
+        list_untracked(tracker_file)
+
+    # List consts
+    if (parsed.Maps):
+        list_maps(tracker_file)
+    if (parsed.Traders):
+        list_traders(tracker_file)
+    
+    # Reset
+    if (parsed.ResetTasks):
+        logging.warning('This will reset all progress on tasks! Are you sure you wish to proceed? (Y/N)')
+
+        if (input('> ').lower() == 'y'):
+            reset_tasks(tracker_file)
+        else:
+            logging.info('Aborted task reset.')
+    if (parsed.ResetStations):
+        logging.warning('This will reset all progress on hideout stations! Are you sure you wish to proceed? (Y/N)')
+
+        if (input('> ').lower() == 'y'):
+            reset_stations(tracker_file)
+        else:
+            logging.info('Aborted hideout reset.')
+    if (parsed.ResetBarters):
+        logging.warning('This will reset all progress on barters! Are you sure you wish to proceed? (Y/N)')
+
+        if (input('> ').lower() == 'y'):
+            reset_barters(tracker_file)
+        else:
+            logging.info('Aborted barter reset.')
+    if (parsed.RestartBarter):
+        restart_barter(tracker_file, argument)
+    if (parsed.ResetInventory):
+        logging.warning('This will clear all items from the player\'s inventory! Are you sure you wish to proceed? (Y/N)')
+
+        if (input('> ').lower() == 'y'):
+            reset_inventory(tracker_file)
+        else:
+            logging.info('Aborted item reset.')
+    if (parsed.ResetAll):
+        logging.warning('This will reset all progress and clear the player\'s inventory! Are you sure you wish to proceed? (Y/N)')
+
+        if (input('> ').lower() == 'y'):
+            reset_tasks(tracker_file)
+            reset_stations(tracker_file)
+            reset_barters(tracker_file)
+            reset_inventory(tracker_file)
+        else:
+            logging.info('Aborted reset.')
+    if (parsed.Refresh):
+        logging.warning('This will refresh all application data with the latest from api.tarkov.dev! Are you sure you wish to proceed? (Y/N)')
+
+        if (input('> ').lower() == 'y'):
+            refresh(tracker_file)
+        else:
+            logging.info('Aborted refresh.')
+
+    # Searching
+    if (parsed.Search):
+        search(tracker_file, super_normalize(''.join(parsed.Search)), parsed.IgnoreBarters)
+    if (parsed.GUID):
+        guid(tracker_file, normalize(''.join(parsed.GUID)), parsed.IgnoreBarters)
+    if (parsed.FuzzySearch):
+        fuzzy_search(tracker_file, normalize(''.join(parsed.FuzzySearch)), parsed.IgnoreBarters)
+    if (parsed.Requires):
+        requires(tracker_file, normalize(''.join(parsed.Requires)), parsed.IgnoreBarters)
+
+    # Tracking
+    if (parsed.Track):
+        track(tracker_file, normalize(''.join(parsed.Track)))
+    if (parsed.Untrack):
+        untrack(tracker_file, normalize(''.join(parsed.Untrack)))
+
+    # Completing
+    if (parsed.Complete):
+        complete(tracker_file, normalize(''.join(parsed.Complete)), parsed.Force, parsed.RecursiveForce)
+
+    # Items
+    if (parsed.AddItemFIR and parsed.Count):
+        add_item_fir(tracker_file, normalize(''.join(parsed.AddItemFIR)), parsed.Count)
+    if (parsed.AddItemNIR and parsed.Count):
+        add_item_nir(tracker_file, normalize(''.join(parsed.AddItemNIR)), parsed.Count)
+    
+    # Level
+    if (parsed.Level):
+        check_level(tracker_file)
+    if (parsed.LevelUp):
+        level_up(tracker_file)
+    if (parsed.SetLevel):
+        set_level(tracker_file, parsed.SetLevel)
+    
     return
 
-def read_file(readme):
+# Database editing
+def open_database(file_path):
     try:
-        with open(readme, 'r', encoding = 'utf-8') as readfile:
-            file = json.load(readfile)
+        with open(file_path, 'r', encoding = 'utf-8') as open_file:
+            file = json.load(open_file)
     except FileNotFoundError:
-        if (readme == TRACKER):
-            write_file(TRACKER, {
-                'quests': [],
-                'hideout': [],
-                'barters': [],
-                'level': 0
-            })
-            file = read_file(TRACKER)
-        else: raise FileNotFoundError
+        logging.error('I couldn\'t find the tracker database file in the bin. Try doing a full refresh with -Refresh')
+        exit(1)
     return file
 
-def write_file(writeme, data):
-    with open(writeme, 'w', encoding = 'utf-8') as writefile:
-        writefile.write(json.dumps(data))
+def write_database(file_path, data):
+    with open(file_path, 'w', encoding = 'utf-8') as open_file:
+        open_file.write(json.dumps(data))
     return
 
-def normalize(string, chars = "-:',. "):
-    for char in chars:
-        string = string.replace(char, '')
-    
-    return ' '.join(string.lower().split())
-
-def duplicates(duplicates):
-    print('More than one item found which matches your selection. Please select an item with its corresponding number\n')
-
-    for index, duplicate in enumerate(duplicates):
-        print(f'[{index}] {duplicate["name"]}')
-
-    return duplicates[int(input('\ntart > '))]['id']
-
-def item_to_guid(name):
-    items = read_file(ITEMS)
-    found = []
-
-    for item in items.values():
-        if (normalize(item['shortName']) == normalize(name) or normalize(item['name']) == normalize(name)):
-            found.append(item)
-    
-    if (len(found) > 1):
-        return duplicates(found)
-    elif (len(found) == 1):
-        return found[0]['id']
-    else:
-        return {
-            'return': False,
-            'reason': f'Could not find >{name}<'
-        }
-
-def guid_to_item(guid):
-    items = read_file(ITEMS)
-
-    for item in items.values():
+# GUID to name or object
+def guid_to_item(database, guid):
+    for item in database['all_items']:
         if (item['id'] == guid):
             return item['shortName']
     
-    return guid
+    return False
 
-def increment(to_add, have, max):
-    need = max - have
-
-    if (to_add > need or to_add == need):
-        to_add = to_add - need
-        have = max
-    else:
-        have = have + to_add
-        to_add = 0
-
-    return to_add, have
-
-def decrement(to_sub, have):
-    if (to_sub > have or to_sub == have):
-        to_sub = to_sub - have
-        have = 0
-    else:
-        have = have - to_sub
-        to_sub = 0
+def guid_to_item_object(database, guid):
+    for item in database['all_items']:
+        if (item['id'] == guid):
+            return item
     
-    return to_sub, have
+    return False
 
-def location_lookup(query):
-    maps = read_file(MAPS)
-
-    for map in maps.values():
-        if (map['id'] == query):
-            return map['locale']['en']
-
-def item_lookup(query, fuzzy = False, contains = False):
-    items = read_file(ITEMS)
-    tracker = read_file(TRACKER)
-    result = []
-
-    for item in items.values():
-        item['find'] = item['collect'] = 0
-
-        if (item['id'] in ('5696686a4bdc2da3298b456a', '569668774bdc2da2298b4568', '5449016a4bdc2d6f028b456f')):
-            continue
-
-        if (fuzzy):
-            if (contains):
-                if (normalize(query) in normalize(item['shortName']) or normalize(query) in normalize(item['name'])):
-                    result.append(item)
-            else:
-                if (normalize(item['shortName']).startswith(normalize(query)) or normalize(item['name']).startswith(normalize(query))):
-                    result.append(item)
-        else:
-            if (normalize(item['shortName']) == normalize(query) or normalize(item['name']) == query):
-                result.append(item)
-
-    for item in result:
-        quests = get_quests_containing_GUID(item['id'])
-        modules = get_modules_containing_GUID(item['id'])
-        barters = get_barters_containing_GUID(item['id'])
-
-        for quest in quests:
-            quest = tracker['quests'][quest]
-
-            for objective in quest['objectives']:
-                if (objective['target'] == item['id'] and objective['type'] == 'find'):
-                    item['find'] = item['find'] + (objective['number'] - objective['have'])
-                elif (objective['target'] == item['id'] and objective['type'] == 'collect'):
-                    item['collect'] = item['collect'] + (objective['number'] - objective['have'])
-
-        for module in modules:
-            module = tracker['hideout'][module]
-
-            for require in module['require']:
-                if (require['target'] == item['id']):
-                    item['collect'] = item['collect'] + (require['number'] - require['have'])
+def guid_to_task(database, guid):
+    for task in database['tasks']:
+        if (task['id'] == guid):
+            return task['name']
         
-        for barter in barters:
-            barter = tracker['barters'][barter]
+    return False
 
-            for require in barter['require']:
-                if (require['target'] == item['id']):
-                    item['collect'] = item['collect'] + (require['number'] - require['have'])
+def guid_to_station(database, guid):
+    for station in database['hideout']:
+        for level in station['levels']:
+            if (level['id'] == guid):
+                return level['normalizedName']
+    
+    return False
 
-    return result
+def guid_to_map(database, guid):
+    for map in database['maps']:
+        if (map['id'] == guid):
+            return map['normalizedName']
+    
+    return False
 
-def quest_lookup(query, fuzzy = False, contains = False):
-    tracker = read_file(TRACKER)
-    result = []
+def guid_to_trader(database, guid):
+    for trader in database['traders']:
+        if (trader['id'] == guid):
+            return trader['normalizedName']
+    
+    return False
 
-    for index, quest in enumerate(tracker['quests']):
-        if (fuzzy):
-            if (contains):
-                if (normalize(query) in normalize(quest['title'])):
-                    result.append(index)
-            else:
-                if (normalize(quest['title']).startswith(normalize(query))):
-                    result.append(index)
-        else:
-            if (normalize(quest['title']) == normalize(query)):
-                return index
+def guid_name_lookup(database, guid):
+    normalized_name = guid_to_trader(database, guid)
+    found = 'trader'
 
-    if (len(result) > 0):
-        return result
+    if (not normalized_name):
+        normalized_name = guid_to_map(database, guid)
+        found = 'map'
 
-    return {
-        'return': False,
-        'reason': f'Could not find quest >{query}<'
-    }
+        if (not normalized_name):
+            normalized_name = guid_to_item(database, guid)
+            found = 'item'
 
-def module_lookup(query, fuzzy = False, contains = False):
-    tracker = read_file(TRACKER)
-    result = []
+            if (not normalized_name):
+                normalized_name = guid_to_task(database, guid)
+                found = 'task'
 
-    for index, module in enumerate(tracker['hideout']):
-        if (fuzzy):
-            if (contains):
-                if (normalize(query) in normalize(module['name'])):
-                    result.append(index)
-            else:
-                if (normalize(module['name']).startswith(normalize(query))):
-                    result.append(index)
-        else:
-            if (normalize(module['name']) == normalize(query)):
-                return index
+                if (not normalized_name):
+                    normalized_name = guid_to_station(database, guid)
+                    found = 'station'
 
-    if (len(result) > 0):
-        return result
+                    if (not normalized_name):
+                        return False, None
+    
+    return normalized_name, found
 
-    return {
-        'return': False,
-        'reason': f'Could not find module >{query}<'
-    }
+# Name to GUID
+def item_to_guid(database, item_name):
+    for item in database['all_items']:
+        if (item['shortName'].lower() == item_name or item['normalizedName'] == item_name):
+            return item['id']
+    
+    return False
 
-def barter_lookup(query, fuzzy = False, contains = False):
-    tracker = read_file(TRACKER)
-    result = []
+def task_to_guid(database, task_name):
+    for task in database['tasks']:
+        if (task['normalizedName'] == task_name):
+            return task['id']
+    
+    return False
 
-    for index, barter in enumerate(tracker['barters']):
-        if (fuzzy):
-            if (contains):
-                if (normalize(query) in normalize(barter['name'])):
-                    result.append(index)
-            else:
-                if (normalize(barter['name']).startswith(normalize(query))):
-                    result.append(index)
-        else:
-            if (normalize(barter['name']).startswith(normalize(query))):
-                result.append(index)
+def station_to_guid(database, station_name):
+    for station in database['hideout']:
+        for level in station['levels']:
+            if (level['normalizedName'] == station_name):
+                return level['id']
+    
+    return False
 
-    if (len(result) > 0):
-        return result
+def map_to_guid(database, map_name):
+    for map in database['maps']:
+        if (map['normalizedName'] == map_name):
+            return map['id']
+    
+    return False
 
-    return {
-        'return': False,
-        'reason': f'Could not find barter >{query}<'
-    }
+def trader_to_guid(database, trader_name):
+    for trader in database['traders']:
+        if (trader['normalizedName'] == trader_name):
+            return trader['id']
+    
+    return False
 
-def prereq_check(quest):
-    tracker = read_file(TRACKER)
-    prereqs = quest['require']['quests']
+def name_guid_lookup(database, name):
+    guid = trader_to_guid(database, name)
+    found = 'trader'
 
-    if ('level' in quest['require'] and quest['require']['level'] > tracker['level']):
+    if (not guid):
+        guid = map_to_guid(database, name)
+        found = 'map'
+
+        if (not guid):
+            guid = item_to_guid(database, name)
+            found = 'item'
+
+            if (not guid):
+                guid = task_to_guid(database, name)
+                found = 'task'
+
+                if (not guid):
+                    guid = station_to_guid(database, name)
+                    found = 'station'
+
+                    if (not guid):
+                        return False, None
+
+    return guid, found
+
+# Inventory functions
+def get_fir_count_by_guid(database, guid):
+    for this_guid in database['inventory'].keys():
+        if (this_guid == guid):
+            return database['inventory'][this_guid]['have_fir']
+    
+    return False
+
+def get_nir_count_by_guid(database, guid):
+    for this_guid in database['inventory'].keys():
+        if (this_guid == guid):
+            return database['inventory'][this_guid]['have_nir']
+    
+    return False
+
+# String functions
+def is_guid(text):
+    if (len(text) == 24 and text[0].isdigit()):
+        return True
+    if (len(text) > 24 and text[0].isdigit() and text[24] == '-'):
+        return True
+    
+    return False
+
+def normalize(text):
+    normalized = text.lower().replace('-',' ')
+    normalized = re.sub(' +', ' ', normalized)
+    normalized = normalized.replace(' ','-')
+    return normalized
+
+def super_normalize(text):
+    super_normalized = text.lower().replace('-',' ')
+    super_normalized = super_normalized.replace('the', '')
+    super_normalized = re.sub(' +', ' ', super_normalized)
+    super_normalized = super_normalized.replace(' ','')
+    return super_normalized
+
+# Verify functions
+def verify_task(database, task, task_table):
+    if (task['status'] == 'complete'):
         return False
-
-    for prereq in prereqs:
-        for prereq_quest in tracker['quests']:
-            if (prereq_quest['id'] == prereq and prereq_quest['status'] == 'Incomplete'):
-                return False
+    
+    if (not task['tracked']):
+        return False
+    
+    if (database['player_level'] < task['minPlayerLevel']):
+        return False
+    
+    for prereq in task['taskRequirements']:
+        if (task_table[prereq['id']] == 'incomplete'):
+            return False
     
     return True
 
-def recurse_prereqs(prereq, objects_to_complete):
-    tracker = read_file(TRACKER)
+def verify_hideout_level(station, level):
+    max_level = 0
 
-    if (type(prereq) is int):
-        for index, quest in enumerate(tracker['quests']):
-            if (quest['id'] == prereq):
-                objects_to_complete.append(index)
+    if (not level['tracked']):
+        return False
+    
+    if (level['status'] == 'complete'):
+        return False
 
-                for prereq in quest['require']['quests']:
-                    objects_to_complete = recurse_prereqs(prereq, objects_to_complete)
-                
+    for prereq in level['stationLevelRequirements']:
+        if (prereq['level'] > max_level):
+            max_level = prereq['level']
+
+    for prereq_level in station['levels']:
+        if (prereq_level['level'] <= max_level and prereq_level['status'] == 'incomplete'):
+            return False
+        
+    return True
+
+def verify_barter(barter):
+    if (barter['status'] == 'complete' or not barter['tracked']):
+        return False
+    
+    return True
+
+# Get functions
+def get_items_needed_for_tasks(database):
+    items = {}
+
+    for task in database['tasks']:
+        for objective in task['objectives']:
+            if (task['tracked']):
+                if (objective['type'] == 'giveItem'):
+                    guid = objective['item']['id']
+
+                    if (guid not in items.keys()):
+                        items[guid] = {
+                            'need_fir': 0,
+                            'need_nir': 0,
+                            'have_fir': 0,
+                            'have_nir': 0
+                        }
+
+                    if (objective['foundInRaid']):
+                        items[guid]['need_fir'] = items[guid]['need_fir'] + objective['count']
+                    else:
+                        items[guid]['need_nir'] = items[guid]['need_nir'] + objective['count']
+
+    for guid in database['inventory'].keys():
+        if (guid in items.keys()):
+            items[guid]['have_fir'] = database['inventory'][guid]['have_fir']
+            items[guid]['have_nir'] = database['inventory'][guid]['have_nir']
+
+    return items
+
+def get_items_needed_for_stations(database):
+    items = {}
+
+    for station in database['hideout']:
+        for level in station['levels']:
+            if (level['tracked']):
+                for item in level['itemRequirements']:
+                    guid = item['item']['id']
+
+                    if (guid not in items.keys()):
+                        items[guid] = {
+                        'need_fir': 0,
+                        'need_nir': 0,
+                        'have_fir': 0,
+                        'have_nir': 0
+                    }
+
+                    items[guid]['need_nir'] = items[guid]['need_nir'] + item['count']
+    
+    for guid in database['inventory'].keys():
+        if (guid in items.keys()):
+            items[guid]['have_fir'] = database['inventory'][guid]['have_fir']
+            items[guid]['have_nir'] = database['inventory'][guid]['have_nir']
+
+    return items
+
+def get_items_needed_for_barters(database):
+    items = {}
+
+    for barter in database['barters']:
+        if (barter['tracked']):
+            for item in barter['requiredItems']:
+                guid = item['item']['id']
+
+                if (guid not in items.keys()):
+                    items[guid] = {
+                        'need_fir': 0,
+                        'need_nir': 0,
+                        'have_fir': 0,
+                        'have_nir': 0
+                    }
+
+                items[guid]['need_nir'] = items[guid]['need_nir'] + item['count']
+    
+    for guid in database['inventory'].keys():
+        if (guid in items.keys()):
+            items[guid]['have_fir'] = database['inventory'][guid]['have_fir']
+            items[guid]['have_nir'] = database['inventory'][guid]['have_nir']
+
+    return items
+
+def get_items_owned(database):
+    items = {}
+
+    for guid in database['inventory'].keys():
+        if (guid not in items.keys()):
+            items[guid] = {
+                'have_fir': 0,
+                'have_nir': 0
+            }
+        
+        items[guid]['have_fir'] = database['inventory'][guid]['have_fir']
+        items[guid]['have_nir'] = database['inventory'][guid]['have_nir']
+
+    for guid in list(items.keys()):
+        if (items[guid]['have_fir'] == 0 and items[guid]['have_nir'] == 0):
+            del items[guid]
+
+    return items
+
+def get_items_needed(database):
+    items = {}
+
+    for guid in database['inventory'].keys():
+        if (guid not in items.keys()):
+            items[guid] = {
+                'need_fir': 0,
+                'need_nir': 0
+            }
+
+        items[guid]['need_fir'] = database['inventory'][guid]['need_fir'] - database['inventory'][guid]['have_fir']
+        items[guid]['need_nir'] = database['inventory'][guid]['need_nir'] - database['inventory'][guid]['have_nir']
+
+    for guid in list(items.keys()):
+        if (items[guid]['need_fir'] < 1 and items[guid]['need_nir'] < 1):
+            del items[guid]
+
+    return items
+
+def get_tasks_by_map(database, guid):
+    tasks = []
+    task_table = {}
+
+    for task in database['tasks']:
+        task_table[task['id']] = task['status']
+
+    for task in database['tasks']:
+        if (not verify_task(database, task, task_table)):
+            continue
+
+        for objective in task['objectives']:
+            if (len(objective['maps']) == 0):
+                tasks.append(task)
                 break
-    else:
-        for index, module in enumerate(tracker['hideout']):
-            if (normalize(module['name']) == normalize(prereq)):
-                objects_to_complete.append(index)
 
-                for prereq in module['require']:
-                    if (prereq['type'] == 'module'):
-                        objects_to_complete = recurse_prereqs(f'{prereq["target"]} - Level {prereq["number"]}', objects_to_complete)
-                
-                break
+            for map in objective['maps']:
+                if (map['id'] == guid):
+                    tasks.append(task)
+                    break
+
+    return tasks
+
+def get_tasks_by_trader(database, guid):
+    tasks = []
+    task_table = {}
+
+    for task in database['tasks']:
+        task_table[task['id']] = task['status']
+
+    for task in database['tasks']:
+        if (task['trader']['id'] == guid and verify_task(database, task, task_table)):
+            tasks.append(task)
+
+    return tasks
+
+def get_available_tasks(database):
+    tasks = []
+    task_table = {}
+
+    for task in database['tasks']:
+        task_table[task['id']] = task['status']
+
+    for task in database['tasks']:
+        if (verify_task(database, task, task_table)):
+            tasks.append(task)
+
+    return tasks
+
+def get_hideout_stations(database):
+    hideout_stations = []
+
+    for station in database['hideout']:
+        for level in station['levels']:
+            if (verify_hideout_level(station, level)):
+                hideout_stations.append(level)
     
-    return objects_to_complete
+    return hideout_stations
 
-def create_barter(command):
-    barter = {
-        'name': ' '.join(command[2:command.index('give')]),
-        'require': [],
-        'receive': []
-    }
-    command = command[command.index('give'):]
-    end = len(command) - 1
-    barter_item = []
-
-    if (barter['name'] == ''):
-        return {
-            'return': False,
-            'reason': f'Cannot take empty name for barter'
-        }
-
-    for index, word in enumerate(command):
-        if (word == 'get' or word == 'give' or index == end):
-            if (index == end):
-                barter_item.append(word)
-
-            if (len(barter_item) != 0):
-                number = int(barter_item[1])
-                target = item_to_guid(normalize(' '.join(barter_item[2:])))
-
-                if (type(target) is dict):
-                    return target
-
-                if (barter_item[0] == 'give'):
-                    barter['require'].append({
-                        'number': number,
-                        'target': target,
-                        'have': 0
-                    })
-                else:
-                    barter['receive'].append({
-                        'number': number,
-                        'target': target
-                    })
-            barter_item = [word]
-            continue
-        barter_item.append(word)
-
-    tracker = read_file(TRACKER)
-    tracker['barters'].append(barter)
-    write_file(TRACKER, tracker)
-    return {
-        'return': True,
-        'reason': f'Started tracking barter >{barter["name"]}<'
-    }
-
-def destroy_barter(command):
-    tracker = read_file(TRACKER)
-    query = ' '.join(command[2:])
-    barter = barter_lookup(query)
-
-    if (type(barter) is dict):
-        return barter
-
-    barter = tracker['barters'][barter]
-    tracker['barters'] = tracker['barters'].remove(barter)
-    
-    if (tracker['barters'] is None):
-        tracker['barters'] = []
-
-    write_file(TRACKER, tracker)
-    return {
-        'return': True,
-        'reason': f'Stopped tracking barter >{barter["name"]}<'
-    }
-
-def get_quests_containing_GUID(guid):
-    tracker = read_file(TRACKER)
-    quests = []
-
-    for index, quest in enumerate(tracker['quests']):
-        if (quest['status'] == 'Complete' or quest['tracked'] == 'Untracked'):
-            continue
-
-        for objective in quest['objectives']:
-            if (objective['target'] == guid):
-                quests.append(index)
-    
-    return quests
-
-def get_modules_containing_GUID(guid):
-    tracker = read_file(TRACKER)
-    modules = []
-
-    for index, module in enumerate(tracker['hideout']):
-        if (module['status'] == 'Complete' or module['tracked'] == 'Untracked'):
-            continue
-
-        for require in module['require']:
-            if (require['target'] == guid):
-                modules.append(index)
-    
-    return modules
-
-def get_barters_containing_GUID(guid):
-    tracker = read_file(TRACKER)
+def get_barters(database):
     barters = []
 
-    for index, barter in enumerate(tracker['barters']):
-        for require in barter['require']:
-            if (require['target'] == guid):
-                barters.append(index)
-    
+    for barter in database['barters']:
+        if (verify_barter(barter)):
+            barters.append(barter)
+
     return barters
 
-def get_quest_items():
-    tracker = read_file(TRACKER)
-    items = {}
+def get_barters_by_trader(database, guid):
+    barters = []
 
-    for quest in tracker['quests']:
-        if (quest['status'] == 'Complete' or quest['tracked'] == 'Untracked'):
-            continue
+    for barter in database['barters']:
+        if (verify_barter(barter) and barter['trader']['id'] == guid):
+            barters.append(barter)
 
-        for objective in quest['objectives']:
-            if (objective['target'] in ('5696686a4bdc2da3298b456a', '569668774bdc2da2298b4568', '5449016a4bdc2d6f028b456f')):
-                continue
+    return barters
 
-            if (objective['type'] == 'find'):
-                if (objective['target'] in items):
-                    items[objective['target']]['find'] = items[objective['target']]['find'] + objective['number'] - objective['have']
-                else:
-                    value = {
-                        'find': objective['number'] - objective['have'],
-                        'collect': 0
-                    }
-                    items[objective['target']] = value
-            elif (objective['type'] == 'collect'):
-                if (objective['target'] in items):
-                    items[objective['target']]['collect'] = items[objective['target']]['collect'] + objective['number'] - objective['have']
-                else:
-                    value = {
-                        'find': 0,
-                        'collect': objective['number'] - objective['have']
-                    }
-                    items[objective['target']] = value
+def get_untracked(database):
+    untracked = []
 
-    return items
+    for task in database['tasks']:
+        if (not task['tracked'] and task['kappaRequired']):
+            untracked.append({
+                'type': 'task',
+                'entity': task
+            })
 
-def get_hideout_items():
-    tracker = read_file(TRACKER)
-    items = {}
+    for station in database['hideout']:
+        for level in station['levels']:
+            if (not level['tracked']):
+                untracked.append({
+                    'type': 'hideout',
+                    'entity': level
+                })
+    
+    return untracked
 
-    for module in tracker['hideout']:
-        if (module['status'] == 'Complete' or module['tracked'] == 'Untracked'):
-            continue
+# Track functions
+def track_task(database, guid):
+    for task in database['tasks']:
+        if (task['id'] == guid):
+            if (task['tracked']):
+                logging.info(f'Task {task["name"]} is already tracked. Skipping')
+                return False
+            
+            for objective in task['objectives']:
+                if (objective['type'] == 'giveItem'):
+                    item_guid = objective['item']['id']
+                    count = objective['count']
 
-        for require in module['require']:
-            if (require['target'] in ('5696686a4bdc2da3298b456a', '569668774bdc2da2298b4568', '5449016a4bdc2d6f028b456f') or require['type'] != 'item'):
-                continue
+                    if (objective['foundInRaid']):
+                        database['inventory'][item_guid]['need_fir'] = database['inventory'][item_guid]['need_fir'] + count
+                        logging.info(f'Added {count} {guid_to_item(database, item_guid)} to needed (FIR) inventory')
+                    else:
+                        database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] + count
+                        logging.info(f'Added {count} {guid_to_item(database, item_guid)} to needed inventory')
 
-            if (require['target'] in items):
-                items[require['target']]['collect'] = items[require['target']]['collect'] + require['number'] - require['have']
-            else:
-                value = {
-                    'find': 0,
-                    'collect': require['number'] - require['have']
-                }
-                items[require['target']] = value
+            task['tracked'] = True
+            logging.info(f'Tracked task {task["name"]}')
+                
+    return database
 
-    return items
+def track_station(database, guid):
+    for station in database['hideout']:
+        for level in station['levels']:
+            if (level['id'] == guid):
+                if (level['tracked']):
+                    logging.info(f'Hideout station {level["normalizedName"]} is already tracked. Skipping')
+                    return False
+                
+                for requirement in level['itemRequirements']:
+                    item_guid = requirement['item']['id']
+                    count = requirement['count']
+                    database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] + count
+                    logging.info(f'Added {count} {guid_to_item(database, item_guid)} to needed inventory')
 
-def get_barter_items():
-    tracker = read_file(TRACKER)
-    items = {}
+                level['tracked'] = True
+                logging.info(f'Tracked hideout station {level["normalizedName"]}')
+                
+    return database
 
-    for barter in tracker['barters']:
-        for require in barter['require']:
-            if (require['target'] in ('5696686a4bdc2da3298b456a', '569668774bdc2da2298b4568', '5449016a4bdc2d6f028b456f')):
-                continue
+def track_barter(database, guid):
+    for barter in database['barters']:
+        if (barter['id'] == guid):
+            if (barter['tracked']):
+                logging.info(f'Barter {barter["id"]} is already tracked. Skipping')
+                return False
+            
+            for requirement in barter['requiredItems']:
+                item_guid = requirement['item']['id']
+                count = requirement['count']
+                database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] + count
+                logging.info(f'Added {count} {guid_to_item(database, item_guid)} to needed inventory')
 
-            if (require['target'] in items):
-                items[require['target']]['collect'] = items[require['target']]['collect'] + require['number'] - require['have']
-            else:
-                value = {
-                    'find': 0,
-                    'collect': require['number'] - require['have']
-                }
-                items[require['target']] = value
+            barter['tracked'] = True
+            logging.info(f'Tracked barter {barter["id"]}')
+                
+    return database
 
-    return items
+def untrack_task(database, guid):
+    for task in database['tasks']:
+        if (task['id'] == guid):
+            if (not task['tracked']):
+                logging.info(f'Task {task["name"]} is already untracked. Skipping')
+                return False
+            
+            for objective in task['objectives']:
+                if (objective['type'] == 'giveItem'):
+                    item_guid = objective['item']['id']
+                    count = objective['count']
 
-def get_quests_by_location(query):
-    maps = read_file(MAPS)
-    tracker = read_file(TRACKER)
-    quests = []
+                    if (objective['foundInRaid']):
+                        database['inventory'][item_guid]['need_fir'] = database['inventory'][item_guid]['need_fir'] - count
+                        logging.info(f'Removed {count} {guid_to_item(database, item_guid)} from needed (FIR) inventory')
+                    else:
+                        database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] - count
+                        logging.info(f'Removed {count} {guid_to_item(database, item_guid)} from needed inventory')
 
-    if (query == 'all'):
-        id = 99
-    elif (query == 'other'):
-        id = -1
+            task['tracked'] = False
+            logging.info(f'Untracked task {task["name"]}')
+                
+    return database
 
-    for map in maps.values():
-        if (normalize(map['locale']['en']) == normalize(query)):
-            id = map['id']
+def untrack_station(database, guid):
+    for station in database['hideout']:
+        for level in station['levels']:
+            if (level['id'] == guid):
+                if (not level['tracked']):
+                    logging.info(f'Hideout station {level["normalizedName"]} is already untracked. Skipping')
+                    return False
+                
+                for requirement in level['itemRequirements']:
+                    item_guid = requirement['item']['id']
+                    count = requirement['count']
+                    database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] - count
+                    logging.info(f'Removed {count} {guid_to_item(database, item_guid)} from needed inventory')
+
+                level['tracked'] = False
+                logging.info(f'Untracked hideout station {level["normalizedName"]}')
+                
+    return database
+
+def untrack_barter(database, guid):
+    for barter in database['barters']:
+        if (barter['id'] == guid):
+            if (not barter['tracked']):
+                logging.info(f'Barter {barter["id"]} is already untracked. Skipping')
+                return False
+            
+            for requirement in barter['requiredItems']:
+                item_guid = requirement['item']['id']
+                count = requirement['count']
+                database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] - count
+                logging.info(f'Removed {count} {guid_to_item(database, item_guid)} from needed inventory')
+
+            barter['tracked'] = False
+            logging.info(f'Untracked barter {barter["id"]}')
+                
+    return database
+
+# Complete functions
+def complete_task(database, guid, force):
+    for task in database['tasks']:
+        if (task['id'] == guid):
+            if (task['status'] == 'complete'):
+                logging.info(f'Task {task["name"]} is already complete. Skipping')
+                return False
+
+            if (not force):
+                task_table = {}
+
+                for seen_task in database['tasks']:
+                    task_table[seen_task['id']] = seen_task['status']
+
+                if (not verify_task(database, task, task_table)):
+                    logging.error(f'Task {task["name"]} cannot be completed due to a verification error')
+                    return False
+
+                for objective in task['objectives']:
+                    if (objective['type'] == 'giveItem'):
+                        item_guid = objective['item']['id']
+
+                        if (objective['foundInRaid']):
+                            have_fir = get_fir_count_by_guid(database, item_guid)
+                            need_fir = objective['count']
+                            diff_fir = need_fir - have_fir
+
+                            if (diff_fir > 0):
+                                logging.error(f'{diff_fir} more {guid_to_item(database, item_guid)} required to complete this task. Use the -Force flag to override')
+                                return False
+                            else:
+                                continue
+                        else:
+                            have_nir = get_nir_count_by_guid(database, item_guid)
+                            need_nir = objective['count']
+                            diff_nir = need_nir - have_nir
+
+                            if (diff_nir > 0):
+                                logging.error(f'{diff_nir} more {guid_to_item(database, item_guid)} required to complete this task. Use the -Force flag to override')
+                                return False
+                            else:
+                                continue
+
+            for objective in task['objectives']:
+                if (objective['type'] == 'giveItem'):
+                    item_guid = objective['item']['id']
+
+                    if (objective['foundInRaid']):
+                        have_fir = get_fir_count_by_guid(database, item_guid)
+                        need_fir = objective['count']
+                        diff_fir = need_fir - have_fir
+
+                        if (diff_fir > 0):
+                            database['inventory'][item_guid]['have_fir'] = database['inventory'][item_guid]['have_fir'] + diff_fir
+                            logging.info(f'Added {diff_fir} {guid_to_item(database, item_guid)} to the player\'s inventory as Found In Raid (FIR) to complete {task["name"]}')
+                        
+                        database['inventory'][item_guid]['consumed_fir'] = database['inventory'][item_guid]['consumed_fir'] + need_fir
+                    else:
+                        have_nir = get_nir_count_by_guid(database, item_guid)
+                        need_nir = objective['count']
+                        diff_nir = need_nir - have_nir
+
+                        if (diff_nir > 0):
+                            database['inventory'][item_guid]['have_nir'] = database['inventory'][item_guid]['have_nir'] + diff_nir
+                            logging.info(f'Added {diff_nir} {guid_to_item(database, item_guid)} to the player\'s inventory to complete {task["name"]}')
+                        
+                        database['inventory'][item_guid]['consumed_nir'] = database['inventory'][item_guid]['consumed_nir'] + need_nir
+            
+            task['status'] = 'complete'
+            logging.info(f'Set status of {task["name"]} to complete')
             break
     else:
-        return False
-    
-    for index, quest in enumerate(tracker['quests']):
-        if (quest['tracked'] == 'Tracked' and quest['status'] == 'Incomplete' and prereq_check(quest)):
-            for objective in quest['objectives']:
-                if (('location' in objective and (objective['location'] == id or objective['location'] is None and id == -1)) or id == 99):
-                    quests.append(index)
-                    break
-
-    return quests
-
-def get_quests_by_trader(query):
-    tracker = read_file(TRACKER)
-    quests = []
-
-    for index, quest in enumerate(tracker['quests']):
-        if (quest['status'] == 'Incomplete' and normalize(quest['giver']) == normalize(query)):
-            quests.append(index)
-
-    return quests
-
-def print_item(item, string):
-    string = string + '{:<25} {:<60} {:<30} {:<12}\n'.format(item['shortName'], item['name'], item['id'], f'{item["collect"]} ({item["find"]})')
-    return string
-
-def print_quest(quest, string):
-    string = string + '{:<40} {:<20} {:<20} {:<20} {:<20}\n'.format(quest['title'], quest['giver'], quest['status'], quest['tracked'], quest['kappa'])
-
-    for objective in quest['objectives']:
-        target = objective['target']
-
-        if (type(target) is list):
-            targets = ''
-
-            for index, trgt in enumerate(target):
-                targets = targets + guid_to_item(trgt)
-
-                if (index != len(target) -1 ):
-                    targets = targets + ' or '
-
-            target = targets
-        elif (type(target) is int):
-            traders = read_file(TRADERS)
-            target = int(target)
-            
-            for trader in traders.values():
-                if (trader['id'] == target):
-                    target = trader['locale']['en']
-        else:
-            target = guid_to_item(target)
-
-        string = string + f'--> {objective["type"]}'
-
-        if (objective['type'] in ('collect', 'find', 'kill', 'place')):
-            string = string + f' {objective["number"]}'
-
-        string = string + f' {target}'
-
-        if ('location' in objective and objective['location'] != -1):
-            string = string + f' on {location_lookup(objective["location"])}'
-
-        if ('with' in objective):
-            string = string + f' with {objective["with"]}'
-        
-        string = string + '\n'
-
-    return string + '\n'
-
-def print_module(module, string):
-    string = string + '{:<40} {:<20} {:<20}\n'.format(module['name'], module['status'], module['tracked'])
-
-    for require in module['require']:
-        if (require['type'] != 'item'):
-            continue
-        
-        string = string + f'--> Collect {require["number"]} {guid_to_item(require["target"])}\n'
-
-    string = string + '\n'
-    return string
-
-def print_barter(barter, string):
-    string = string + '{:<40}\n'.format(barter['name'])
-
-    for require in barter['require']:
-        string = string + f'--> Collect {require["number"]} {guid_to_item(require["target"])}\n'
-    
-    for receive in barter['receive']:
-        string = string + f'--> Receive {receive["number"]} {guid_to_item(receive["target"])}\n'
-
-    string = string + '\n'
-    return string
-
-def print_item_list(item_list, string):
-    row = 1
-
-    for item in item_list:
-        if (item['collect'] != 0 and item['find'] != 0):
-            need = f'{item["collect"]} ({item["find"]})'
-        elif (item['collect'] == 0 and item['find'] != 0):
-            need = f'({item["find"]})'
-        else:
-            need = item['collect']
-            
-        string = string + '{:<20} {:<10} '.format(guid_to_item(item['guid']), need)
-        
-        if (row == 3):
-            string = string.strip(' ') + '\n'
-            row = 1
-        else:
-            row = row + 1
-        
-    return string
-
-
-###################################################
-#                                                 #
-# HANDLER FUNCTIONS                               #
-#                                                 #
-###################################################
-
-def reset_quests():
-    new_quests = []
-    default_quests = read_file(QUESTS)
-    traders = read_file(TRADERS)
-
-    for default_quest in default_quests:
-        new_quest = {
-            'id': default_quest['id'],
-            'status': 'Incomplete',
-            'giver': default_quest['giver'],
-            'require': {
-                'quests': default_quest['require']['quests']
-            },
-            'title': default_quest['title'],
-            'tracked': 'Tracked',
-            'kappa': 'Yes',
-            'objectives': []
-        }
-
-        if ('level' in default_quest['require'] and default_quest['require']['level'] is not None):
-            new_quest['require']['level'] = default_quest['require']['level']
-        else:
-            new_quest['require']['level'] = 0
-
-        if ('nokappa' in default_quest and default_quest['nokappa']):
-            new_quest['tracked'] = 'Untracked'
-            new_quest['kappa'] = 'No'
-
-        for default_objective in default_quest['objectives']:
-            new_objective = {
-                'type': default_objective['type'],
-                'target': default_objective['target'],
-                'number': default_objective['number']
-            }
-
-            if (new_objective['type'] == 'collect' or new_objective['type'] == 'find'):
-                new_objective['have'] = 0
-
-            if ('location' in default_objective):
-                new_objective['location'] = default_objective['location']
-
-            if ('with' in default_objective):
-                new_objective['with'] = default_objective['with']
-
-            new_quest['objectives'].append(new_objective)
-
-        for trader in traders.values():
-            if (new_quest['giver'] == trader['id']):
-                new_quest['giver'] = trader['locale']['en']
-    
-        new_quests.append(new_quest)
-
-    tracker = read_file(TRACKER)
-    old_quests = tracker['quests']
-
-    for old_quest in old_quests:
-        for new_quest in new_quests:
-            if (old_quest['id'] == new_quest['id']):
-                for old_objective in old_quest['objectives']:
-                    for new_objective in new_quest['objectives']:
-                        if (old_objective['type'] == new_objective['type'] and old_objective['target'] == new_objective['target'] and 'have' in old_objective):
-                            new_objective['have'] = old_objective['have']
-                            break
-                break
-
-    tracker['quests'] = new_quests
-    tracker['level'] = 1
-    write_file(TRACKER, tracker)
-    print('Reset all quests to current loaded defaults')
-    return True
-
-def reset_hideout():
-    new_hideout = []
-    default_hideout = read_file(HIDEOUT)['modules']
-
-    for default_module in default_hideout:
-        new_module = {
-            'id': default_module['id'],
-            'status': 'Incomplete',
-            'require': [],
-            'name': f'{default_module["module"]} - Level {default_module["level"]}',
-            'tracked': 'Tracked'
-        }
-
-        if (new_module['id'] == 37):
-            new_module['status'] = 'Complete'
-
-        if (new_module['id'] == 5):
-            new_module['tracked'] = 'Untracked'
-
-        for default_requirement in default_module['require']:
-            new_requirement = {
-                'type': default_requirement['type'],
-                'target': default_requirement['name'],
-                'number': default_requirement['quantity'],
-                'have': 0
-            }
-            new_module['require'].append(new_requirement)
-
-        new_hideout.append(new_module)
-
-    tracker = read_file(TRACKER)
-    old_hideout = tracker['hideout']
-
-    for old_module in old_hideout:
-        for new_module in new_hideout:
-            if (old_module['id'] == new_module['id']):
-                for old_require in old_module['require']:
-                    for new_require in new_module['require']:
-                        if (old_require['target'] == new_require['target']):
-                            new_require['have'] = old_require['have']
-                            break
-                break
-
-    tracker['hideout'] = new_hideout
-    write_file(TRACKER, tracker)
-    print('Reset all hideout modules to current loaded defaults')
-    return True
-
-def reset_items():
-    tracker = read_file(TRACKER)
-
-    for quest in tracker['quests']:
-        for objective in quest['objectives']:
-            if ('have' in objective):
-                objective['have'] = 0
-    
-    for module in tracker['hideout']:
-        for require in module['require']:
-            if ('have' in require):
-                require['have'] = 0
-
-    for barter in tracker['barters']:
-        for require in barter['require']:
-            require['have'] = 0
-
-    write_file(TRACKER, tracker)
-    print('Reset all collected and found items to zero')
-    return True
-
-def reset_barters():
-    tracker = read_file(TRACKER)
-    tracker['barters'] = []
-    write_file(TRACKER, tracker)
-    print('Reset all tracked barters, please manually add barters with the TRACK command')
-    return True
-
-def complete(command):
-    command = command.split(' ')
-    query = ' '.join(command[1:])
-    tracker = read_file(TRACKER)
-    quest = quest_lookup(query)
-    module = module_lookup(query)
-    barter = barter_lookup(query)
-
-    if (type(quest) is not dict):
-        quest = tracker['quests'][quest]
-
-        if (command[0] == 'complete'):
-            quest['status'] = 'Complete'
-            print(f'Completed >{quest["title"]}<')
-        else:
-            quest['status'] = 'Incomplete'
-            print(f'Incompleted >{quest["title"]}<')
-    elif (type(module) is not dict):
-        module = tracker['hideout'][module]
-
-        if (command[0] == 'complete'):
-            module['status'] = 'Complete'
-            print(f'Completed >{module["name"]}<')
-        else:
-            module['status'] = 'Incomplete'
-            print(f'Incompleted >{module["name"]}<')
-    elif (type(barter) is not dict):
-        barter = tracker['barters'][barter]
-
-        for require in barter['require']:
-            require['have'] = 0
-
-        print(f'Reset all required items to 0 for >{barter["name"]}<')
-    else:
-        print(f'Could not find a match for >{query}<')
-        return True
-                
-    write_file(TRACKER, tracker)
-    return True
-
-def recurse(command):
-    command = command.split(' ')
-    query = ' '.join(command[1:])
-    tracker = read_file(TRACKER)
-    quest = quest_lookup(query)
-    module = module_lookup(query)
-    quests = modules = []
-
-    if (type(quest) is not dict):
-        quests.append(quest)
-        root = tracker['quests'][quest]
-
-        for child in root['require']['quests']:
-            quests = recurse_prereqs(child, quests)
-
-        for quest in quests:
-            tracker['quests'][quest]['status'] = 'Complete'
-
-        print(f'Recursively completed all quests required to reach >{query}<, including itself')
-    elif (type(module) is not dict):
-        modules.append(module)
-        root = tracker['hideout'][module]
-
-        for child in root['require']:
-            if (child['type'] == 'module'):
-                modules = recurse_prereqs(f'{child["target"]} - Level {child["number"]}', modules)
-
-        for module in modules:
-            tracker['hideout'][module]['status'] = 'Complete'
-
-        print(f'Recursively completed all modules required to reach >{query}<, including itself')
-    else:
-        print(f'Could not find a match for >{query}<')
-        return True
-
-    write_file(TRACKER, tracker)
-    return True
-
-def track(command):
-    command = command.split(' ')
-
-    if (command[1] == 'barter'):
-        if (command[0] == 'track'):
-            result = create_barter(command)
-            print(result['reason'])
-            return True
-        else:
-            result = destroy_barter(command)
-            print(result['reason'])
-            return True
-    else:
-        tracker = read_file(TRACKER)
-        query = ' '.join(command[1:])
-        quest = quest_lookup(query)
-        module = module_lookup(query)
-
-        if (type(quest) is not dict):
-            quest = tracker['quests'][quest]
-
-            if (command[0] == 'track'):
-                quest['tracked'] = 'Tracked'
-                print(f'Tracked >{quest["title"]}<')
-            else:
-                quest['tracked'] = 'Untracked'
-                print(f'Untracked >{quest["title"]}<')
-        elif (type(module) is not dict):
-            module = tracker['hideout'][module]
-
-            if (command[0] == 'track'):
-                module['tracked'] = 'Tracked'
-                print(f'Tracked >{module["name"]}<')
-            else:
-                module['tracked'] = 'Untracked'
-                print(f'Untracked >{module["name"]}<')
-        else:
-            print(f'Could not find a match for >{query}<')
+        logging.error(f'Failed to find a matching task with GUID {guid}')
+
+    return database
+
+def complete_recursive_task(database, guid, force):
+    database = complete_task(database, guid, force)
+
+    for task in database['tasks']:
+        if (task['id'] == guid):
+            for prereq in task['taskRequirements']:
+                database = complete_recursive_task(database, prereq['task']['id'], force)
+
+    return database
+
+def complete_station(database, guid, force):
+    for station in database['hideout']:
+        for level in station['levels']:
+            if (level['id'] == guid):
+                if (level['status'] == 'complete'):
+                    logging.info(f'Hideout station {level["normalizedName"]} is already complete. Skipping')
+                    return False
+
+                if (not force):
+                    if (not verify_hideout_level(station, level)):
+                        logging.error(f'Hideout station {level["normalizedName"]} cannot be completed due to a verification error')
+                        return False
+
+                    for requirement in level['itemRequirements']:
+                        item_guid = requirement['item']['id']
+                        have_nir = get_nir_count_by_guid(database, item_guid)
+                        need_nir = requirement['count']
+                        diff_nir = need_nir - have_nir
+
+                        if (diff_nir > 0):
+                            logging.error(f'{diff_nir} more {guid_to_item(database, item_guid)} required to complete this hideout station. Use the -Force flag to override')
+                            return False
+                        else:
+                            continue
+
+                for requirement in level['itemRequirements']:
+                    item_guid = requirement['item']['id']
+                    have_nir = get_nir_count_by_guid(database, item_guid)
+                    need_nir = requirement['count']
+                    diff_nir = need_nir - have_nir
+
+                    if (diff_nir > 0):
+                        database['inventory'][item_guid]['have_nir'] = database['inventory'][item_guid]['have_nir'] + diff_nir
+                        logging.info(f'Added {diff_nir} {guid_to_item(database, item_guid)} to the player\'s inventory to complete {level["normalizedName"]}')
                     
-        write_file(TRACKER, tracker)
-        return True
-
-def collect(command, fir):
-    command = command.split(' ')
-    tracker = read_file(TRACKER)
-    item = ' '.join(command[2:])
-    guid = item_to_guid(item)
-
-    if ('return' in guid):
-        print(f'Failed to find or collect item. {guid["reason"]}')
-        return True
-
-    quests = get_quests_containing_GUID(guid)
-    modules = get_modules_containing_GUID(guid)
-    barters = get_barters_containing_GUID(guid)
-
-    try:
-        const = number = int(command[1])
-    except:
-        print(f'Could not understand inputted number >{command[1]}<')
-        return True
-
-    if (fir):
-        for quest in quests:
-            quest = tracker['quests'][quest]
-
-            for objective in quest['objectives']:
-                if (objective['type'] == 'find' and objective['target'] == guid):
-                    if (command[0] == 'find'):
-                        number, objective['have'] = increment(number, objective['have'], objective['number'])
-                    else:
-                        number, objective['have'] = decrement(number, objective['have'])
-    
-    for quest in quests:
-        quest = tracker['quests'][quest]
-
-        for objective in quest['objectives']:
-            if (objective['type'] == 'collect' and objective['target'] == guid):
-                if (command[0] == 'collect'):
-                    number, objective['have'] = increment(number, objective['have'], objective['number'])
-                else:
-                    number, objective['have'] = decrement(number, objective['have'])
-    
-    for module in modules:
-        module = tracker['hideout'][module]
-
-        for require in module['require']:
-            if (require['target'] == guid):
-                if (command[0] == 'collect' or command[0] == 'find'):
-                    number, require['have'] = increment(number, require['have'], require['number'])
-                else:
-                    number, require['have'] = decrement(number, require['have'])
-            
-    for barter in barters:
-        barter = tracker['barters'][barter]
-
-        for require in barter['require']:
-            if (require['target'] == guid):
-                if (command[0] == 'collect' or command[0] == 'find'):
-                    number, require['have'] = increment(number, require['have'], require['number'])
-                else:
-                    number, require['have'] = decrement(number, require['have'])
-
-    if (number == const):
-        print(f'Nothing to be done')
-        return True
-
-    write_file(TRACKER, tracker)
-
-    if (command[0] == 'collect' or command[0] == 'find'):
-        print(f'Added {const - number} of {item}')
-    else:
-        print(f'Removed {const - number} of {item}')
-
-    return True
-
-def search(command, contains):
-    if (contains):
-        print('WARNING: This is an expensive function which may return excessive results. Continue? [Y/(N)]')
-
-        if (input('tart > ').lower() == 'y'):
-            pass
+                    database['inventory'][item_guid]['consumed_nir'] = database['inventory'][item_guid]['consumed_nir'] + need_nir
+                
+                level['status'] = 'complete'
+                logging.info(f'Set status of {level["normalizedName"]} to complete')
+                break
         else:
-            return True
+            continue
+        break
+    else:
+        logging.error(f'Failed to find a matching hideout station with guid {guid}')
 
-    query = ' '.join(command.split(' ')[1:])
-    tracker = read_file(TRACKER)
-    items = item_lookup(query, True, contains)
-    quests = quest_lookup(query, True, contains)
-    modules = module_lookup(query, True, contains)
-    barters = barter_lookup(query, True, contains)
-    display = ''
+    return database
 
-    if (type(items) is not dict and len(items) != 0):
-        display = display + ITEM_HEADER + BUFFER
+def complete_barter(database, guid, force):
+    for barter in database['barters']:
+        if (barter['id'] == guid):
+            if (barter['status'] == 'complete'):
+                logging.info(f'Barter {barter["id"]} is already complete. Skipping')
+                return False
+            
+            if (not barter['tracked']):
+                logging.error(f'Please start tracking barter {barter["id"]} to complete it')
+                return False
 
-        for item in items:
-            display = print_item(item, display)
+            if (not force):
+                if (not verify_barter(barter)):
+                    logging.error(f'Barter {barter["id"]} cannot be completed due to a verification error')
+                    return False
+
+                for requirement in barter['requiredItems']:
+                    item_guid = requirement['item']['id']
+                    have_nir = get_nir_count_by_guid(database, item_guid)
+                    need_nir = requirement['count']
+                    diff_nir = need_nir - have_nir
+
+                    if (diff_nir > 0):
+                        logging.error(f'{diff_nir} more {guid_to_item(database, item_guid)} required to complete this barter. Use the -Force flag to override')
+                        return False
+                    else:
+                        continue
+
+            for requirement in barter['requiredItems']:
+                item_guid = requirement['item']['id']
+                have_nir = get_nir_count_by_guid(database, item_guid)
+                need_nir = requirement['count']
+                diff_nir = need_nir - have_nir
+
+                if (diff_nir > 0):
+                    database['inventory'][item_guid]['have_nir'] = database['inventory'][item_guid]['have_nir'] + diff_nir
+                    logging.info(f'Added {diff_nir} {guid_to_item(database, item_guid)} to the player\'s inventory to complete {barter["id"]}')
+                
+                database['inventory'][item_guid]['consumed_nir'] = database['inventory'][item_guid]['consumed_nir'] + need_nir
+            
+            barter['status'] = 'complete'
+            logging.info(f'Set status of {barter["id"]} to complete')
+            break
+    else:
+        logging.error(f'Failed to find a matching barter with GUID {guid}')
+
+    return database
+
+# Print functions
+def print_bool(bool_value):
+    if (bool_value):
+        return 'true'
+    else:
+        return 'false'
+
+def print_inventory(database, items):
+    display = INVENTORY_HEADER + BUFFER
+    items_in_this_row = 0
+
+    for guid in items.keys():
+        if (items[guid]["have_nir"] != 0 or items[guid]["have_fir"] != 0 or items[guid]["need_nir"] != 0 or items[guid]["need_fir"]):
+            item_string = f'{items[guid]["have_nir"]} ({items[guid]["have_fir"]}) {items[guid]["need_nir"]} ({items[guid]["need_fir"]})'
+            display = display + '{:<20} {:<25} '.format(guid_to_item(database, guid), item_string)
+            items_in_this_row = items_in_this_row + 1
+            
+            if (items_in_this_row == 3):
+                display = display.strip(' ') + '\n'
+                items_in_this_row = 0
+    
+    display = display + '\n\n'
+    print(display)
+    return
+
+def print_inventory_have(database, items):
+    display = INVENTORY_HAVE_HEADER + BUFFER
+    items_in_this_row = 0
+
+    for guid in items.keys():
+        item_string = f'{items[guid]["have_nir"]} ({items[guid]["have_fir"]})'
+        display = display + '{:<20} {:<25} '.format(guid_to_item(database, guid), item_string)
+        items_in_this_row = items_in_this_row + 1
         
-        display = display + '\n'
-
-    if (type(quests) is not dict and len(quests) != 0):
-        display = display + QUEST_HEADER + BUFFER
-
-        for quest in quests:
-            display = print_quest(tracker['quests'][quest], display)
-
-    if (type(modules) is not dict and len(modules) != 0):
-        display = display + MODULE_HEADER + BUFFER
-
-        for module in modules:
-            display = print_module(tracker['hideout'][module], display)
-
-    if (type(barters) is not dict and len(barters) != 0):
-        display = display + BARTER_HEADER + BUFFER
-
-        for barter in barters:
-            display = print_barter(tracker['barters'][barter], display)
+        if (items_in_this_row == 3):
+            display = display.strip(' ') + '\n'
+            items_in_this_row = 0
     
-    if (display == ''):
-        print(f'Nothing could be found for >{query}<')
-        return True
-
-    print('\n' + display)
-    return True
-
-def list_items(command):
-    query = command.split(' ')[1]
-    quests = hideout = barters = {}
-    all = []
-
-    if (query == 'quest' or query == 'all'):
-        quests = get_quest_items()
-
-    if (query == 'hideout' or query == 'all'):
-        hideout = get_hideout_items()
-
-    if (query == 'barter' or query == 'all'):
-        barters = get_barter_items()
-
-    for items in (quests, hideout, barters):
-        for key, value in items.items():
-            for item in all:
-                if (item['guid'] == key):
-                    item['find'] = item['find'] + value['find']
-                    item['collect'] = item['collect'] + value['collect']
-                    item['total'] = item['find'] + item['collect']
-                    break
-            else:
-                all.append({
-                    'find': value['find'],
-                    'collect': value['collect'],
-                    'total': value['find'] + value['collect'],
-                    'guid': key
-                })
-
-    if (len(all) == 0):
-        print('No items needed')
-        return True
-
-    display = '{:<20} {:<10} {:<20} {:<10} {:<20} {:<10} \n'.format('Item Short Name', 'Need (FIR)', 'Item Short Name', 'Need (FIR)', 'Item Short Name', 'Need (FIR)') + BUFFER
-    display = print_item_list(sorted(all, key = lambda item: item['total'], reverse = True), display)
+    display = display + '\n\n'
     print(display)
-    return True
+    return
 
-def list_quests(command):
-    command = command.split(' ')
-    query = ' '.join(command[2:])
-    display = QUEST_HEADER + BUFFER
-    quests = get_quests_by_location(query)
-    tracker = read_file(TRACKER)
+def print_inventory_needed(database, items):
+    display = INVENTORY_NEEDED_HEADER + BUFFER
+    items_in_this_row = 0
 
-    if (not quests):
-        quests = get_quests_by_trader(query)
+    for guid in items.keys():
+        item_string = f'{items[guid]["need_nir"]} ({items[guid]["need_fir"]})'
+        display = display + '{:<20} {:<25} '.format(guid_to_item(database, guid), item_string)
+        items_in_this_row = items_in_this_row + 1
+        
+        if (items_in_this_row == 3):
+            display = display.strip(' ') + '\n'
+            items_in_this_row = 0
+    
+    display = display + '\n\n'
+    print(display)
+    return
 
-    for quest in quests:
-        quest = tracker['quests'][quest]
-        display = print_quest(quest, display)
+def print_tasks(database, tasks):
+    display = TASK_HEADER + BUFFER
+    
+    for task in tasks:
+        display = display + '{:<40} {:<20} {:<20} {:<20} {:<20}\n'.format(task['name'], guid_to_trader(database, task['trader']['id']), task['status'], print_bool(task['tracked']), print_bool(task['kappaRequired']))
 
-    if (display == QUEST_HEADER + BUFFER):
-        print('No quests found')
-        return True
+        for objective in task['objectives']:
+            objective_string = '-->'
+
+            if (objective['optional']):
+                objective_string = objective_string + ' (OPT)'
+
+            objective_string = objective_string + ' ' + objective['description']
+
+            if ('count' in objective):
+                objective_string = objective_string + f' ({objective["count"]})'
+
+            if ('foundInRaid' in objective and objective['foundInRaid']):
+                objective_string = objective_string + f' (FIR)'
+
+            if ('skillLevel' in objective):
+                objective_string = objective_string + f'({objective["skillLevel"]["level"]})'
+
+            if ('exitStatus' in objective):
+                objective_string = objective_string + f' // Exit with status {objective["exitStatus"]}'
+
+            objective_string = objective_string + '\n'
+            display = display + objective_string
+
+        if (len(task['neededKeys']) > 0):
+            for key_object in task['neededKeys']:
+                for key in key_object['keys']:
+                    key_string = '-->'
+                    key_guid = key['id']
+                    database = open_database(database)
+
+                    for item in database['all_items']:
+                        if (item['id'] == key_guid):
+                            key_string = key_string + f' Acquire {item["shortName"]} key'
+                    
+                    key_string = key_string + '\n'
+                    display = display + key_string
+    
+        display = display + '\n\n'
 
     print(display)
     return True
 
-def list_hideout():
-    tracker = read_file(TRACKER)
-    display = MODULE_HEADER + BUFFER
+def print_hideout_stations(database, stations):
+    display = HIDEOUT_HEADER + BUFFER
 
-    for module in tracker['hideout']:
-        if (module['status'] == 'Incomplete' and module['tracked'] == 'Tracked'):
-            display = print_module(module, display)
-    
-    if (display == MODULE_HEADER + BUFFER):
-        print('No modules to list')
-        return True
-    
+    for level in stations:
+        display = display + '{:<40} {:<20} {:<20}\n'.format(level['normalizedName'], level['status'], print_bool(level['tracked']))
+
+        for item in level['itemRequirements']:
+            short_name = guid_to_item(database, item['item']['id'])
+            count = item['count']
+            display = display + f'--> Requires {count} {short_name}\n'
+        
+        display = display + '\n\n'
+
     print(display)
     return True
 
-def list_barters():
-    tracker = read_file(TRACKER)
+def print_barters(database, barters):
     display = BARTER_HEADER + BUFFER
 
-    for barter in tracker['barters']:
-        display = print_barter(barter, display)
-    
-    if (display == BARTER_HEADER + BUFFER):
-        print('No barters to list')
-        return True
-    
+    for barter in barters:
+        display = display + '{:<40} {:<20} {:<20} {:<20}\n'.format(barter['id'], guid_to_trader(database, barter['trader']['id']), barter['level'], print_bool(barter['tracked']))
+
+        for item in barter['requiredItems']:
+            short_name = guid_to_item(database, item['item']['id'])
+            count = item['count']
+            display = display + f'--> Give {count} {short_name}\n'
+
+        for item in barter['rewardItems']:
+            short_name = guid_to_item(database, item['item']['id'])
+            count = item['count']
+            display = display + f'--> Receive {count} {short_name}\n'
+
+        if (barter['taskUnlock'] is not None):
+            display = display + f'--> Requires task {guid_to_task(database, barter["taskUnlock"]["id"])}\n'
+
+        display = display + '\n\n'
+
     print(display)
     return True
 
-def list_untracked():
-    tracker = read_file(TRACKER)
-    display = QUEST_HEADER + BUFFER
+def print_untracked(untracked):
+    display = UNTRACKED_HEADER + BUFFER
 
-    for quest in tracker['quests']:
-        if (quest['tracked'] == 'Untracked'):
-            display = print_quest(quest, display)
-    
-    display = display + MODULE_HEADER + BUFFER
-
-    for module in tracker['hideout']:
-        if (module['tracked'] == 'Untracked'):
-            display = print_module(module, display)
-
-    if (display == QUEST_HEADER + BUFFER):
-        print('Nothing untracked to list')
-        return True
-    
+    for untracked_object in untracked:
+        if (untracked_object['type'] == 'task'):
+            display = display + '{:<40} {:<20} {:<20}\n'.format(untracked_object['entity']['name'], 'task', print_bool(untracked_object['entity']['tracked']))
+        else:
+            display = display + '{:<40} {:<20} {:<20}\n'.format(untracked_object['entity']['normalizedName'], 'hideout station', print_bool(untracked_object['entity']['tracked']))
+        
     print(display)
     return True
 
-def requires_item(command):
-    command = command.split(' ')
-    query = ' '.join(command[1:])
-    guid = item_to_guid(query)
-    tracker = read_file(TRACKER)
-    display = ''
+def print_items(items):
+    display = ITEM_HEADER + BUFFER
 
-    if (type(guid) is dict):
-        print(guid['reason'])
-        return True
-    
-    quests = get_quests_containing_GUID(guid)
-    modules = get_modules_containing_GUID(guid)
-    barters = get_barters_containing_GUID(guid)
+    for item in items:
+        item_display = f'{item["have_nir"]} ({item["have_fir"]}) {item["need_nir"]} ({item["need_fir"]})'
+        display = display + '{:<25} {:<60} {:<30} {:<25}\n'.format(item['shortName'], item['normalizedName'], item['id'], item_display)
 
-    if (len(quests) != 0):
-        display = display + QUEST_HEADER + BUFFER
-
-        for quest in quests:
-            quest = tracker['quests'][quest]
-            display = print_quest(quest, display)
-
-    if (len(modules) != 0):
-        display = display + MODULE_HEADER + BUFFER
-
-        for module in modules:
-            module = tracker['hideout'][module]
-            display = print_module(module, display)
-
-    if (len(barters) != 0):
-        display = display + BARTER_HEADER + BUFFER
-
-        for barter in barters:
-            barter = tracker['barters'][barter]
-            display = print_barter(barter, display)
-
-    if (display == ''):
-        print(f'Nothing found which requires >{query}<')
-        return True
-    
+    display = display + '\n\n'
     print(display)
     return True
 
-def set_level(command):
-    command = command.split(' ')
-    tracker = read_file(TRACKER)
+def print_maps(maps):
+    display = MAP_HEADER + BUFFER
 
-    if (command[1] == 'up'):
-        tracker['level'] = tracker['level'] + 1
+    for map in maps:
+        display = display + '{:<30} {:<20}\n'.format(map['normalizedName'], map['id'])
+
+    display = display + '\n\n'
+    print(display)
+    return True
+
+def print_traders(traders):
+    display = TRADER_HEADER + BUFFER
+
+    for trader in traders:
+        display = display + '{:<30} {:<20}\n'.format(trader['normalizedName'], trader['id'])
+
+    display = display + '\n\n'
+    print(display)
+    return True
+
+def print_search(database, tasks, stations, barters, items, traders, maps):
+    if (len(tasks) > 0):
+        print_tasks(database, tasks)
+    
+    if (len(stations) > 0):
+        print_hideout_stations(database, stations)
+
+    if (len(barters) > 0):
+        print_barters(database, barters)
+
+    if (len(items) > 0):
+        print_items(items)
+
+    if (len(traders) > 0):
+        print_traders(traders)
+
+    if (len(maps) > 0):
+        print_maps(maps)
+
+    return True
+
+
+###################################################
+#                                                 #
+# INTERACTIVE FUNCTIONS                           #
+#                                                 #
+###################################################
+
+
+# Inventory
+def list_inventory(tracker_file):
+    database = open_database(tracker_file)
+    inventory = database['inventory']
+    print_inventory(database, inventory)
+    return True
+
+def list_inventory_tasks(tracker_file):
+    database = open_database(tracker_file)
+    task_items = get_items_needed_for_tasks(database)
+
+    if (not bool(task_items)):
+        logging.info('Could not find any items needed for tasks')
     else:
-        tracker['level'] = int(command[1])
+        print_inventory(database, task_items)
 
-    print(f'Set player level to {tracker["level"]}')
-    write_file(TRACKER, tracker)
     return True
 
-def pull_repo():
-    print('\nWARNING! This will delete all existing application data, including any data you have entered.')
-    print('\nWARNING! This may break the application!')
+def list_inventory_stations(tracker_file):
+    database = open_database(tracker_file)
+    station_items = get_items_needed_for_stations(database)
 
-    if (input('\nProceed? Y/N > ').lower() != 'y'):
-        print('Aborted!')
+    if (not bool(station_items)):
+        logging.info('Could not find any items needed for hideout stations')
+    else:
+        print_inventory(database, station_items)
+
+    return True
+
+def list_inventory_barters(tracker_file):
+    database = open_database(tracker_file)
+    barter_items = get_items_needed_for_barters(database)
+
+    if (not bool(barter_items)):
+        logging.info('Could not find any items needed for barters')
+    else:
+        print_inventory(database, barter_items)
+
+    return True
+
+def list_owned_items(tracker_file):
+    database = open_database(tracker_file)
+    owned_items = get_items_owned(database)
+    
+    if (not bool(owned_items)):
+        logging.info('Your inventory is empty!')
+    else:
+        print_inventory_have(database, owned_items)
+
+    return
+
+def list_needed_items(tracker_file):
+    database = open_database(tracker_file)
+    needed_items = get_items_needed(database)
+    
+    if (not bool(needed_items)):
+        logging.info('Congratulations, you have no items remaining to collect!')
+    else:
+        print_inventory_needed(database, needed_items)
+
+    return
+
+# List entities
+def list_tasks(tracker_file, argument):
+    database = open_database(tracker_file)
+    guid, type = name_guid_lookup(database, argument)
+
+    if (not guid and argument != 'all'):
+        logging.error('Invalid arguments. Accepted arguments are [All, Map, Trader]')
+        return False
+
+    if (type == 'map'):
+        tasks = get_tasks_by_map(database, guid)
+    elif (type == 'trader'):
+        tasks = get_tasks_by_trader(database, guid)
+    else:
+        tasks = get_available_tasks(database)
+
+    if (len(tasks) == 0):
+        logging.info('No available or tracked tasks')
+    else:
+        print_tasks(database, tasks)
+
+    return True
+
+def list_stations(tracker_file):
+    database = open_database(tracker_file)
+    stations = get_hideout_stations(database)
+
+    if (len(stations) == 0):
+        logging.info('No available or tracked hideout stations')
+    else:
+        print_hideout_stations(database, stations)
+    
+    return True
+
+def list_barters(tracker_file, argument):
+    database = open_database(tracker_file)
+    guid, type = name_guid_lookup(database, argument)
+
+    if (type == 'trader'):
+        barters = get_barters_by_trader(database, guid)
+    else:
+        barters = get_barters(database)
+
+    if (len(barters) == 0):
+        logging.info('No available or tracked barters')
+    else:
+        print_barters(database, barters)
+    
+    return True
+
+def list_untracked(tracker_file):
+    database = open_database(tracker_file)
+    untracked = get_untracked(database)
+
+    if (len(untracked) == 0):
+        logging.info('No untracked items')
+    else:
+        print_untracked(untracked)
+
+    return True
+
+# List maps or traders
+def list_maps(tracker_file):
+    database = open_database(tracker_file)
+    maps = ', '.join(map['normalizedName'] for map in database['maps']).strip(', ')
+    logging.info(f'Accepted map names are: {maps}')
+
+def list_traders(tracker_file):
+    database = open_database(tracker_file)
+    traders = ', '.join(trader['normalizedName'] for trader in database['traders']).strip(', ')
+    logging.info(f'Accepted trader names are: {traders}')
+
+# Reset
+def reset_tasks(tracker_file):
+    database = open_database(tracker_file)
+    
+    for task in database['tasks']:
+        task['status'] = 'incomplete'
+        
+        if (task['kappaRequired']):
+            task['tracked'] = True
+        else:
+            task['tracked'] = False
+    
+    write_database(tracker_file, database)
+    logging.info('All task progress has been reset')
+    return True
+
+def reset_stations(tracker_file):
+    database = open_database(tracker_file)
+    
+    for station in database['hideout']:
+        for level in station['levels']:
+            level['status'] = 'incomplete'
+            level['tracked'] = True
+    
+    write_database(tracker_file, database)
+    logging.info('All hideout progress has been reset')
+    return True
+
+def reset_barters(tracker_file):
+    database = open_database(tracker_file)
+    
+    for barter in database['barters']:
+        barter['status'] = 'incomplete'
+        barter['tracked'] = False
+    
+    write_database(tracker_file, database)
+    logging.info('All barter progress has been reset')
+    return True
+
+def restart_barter(tracker_file, argument):
+    return
+
+def reset_inventory(tracker_file):
+    database = open_database(tracker_file)
+    
+    for guid in database['inventory'].keys():
+        database['inventory'][guid]['have_fir'] = 0
+        database['inventory'][guid]['have_nir'] = 0
+    
+    write_database(tracker_file, database)
+    logging.info('The player\'s inventory has been cleared')
+    return True
+
+def refresh(tracker_file):
+    database = {
+        'tasks': [],
+        'hideout': [],
+        'maps': [],
+        'traders': [],
+        'barters': [],
+        'all_items': [],
+        'inventory': {},
+        'player_level': 1
+    }
+
+    headers = {
+        'Content-Type': 'application/json'
+    }
+    data = {
+        'query': """
+            {
+                tasks {
+                    id
+                    name
+                    normalizedName
+                    trader {
+                        id
+                    }
+                    map {
+                        id
+                    }
+                    minPlayerLevel
+                    taskRequirements {
+                        task {
+                            id
+                        }
+                    }
+                    traderRequirements {
+                        id
+                        requirementType
+                        trader {
+                            id
+                        }
+                    }
+                    objectives {
+                        id
+                        type
+                        description
+                        optional
+                        maps {
+                            id
+                        }
+                        ... on TaskObjectiveExtract {
+                            maps {
+                                id
+                            }
+                            exitStatus
+                            exitName
+                            zoneNames
+                        }
+                        ... on TaskObjectiveItem {
+                            id
+                            count
+                            foundInRaid
+                            item {
+                                id
+                            }
+                        }
+                        ... on TaskObjectivePlayerLevel {
+                            playerLevel
+                        }
+                        ... on TaskObjectiveQuestItem {
+                            questItem {
+                                id
+                            }
+                            count
+                        }
+                        ... on TaskObjectiveShoot {
+                            targetNames
+                            count
+                            shotType
+                            zoneNames
+                            bodyParts
+                            usingWeapon {
+                                id
+                            }
+                            usingWeaponMods {
+                                id
+                            }
+                            wearing {
+                                id
+                            }
+                            notWearing {
+                                id
+                            }
+                            distance {
+                                value
+                            }
+                            playerHealthEffect {
+                                bodyParts
+                                effects
+                                time {
+                                    value
+                                }
+                            }
+                            enemyHealthEffect {
+                                bodyParts
+                                effects
+                                time {
+                                    value
+                                }
+                            }
+                            timeFromHour
+                            timeUntilHour
+                        }
+                        ... on TaskObjectiveSkill {
+                            skillLevel {
+                                name
+                                level
+                            }
+                        }
+                        ... on TaskObjectiveTaskStatus {
+                            task {
+                                id
+                            }
+                            status
+                        }
+                        ... on TaskObjectiveTraderLevel {
+                            trader {
+                                id
+                            }
+                            level
+                        }
+                        ... on TaskObjectiveTraderStanding {
+                            trader {
+                                id
+                            }
+                            value
+                        }
+                        ... on TaskObjectiveUseItem {
+                            useAny {
+                                id
+                            }
+                            count
+                            zoneNames
+                        }
+                    }
+                    neededKeys {
+                        keys {
+                            id
+                        }
+                    }
+                    kappaRequired
+                    lightkeeperRequired
+                }
+            }
+        """
+    }
+    response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+
+    if (response.status_code < 200 or response.status_code > 299):
+        logging.error(f'Failed to retrieve task data! >> [{response.status_code}] {response.json()}')
+        exit(1)
+    else:
+        if ('errors' in response.json().keys()):
+                logging.error(f'Encountered an error while retrieving task data! >> {json.dumps(response.json())}')
+                exit(1)
+
+        logging.info('Retrieved latest task data from the api.tarkov.dev server')
+        tasks = response.json()['data']['tasks']
+
+    untracked_count = 0
+
+    for task in tasks:
+        task['status'] = 'incomplete'
+        task['tracked'] = True
+
+        if (not task['kappaRequired']):
+            task['tracked'] = False
+            untracked_count = untracked_count + 1
+    
+    logging.info(f'Untracked {untracked_count} tasks not required for Kappa')
+    database['tasks'] = tasks
+
+    data = {
+        'query': """
+            {
+                hideoutStations {
+                    id
+                    normalizedName
+                    levels {
+                        id
+                        level
+                        itemRequirements {
+                            id
+                            count
+                            item {
+                                id
+                            }
+                        }
+                        stationLevelRequirements {
+                            level
+                        }
+                    }
+                }
+            }
+        """
+    }
+
+    response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+
+    if (response.status_code < 200 or response.status_code > 299):
+        logging.error(f'Failed to retrieve hideout data! >> [{response.status_code}] {response.json()}')
+        exit(1)
+    else:
+        if ('errors' in response.json().keys()):
+                logging.error(f'Encountered an error while retrieving hideout data! >> {json.dumps(response.json())}')
+                exit(1)
+
+        logging.info('Retrieved latest hideout data from the api.tarkov.dev server')
+        hideout = response.json()['data']['hideoutStations']
+
+    for station in hideout:
+        for level in station['levels']:
+            level['normalizedName'] = station['normalizedName'] + '-' + str(level['level'])
+
+            if (level['normalizedName'] != 'stash-1'):
+                level['status'] = 'incomplete'
+            else:
+                level['status'] = 'complete'
+                logging.info('Automatically completed stash-1 hideout station')
+
+            level['tracked'] = True
+
+    database['hideout'] = hideout
+
+    data = {
+        'query': """
+            {
+                barters {
+                    id
+                    trader {
+                    id
+                    }
+                    level
+                    taskUnlock {
+                    id
+                    }
+                    requiredItems {
+                    item {
+                        id
+                    }
+                    count
+                    }
+                    rewardItems {
+                    item {
+                        id
+                    }
+                    count
+                    }
+                }
+            }
+        """
+    }
+
+    response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+
+    if (response.status_code < 200 or response.status_code > 299):
+        logging.error(f'Failed to retrieve barter data! >> [{response.status_code}] {response.json()}')
+        exit(1)
+    else:
+        if ('errors' in response.json().keys()):
+                logging.error(f'Encountered an error while retrieving barter data! >> {json.dumps(response.json())}')
+                exit(1)
+
+        logging.info('Retrieved latest barter data from the api.tarkov.dev server')
+        barters = response.json()['data']['barters']
+
+    for barter in barters:
+        barter['status'] = 'incomplete'
+        barter['tracked'] = False
+    
+    database['barters'] = barters
+
+    data = {
+        'query': """
+            {
+                maps {
+                    id
+                    normalizedName
+                }
+            }
+        """
+    }
+
+    response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+
+    if (response.status_code < 200 or response.status_code > 299):
+        logging.error(f'Failed to retrieve map data! >> [{response.status_code}] {response.json()}')
+        exit(1)
+    else:
+        if ('errors' in response.json().keys()):
+                logging.error(f'Encountered an error while retrieving map data! >> {json.dumps(response.json())}')
+                exit(1)
+
+        logging.info('Retrieved latest map data from the api.tarkov.dev server')
+        database['maps'] = response.json()['data']['maps']
+
+    data = {
+        'query': """
+            {
+                traders {
+                    id
+                    normalizedName
+                }
+            }
+        """
+    }
+
+    response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+
+    if (response.status_code < 200 or response.status_code > 299):
+        logging.error(f'Failed to retrieve trader data! >> [{response.status_code}] {response.json()}')
+        exit(1)
+    else:
+        if ('errors' in response.json().keys()):
+                logging.error(f'Encountered an error while retrieving trader data! >> {json.dumps(response.json())}')
+                exit(1)
+
+        logging.info('Retrieved latest trader data from the api.tarkov.dev server')
+        database['traders'] = response.json()['data']['traders']
+
+    data = {
+        'query': """
+            {
+                items {
+                    id
+                    normalizedName
+                    shortName
+                }
+            }
+        """
+    }
+
+    response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+
+    if (response.status_code < 200 or response.status_code > 299):
+        logging.error(f'Failed to retrieve item data! >> [{response.status_code}] {response.json()}')
+        exit(1)
+    else:
+        if ('errors' in response.json().keys()):
+                logging.error(f'Encountered an error while retrieving item data! >> {json.dumps(response.json())}')
+                exit(1)
+
+        logging.info('Retrieved latest item data from the api.tarkov.dev server')
+        database['all_items'] = response.json()['data']['items']
+    
+    for task in database['tasks']:
+        for objective in task['objectives']:
+            if (objective['type'] == 'giveItem'):
+                guid = objective['item']['id']
+
+                if (guid not in database['inventory'].keys()):
+                    database['inventory'][guid] = {
+                        'need_fir': 0,
+                        'need_nir': 0,
+                        'have_fir': 0,
+                        'have_nir': 0,
+                        'consumed_fir': 0,
+                        'consumed_nir': 0
+                    }
+                    
+                if (objective['foundInRaid']):
+                    database['inventory'][guid]['need_fir'] = database['inventory'][guid]['need_fir'] + objective['count']
+                else:
+                    database['inventory'][guid]['need_nir'] = database['inventory'][guid]['need_nir'] + objective['count']
+
+    logging.info('Updated all inventory values for task items')
+
+    for station in database['hideout']:
+        for level in station['levels']:
+            for requirement in level['itemRequirements']:
+                guid = requirement['item']['id']
+
+                if (guid not in database['inventory'].keys()):
+                    database['inventory'][guid] = {
+                        'need_fir': 0,
+                        'need_nir': 0,
+                        'have_fir': 0,
+                        'have_nir': 0,
+                        'consumed_fir': 0,
+                        'consumed_nir': 0
+                    }
+                    
+                database['inventory'][guid]['need_nir'] = database['inventory'][guid]['need_nir'] + requirement['count']
+
+    logging.info('Updated all inventory values for hideout items')
+
+    for map in database['maps']:
+        if (map['normalizedName'] == 'streets-of-tarkov'):
+            map['normalizedName'] = 'streets'
+        elif (map['normalizedName'] == 'the-lab'):
+            map['normalizedName'] = 'labs'
+    
+    logging.info('Overwrote normalized name for "Streets of Tarkov" to "streets" and for "The Lab" to "labs"')
+    write_database(tracker_file, database)
+    logging.info('Generated a new database file in /bin')
+    return
+
+# Searching
+def search(tracker_file, argument, ignore_barters):
+    database = open_database(tracker_file)
+    tasks = []
+    stations = []
+    barters = []
+    items = []
+    traders = []
+    maps = []
+
+    for task in database['tasks']:
+        if (super_normalize(task['name']).startswith(argument) or super_normalize(task['normalizedName']).startswith(argument)):
+            tasks.append(task)
+
+    for station in database['hideout']:
+        for level in station['levels']:
+            if (super_normalize(level['normalizedName']).startswith(argument)):
+                stations.append(station)
+
+    if (not ignore_barters):
+        for barter in database['barters']:
+            for requirement in barter['requiredItems']:
+                item = guid_to_item_object(database, requirement['item']['id'])
+                if (super_normalize(item['shortName']).startswith(argument) or super_normalize(item['normalizedName']).startswith(argument)):
+                    barters.append(barter)
+            for reward in barter['rewardItems']:
+                item = guid_to_item_object(database, reward['item']['id'])
+                if (super_normalize(item['shortName']).startswith(argument) or super_normalize(item['normalizedName']).startswith(argument)):
+                    barters.append(barter)
+
+    for item in database['all_items']:
+        if (super_normalize(item['shortName']).startswith(argument) or super_normalize(item['normalizedName']).startswith(argument)):
+            if (item['id'] in database['inventory'].keys()):
+                items.append({
+                    'need_fir': database['inventory'][item['id']]['need_fir'],
+                    'need_nir': database['inventory'][item['id']]['need_nir'],
+                    'have_fir': database['inventory'][item['id']]['have_fir'],
+                    'have_nir': database['inventory'][item['id']]['have_nir'],
+                    'consumed_fir': database['inventory'][item['id']]['consumed_fir'],
+                    'consumed_nir': database['inventory'][item['id']]['consumed_nir'],
+                    'shortName': item['shortName'],
+                    'normalizedName': item['normalizedName'],
+                    'id': item['id']
+                })
+            else:
+                items.append({
+                    'need_fir': 0,
+                    'need_nir': 0,
+                    'have_fir': 0,
+                    'have_nir': 0,
+                    'consumed_fir': 0,
+                    'consumed_nir': 0,
+                    'shortName': item['shortName'],
+                    'normalizedName': item['normalizedName'],
+                    'id': item['id']
+                })
+
+    for trader in database['traders']:
+        if (super_normalize(trader['normalizedName']).startswith(argument)):
+            traders.append(trader)
+
+    for map in database['maps']:
+        if (super_normalize(map['normalizedName']).startswith(argument)):
+            maps.append(map)
+
+    print_search(database, tasks, stations, barters, items, traders, maps)
+    return True
+
+def guid(tracker_file, argument):
+    return
+
+def fuzzy_search(tracker_file, argument):
+    return
+
+def requires(tracker_file, argument):
+    return
+
+# Tracking
+def track(tracker_file, argument):
+    database = open_database(tracker_file)
+
+    if (is_guid(argument)):
+        guid = argument
+        type = 'barter'
+    else:
+        guid, type = name_guid_lookup(database, argument)
+
+    if (not guid):
+        logging.error('Invalid arguments. Accepted arguments are [Task Name, Station Name, Barter GUID]')
+        return False
+
+    if (type == 'task'):
+        database = track_task(database, guid)
+    elif (type == 'station'):
+        database = track_station(database, guid)
+    elif (type == 'barter'):
+        database = track_barter(database, guid)
+    else:
+        logging.error(f'Track operation is unsupported for {type}')
         return False
     
-    if (os.path.exists('./appdata')):
-        print('Clearing all application data...')
-        shutil.rmtree('./appdata')
-        print('Cleared.')
+    if (database):
+        write_database(tracker_file, database)
+        return True
+
+    return False
+
+def untrack(tracker_file, argument):
+    database = open_database(tracker_file)
+
+    if (is_guid(argument)):
+        guid = argument
+        type = 'barter'
+    else:
+        guid, type = name_guid_lookup(database, argument)
+
+    if (not guid):
+        logging.error('Invalid arguments. Accepted arguments are [Task Name, Station Name, Barter GUID]')
+        return False
+
+    if (type == 'task'):
+        database = untrack_task(database, guid)
+    elif (type == 'station'):
+        database = untrack_station(database, guid)
+    elif (type == 'barter'):
+        database = untrack_barter(database, guid)
+    else:
+        logging.error(f'Untrack operation is unsupported for {type}')
+        return False
     
-    print('Pulling latest game data from github... ', end = '', flush = True)
-    repo = Repo.clone_from(REPO, './temp')
+    if (database):
+        write_database(tracker_file, database)
+        return True
 
-    assert not repo.bare
+    return False
 
-    with open('./temp/repo.zip', 'wb') as archive:
-        repo.archive(archive, format = 'zip')
-        archive.close()
+# Completing
+def complete(tracker_file, argument, force, recurse):
+    database = open_database(tracker_file)
 
-    with zipfile.ZipFile('./temp/repo.zip', 'r') as archive:
-        archive.extractall('./appdata')
-        archive.close()
+    if (is_guid(argument)):
+        guid = argument
+        type = 'barter'
+    else:
+        guid, type = name_guid_lookup(database, argument)
 
-    repo.close()
-    rmtree('./temp')
-    print(f'done. Pulled files from {REPO}')
+    if (not guid):
+        logging.error('Invalid arguments. Accepted arguments are [Task Name, Station Name, Barter GUID]')
+        return False
+
+    if (type == 'task' and not recurse):
+        database = complete_task(database, guid, force)
+    elif (type == 'task' and recurse):
+        database = complete_recursive_task(database, guid, True)
+    elif (type == 'station'):
+        database = complete_station(database, guid, force)
+    elif (type == 'barter'):
+        database = complete_barter(database, guid, force)
+    else:
+        logging.error(f'Complete operation is unsupported for {type}')
+        return False
+    
+    if (database):
+        write_database(tracker_file, database)
+        return True
+
+    return False
+
+# Items
+def add_item_fir(tracker_file, argument, count):
+    database = open_database(tracker_file)
+    guid = item_to_guid(database, argument)
+
+    if (not guid):
+        logging.error(f'Could not find any item that matches {argument}')
+        return False
+    
+    if (not count or count < 1):
+        logging.error(f'Invalid or missing count argument. Accepts an integer greater than 0')
+        return False
+    
+    if (database['inventory'][guid]['have_fir'] + count > database['inventory'][guid]['need_fir']):
+        if (database['inventory'][guid]['need_fir'] > 0):
+            diff = database['inventory'][guid]['have_fir'] + count - database['inventory'][guid]['need_fir']
+            database['inventory'][guid]['have_fir'] = database['inventory'][guid]['need_fir']
+            logging.info(f'Added {count - diff} {argument} to Found In Raid (FIR) inventory')
+        else:
+            diff = count
+        
+        database['inventory'][guid]['have_nir'] = database['inventory'][guid]['have_nir'] + diff
+        logging.info(f'Added {diff} {argument} to Not found In Raid (NIR) inventory')
+    else:
+        database['inventory'][guid]['have_fir'] = database['inventory'][guid]['have_fir'] + count
+        logging.info(f'Added {count} {argument} to needed (FIR) inventory')
+
+    write_database(tracker_file, database)
     return True
+
+def add_item_nir(tracker_file, argument, count):
+    database = open_database(tracker_file)
+    guid = item_to_guid(database, argument)
+
+    if (not guid):
+        logging.error(f'Could not find any item that matches {argument}')
+        return False
+    
+    if (not count or count < 1):
+        logging.error(f'Invalid or missing count argument. Accepts an integer greater than 0')
+        return False
+    
+    database['inventory'][guid]['have_nir'] = database['inventory'][guid]['have_nir'] + count
+    logging.info(f'Added {count} {argument} to Not found In Raid (NIR) inventory')
+
+    write_database(tracker_file, database)
+    return True
+
+# Level
+def check_level(tracker_file):
+    database = open_database(tracker_file)
+    logging.info(f'Player level is {database["player_level"]}')
+    return True
+
+def set_level(tracker_file, level):
+    database = open_database(tracker_file)
+    database['player_level'] = level
+    write_database(tracker_file, database)
+    logging.info(f'Updated player level to {level}')
+    return True
+
+def level_up(tracker_file):
+    database = open_database(tracker_file)
+    database['player_level'] = database['player_level'] + 1
+    write_database(tracker_file, database)
+    logging.info(f'Incremented the player level by 1. Level is now {database["player_level"]}')
+    return True
+
 
 ###################################################
 #                                                 #
@@ -1287,13 +2017,10 @@ def pull_repo():
 #                                                 #
 ###################################################
 
-def main():
-    if (DEV_MODE):
-        print('DEV MODE ENABLED')
 
-    while(True):
-        command = input('tart > ')
-        read_command(command)
+def main(args):
+    logging.basicConfig(level = logging.INFO, format = '[%(asctime)s] [%(levelname)s]: %(message)s')
+    parser(args[1:])
 
 if (__name__ == '__main__'):
-    main()
+    main(sys.argv)

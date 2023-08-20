@@ -670,6 +670,7 @@ def super_normalize(text):
     return super_normalized
 
 def alphabetize_items(database, items):
+    logging.debug(f'Alphabetizing item dict of size {len(items)}')
     unsorted_items = {}
 
     for guid in items.keys():
@@ -1315,10 +1316,11 @@ def print_inventory(database, items):
 def print_inventory_owned(database, items):
     display = INVENTORY_OWNED_HEADER + BUFFER
     items_in_this_row = 0
+    sorted_items = alphabetize_items(database, items)
 
-    for guid in items.keys():
+    for short_name, guid in sorted_items.items():
         item_string = f'{items[guid]["have_nir"]} ({items[guid]["have_fir"]})'
-        display = display + '{:<20} {:<25} '.format(guid_to_item(database, guid), item_string)
+        display = display + '{:<20} {:<25} '.format(short_name, item_string)
         items_in_this_row = items_in_this_row + 1
         
         if (items_in_this_row == 3):
@@ -1332,10 +1334,11 @@ def print_inventory_owned(database, items):
 def print_inventory_needed(database, items):
     display = INVENTORY_NEEDED_HEADER + BUFFER
     items_in_this_row = 0
+    sorted_items = alphabetize_items(database, items)
 
-    for guid in items.keys():
+    for short_name, guid in sorted_items.items():
         item_string = f'{items[guid]["need_nir"]} ({items[guid]["need_fir"]})'
-        display = display + '{:<20} {:<25} '.format(guid_to_item(database, guid), item_string)
+        display = display + '{:<20} {:<25} '.format(short_name, item_string)
         items_in_this_row = items_in_this_row + 1
         
         if (items_in_this_row == 3):

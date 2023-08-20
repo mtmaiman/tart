@@ -8,6 +8,10 @@ import re
 import requests
 
 
+#TODO: Alphabetize items on print
+#TODO: Alphabetize tasks by map, then by level
+#TODO: Add single slot value lookup for items (need to check API)
+#TODO: Add bullet rankings (need to check API)
 USAGE = '''
 tart.py {debug}\n
 > command [positional args] {options}\n
@@ -138,7 +142,7 @@ BUFFER = '----------------------------------------------------------------------
 
 ###################################################
 #                                                 #
-# WORKER FUNCTIONS                                #
+# UTIL FUNCTIONS (DEBUGGED)                       #
 #                                                 #
 ###################################################
 
@@ -151,7 +155,7 @@ def parser(tracker_file, command):
     # Inventory
     if (command[0] == 'inv'):
         if (len(command) == 1):
-            logging.debug(f'Executing command: {command[0]} {command[1]}')
+            logging.debug(f'Executing command: {command[0]}')
             list_inventory(tracker_file)
         elif (command[1] == 'tasks'):
             logging.debug(f'Executing command: {command[0]} {command[1]}')
@@ -451,6 +455,7 @@ def parser(tracker_file, command):
 def open_database(file_path):
     try:
         with open(file_path, 'r', encoding = 'utf-8') as open_file:
+            logging.debug(f'Opened file at {file_path}')
             file = json.load(open_file)
     except FileNotFoundError:
         logging.error('Database file not found. Please perform a refresh')
@@ -460,48 +465,61 @@ def open_database(file_path):
 def write_database(file_path, data):
     with open(file_path, 'w', encoding = 'utf-8') as open_file:
         open_file.write(json.dumps(data))
+        logging.debug(f'Wrote to file at {file_path}')
     return
 
 # GUID to name or object
 def guid_to_item(database, guid):
+    logging.debug(f'Searching for item matching guid {guid}')
     for item in database['all_items']:
         if (item['id'] == guid):
+            logging.debug(f'Found item matching guid {guid}')
             return item['shortName']
     
     return False
 
 def guid_to_item_object(database, guid):
+    logging.debug(f'Searching for item matching guid {guid}')
     for item in database['all_items']:
         if (item['id'] == guid):
+            logging.debug(f'Found item matching guid {guid}')
             return item
     
     return False
 
 def guid_to_task(database, guid):
+    logging.debug(f'Searching for task matching guid {guid}')
     for task in database['tasks']:
         if (task['id'] == guid):
+            logging.debug(f'Found task matching guid {guid}')
             return task['name']
         
     return False
 
 def guid_to_station(database, guid):
+    logging.debug(f'Searching for hideout station matching guid {guid}')
     for station in database['hideout']:
         for level in station['levels']:
             if (level['id'] == guid):
+                logging.debug(f'Found hideout station matching guid {guid}')
                 return level['normalizedName']
     
     return False
 
 def guid_to_map(database, guid):
+    logging.debug(f'Searching for map matching guid {guid}')
     for map in database['maps']:
         if (map['id'] == guid):
+            logging.debug(f'Found map matching guid {guid}')
             return map['normalizedName']
     
     return False
 
 def guid_to_trader(database, guid):
+    logging.debug(f'Searching for trader matching guid {guid}')
     for trader in database['traders']:
         if (trader['id'] == guid):
+            logging.debug(f'Found trader matching guid {guid}')
             return trader['normalizedName']
     
     return False
@@ -527,43 +545,54 @@ def guid_name_lookup(database, guid):
                     found = 'station'
 
                     if (not normalized_name):
+                        logging.debug(f'Did not find anything matching guid {guid}')
                         return False, None
     
     return normalized_name, found
 
 # Name to GUID
 def item_to_guid(database, item_name):
+    logging.debug(f'Searching for item matching name {item_name}')
     for item in database['all_items']:
         if (item['shortName'].lower() == item_name or item['normalizedName'] == item_name):
+            logging.debug(f'Found item matching name {item_name}')
             return item['id']
     
     return False
 
 def task_to_guid(database, task_name):
+    logging.debug(f'Searching for task matching name {task_name}')
     for task in database['tasks']:
         if (task['normalizedName'] == task_name):
+            logging.debug(f'Found task matching name {task_name}')
             return task['id']
     
     return False
 
 def station_to_guid(database, station_name):
+    logging.debug(f'Searching for hideout station matching name {station_name}')
     for station in database['hideout']:
         for level in station['levels']:
             if (level['normalizedName'] == station_name):
+                logging.debug(f'Found hideout station matching name {station_name}')
                 return level['id']
     
     return False
 
 def map_to_guid(database, map_name):
+    logging.debug(f'Searching for map matching name {map_name}')
     for map in database['maps']:
         if (map['normalizedName'] == map_name):
+            logging.debug(f'Found map matching name {map_name}')
             return map['id']
     
     return False
 
 def trader_to_guid(database, trader_name):
+    logging.debug(f'Searching for trader matching name {trader_name}')
     for trader in database['traders']:
         if (trader['normalizedName'] == trader_name):
+            logging.debug(f'Found trader matching name {trader_name}')
             return trader['id']
     
     return False
@@ -589,21 +618,26 @@ def name_guid_lookup(database, name):
                     found = 'station'
 
                     if (not guid):
+                        logging.debug(f'Did not find anything matching name {name}')
                         return False, None
 
     return guid, found
 
 # Inventory functions
 def get_fir_count_by_guid(database, guid):
+    logging.debug(f'Searching for item matching guid {guid}')
     for this_guid in database['inventory'].keys():
         if (this_guid == guid):
+            logging.debug(f'Found item matching guid {guid} and matching FIR count')
             return database['inventory'][this_guid]['have_fir']
     
     return False
 
 def get_nir_count_by_guid(database, guid):
+    logging.debug(f'Searching for item matching guid {guid}')
     for this_guid in database['inventory'].keys():
         if (this_guid == guid):
+            logging.debug(f'Found item matching guid {guid} and matching NIR count')
             return database['inventory'][this_guid]['have_nir']
     
     return False
@@ -611,16 +645,20 @@ def get_nir_count_by_guid(database, guid):
 # String functions
 def is_guid(text):
     if (len(text) == 24 and text[0].isdigit()):
+        logging.debug(f'{text} matches 24 character guid')
         return True
     if (len(text) > 24 and text[0].isdigit() and text[24] == '-'):
+        logging.debug(f'{text} matches over 24 character guid')
         return True
     
+    logging.debug(f'{text} is not a guid')
     return False
 
 def normalize(text):
     normalized = text.lower().replace('-',' ')
     normalized = re.sub(' +', ' ', normalized)
     normalized = normalized.replace(' ','-')
+    logging.debug(f'Normalized {text} to {normalized}')
     return normalized
 
 def super_normalize(text):
@@ -628,32 +666,50 @@ def super_normalize(text):
     super_normalized = super_normalized.replace('the', '')
     super_normalized = re.sub(' +', ' ', super_normalized)
     super_normalized = super_normalized.replace(' ','')
+    logging.debug(f'Normalized {text} to {super_normalized}')
     return super_normalized
+
+def alphabetize_items(database, items):
+    unsorted_items = {}
+
+    for guid in items.keys():
+        short_name = guid_to_item(database, guid)
+        items[guid]['short_name'] = short_name
+        unsorted_items[short_name] = guid
+    
+    return {short_name:unsorted_items[short_name] for short_name in sorted(unsorted_items.keys())}
 
 # Verify functions
 def verify_task(database, task, task_table):
     if (task['status'] == 'complete'):
+        logging.debug(f'Task {task["name"]} is complete')
         return False
     
     if (not task['tracked']):
+        logging.debug(f'Task {task["name"]} is not tracked')
         return False
     
     if (database['player_level'] < task['minPlayerLevel']):
+        logging.debug(f'Task {task["name"]} has minPlayerLevel {task["minPlayerLevel"]} above current {database["player_level"]}')
         return False
     
     for prereq in task['taskRequirements']:
         if (task_table[prereq['id']] == 'incomplete'):
+            logging.debug(f'Task {task["name"]} has incomplete prereq')
             return False
     
+    logging.debug(f'Task {task["name"]} successfully verified')
     return True
 
 def verify_hideout_level(station, level):
     max_level = 0
 
     if (not level['tracked']):
+        logging.debug(f'Hideout station {level["normalizedName"]} is not tracked')
         return False
     
     if (level['status'] == 'complete'):
+        logging.debug(f'Hideout station {level["normalizedName"]} is complete')
         return False
 
     for prereq in level['stationLevelRequirements']:
@@ -662,12 +718,14 @@ def verify_hideout_level(station, level):
 
     for prereq_level in station['levels']:
         if (prereq_level['level'] <= max_level and prereq_level['status'] == 'incomplete'):
+            logging.debug(f'Hideout station {level["normalizedName"]} requires at least level {max_level}')
             return False
         
     return True
 
 def verify_barter(barter):
     if (barter['status'] == 'complete' or not barter['tracked']):
+        logging.debug(f'Barter {barter["id"]} is complete or not tracked')
         return False
     
     return True
@@ -675,6 +733,7 @@ def verify_barter(barter):
 # Get functions
 def get_items_needed_for_tasks(database):
     items = {}
+    logging.debug('Compiling all items required for tracked tasks')
 
     for task in database['tasks']:
         for objective in task['objectives']:
@@ -704,6 +763,7 @@ def get_items_needed_for_tasks(database):
 
 def get_items_needed_for_stations(database):
     items = {}
+    logging.debug('Compiling all items required for tracked hideout stations')
 
     for station in database['hideout']:
         for level in station['levels']:
@@ -730,6 +790,7 @@ def get_items_needed_for_stations(database):
 
 def get_items_needed_for_barters(database):
     items = {}
+    logging.debug('Compiling all items required for tracked barters')
 
     for barter in database['barters']:
         if (barter['tracked']):
@@ -755,6 +816,7 @@ def get_items_needed_for_barters(database):
 
 def get_items_owned(database):
     items = {}
+    logging.debug('Compiling all items in the owned inventory')
 
     for guid in database['inventory'].keys():
         if (guid not in items.keys()):
@@ -774,6 +836,7 @@ def get_items_owned(database):
 
 def get_items_needed(database):
     items = {}
+    logging.debug('Compiling all items in the needed inventory')
 
     for guid in database['inventory'].keys():
         if (guid not in items.keys()):
@@ -794,6 +857,7 @@ def get_items_needed(database):
 def get_tasks_by_map(database, guid):
     tasks = []
     task_table = {}
+    logging.debug('Compiling all tasks for map with guid {guid}')
 
     for task in database['tasks']:
         task_table[task['id']] = task['status']
@@ -817,6 +881,7 @@ def get_tasks_by_map(database, guid):
 def get_tasks_by_trader(database, guid):
     tasks = []
     task_table = {}
+    logging.debug('Compiling all tasks for trader with guid {guid}')
 
     for task in database['tasks']:
         task_table[task['id']] = task['status']
@@ -830,6 +895,7 @@ def get_tasks_by_trader(database, guid):
 def get_available_tasks(database):
     tasks = []
     task_table = {}
+    logging.debug('Compiling all available tasks')
 
     for task in database['tasks']:
         task_table[task['id']] = task['status']
@@ -842,6 +908,7 @@ def get_available_tasks(database):
 
 def get_hideout_stations(database):
     hideout_stations = []
+    logging.debug('Compiling all available hideout stations')
 
     for station in database['hideout']:
         for level in station['levels']:
@@ -852,6 +919,7 @@ def get_hideout_stations(database):
 
 def get_barters(database):
     barters = []
+    logging.debug('Compiling all tracked barters')
 
     for barter in database['barters']:
         if (verify_barter(barter)):
@@ -861,6 +929,7 @@ def get_barters(database):
 
 def get_barters_by_trader(database, guid):
     barters = []
+    logging.debug(f'Compiling all tracked barters for trader with guid {guid}')
 
     for barter in database['barters']:
         if (verify_barter(barter) and barter['trader']['id'] == guid):
@@ -870,6 +939,7 @@ def get_barters_by_trader(database, guid):
 
 def get_untracked(database):
     untracked = []
+    logging.debug('Compiling all untracked tasks and hideout stations')
 
     for task in database['tasks']:
         if (not task['tracked'] and task['kappaRequired']):
@@ -887,6 +957,14 @@ def get_untracked(database):
                 })
     
     return untracked
+
+
+###################################################
+#                                                 #
+# WORKER (SUB) FUNCTIONS                          #
+#                                                 #
+###################################################
+
 
 # Track functions
 def track_task(database, guid):
@@ -1218,11 +1296,12 @@ def print_bool(bool_value):
 def print_inventory(database, items):
     display = INVENTORY_HEADER + BUFFER
     items_in_this_row = 0
+    sorted_items = alphabetize_items(database, items)
 
-    for guid in items.keys():
+    for short_name, guid in sorted_items.items():
         if (items[guid]["have_nir"] != 0 or items[guid]["have_fir"] != 0 or items[guid]["need_nir"] != 0 or items[guid]["need_fir"]):
             item_string = f'{items[guid]["have_nir"]} ({items[guid]["have_fir"]}) {items[guid]["need_nir"]} ({items[guid]["need_fir"]})'
-            display = display + '{:<20} {:<25} '.format(guid_to_item(database, guid), item_string)
+            display = display + '{:<20} {:<25} '.format(short_name, item_string)
             items_in_this_row = items_in_this_row + 1
             
             if (items_in_this_row == 3):
@@ -1422,7 +1501,7 @@ def print_search(database, tasks, stations, barters, items, traders, maps):
 
 ###################################################
 #                                                 #
-# INTERACTIVE FUNCTIONS                           #
+# CALLABLE FUNCTIONS                              #
 #                                                 #
 ###################################################
 
@@ -2499,7 +2578,7 @@ def level_up(tracker_file):
 
 ###################################################
 #                                                 #
-# MAIN FUNCTION                                   #
+# APP LOOP                                        #
 #                                                 #
 ###################################################
 

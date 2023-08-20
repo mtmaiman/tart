@@ -1,6 +1,5 @@
 # Standard library
 import logging
-import argparse
 import json
 import sys
 import re
@@ -9,22 +8,129 @@ import re
 import requests
 
 
-USAGE = f'''
-tart.py -Command "Arguments"\n\n
-A lightweigth python CLI for tracking task, hideout, and barter progression, including item collection, for Escape From Tarkov. Please read below for usage notes and command details.\n\n
-Notes:\n\n
-> Surround command arguments with whitespace in quotations \' or \"'
-> Command arguments expect the entity normalized names or GUIDs. Please use search functions to find these if you are unsure
+USAGE = '''
+tart.py {debug}\n
+> command [positional args] {options}\n
+A lightweigth python CLI for tracking task, hideout, and barter progression, including item collection, for Escape From Tarkov. Please read below for usage notes and command details.\n
+NOTE: Command arguments expect names or GUIDs. Please use search functions to find these if you are unsure\n
+DEBUG: Execute the python script with a positional argument of "debug" to enter debug mode
+Commands:
+\tinv -help
+\tls -help
+\treset -help
+\trestart -help
+\trefresh -help
+\tsearch -help
+\ttrack -help
+\tuntrack -help
+\tcomplete -help
+\tadd -help
+\tlevel -help
 '''
-DEV_MODE = True
+INV_HELP = '''
+> inv {inventory}\n
+Lists all items in all inventories or a specific inventory option\n
+inventories
+\ttasks : Lists all items in the inventory required for tracked tasks
+\tstations : Lists all items in the inventory required for hideout stations
+\thideout : Lists all items in the inventory required for hideout stations
+\tbarters : Lists all items in the inventory required for tracked barters
+\towned : Lists all items in the owned inventory
+\tneeded : Lists all items in the needed inventory (all needed minus owned)
+'''
+LS_HELP = '''
+> ls [iterable] {filter}\n
+Lists all items in an available iterable\n
+iterables
+\ttasks : Lists all available tasks
+\t\tfilters
+\t\t\t{map} : Lists all available tasks for the specified map
+\t\t\t{trader} : Lists all available tasks for the specified trader
+\tstations : Lists all hideout stations
+\thideout : Lists all hideout stations
+\tbarters : Lists all tracked barters
+\tuntracked : Lists all untracked tasks and hideout stations
+\tmaps : Lists all maps
+\ttraders : Lists all traders
+'''
+RESET_HELP = '''
+> reset [data structure]\n
+Resets all progression on a or all data structure(s)\n
+data structures
+\ttasks : Resets all progress on tasks
+\tstations : Resets all progress on hideout stations
+\thideout : Resets all progress on hideout stations
+\tbarters : Resets all progress on barters
+\tinv : Clears the inventory of owned items
+\tall : Resets progress for all data structures and clears the inventory of owned items
+'''
+RESTART_HELP = '''
+> restart [guid]\n
+Restarts the barter at the specified guid. Required items for the barter are added to the needed inventory\n
+guid
+\t{guid} : A guid belonging to a barter
+'''
+REFRESH_HELP = '''
+> refresh\n
+Pulls latest Escape From Tarkov game data from api.tarkov.dev and overwrites all application files (WARNING: This will reset all progress!)
+'''
+SEARCH_HELP = '''
+> search [pattern] {method} {barters}\n
+Searches the database on the specified pattern\n
+pattern
+\t{pattern} : The name or guid of an object to search for
+\t\tmethods
+\t\t\tfuzzy : Searches for objects which contain the specified pattern anywhere in the name
+\t\t\trequired : Searches for objects which have the specified pattern as a requirement
+\t\tbarters
+\t\t\tbarters : Will also search all available barters (May cause excessive results)
+'''
+TRACK_HELP = '''
+> track [pattern]\n
+Starts tracking and adds required items to the needed inventory for the object which matches the specified pattern\n
+pattern
+\t{pattern} : The name or guid of an object to track
+'''
+UNTRACK_HELP = '''
+> untrack [pattern]\n
+Stops tracking and removes required items from the needed inventory for the object which matches the specified pattern\n
+pattern
+\t{pattern} : The name or guid of an object to untrack
+'''
+COMPLETE_HELP = '''
+> complete [pattern] {modifier}\n
+Marks the object which matches the specified pattern as complete and consumes required items if available\n
+pattern
+\t{pattern} : The name or guid of an object to complete
+\t\tmodifiers
+\t\t\tforce : Forcefully completes the object whether the requirements are satisfied or not (adds missing items to the owned inventory)
+\t\t\trecurse: Recursively and forcefully completes all prerequisite objects whether the requirements are satisfied or not (adds missing items to the inventory)
+'''
+ADD_HELP = '''
+> add [item] {fir}\n
+Adds the specified item by name or guid to the owned inventory\n
+item
+\t{item} : The name or guid of an item to add
+\t\tfir
+\t\t\tfir : Adds the item as Found In Raid (FIR), otherwise adds as Not found In Raid (NIR)
+'''
+LEVEL_HELP = '''
+> level {operation} {level}\n
+Displays the player level\n
+operations
+\tup : Increments the player level by one (1)
+\tset : Sets the player level to {level}
+\t\tlevel
+\t\t\tlevel : The integer value greater than 0 to set the player level at
+'''
 ITEM_HEADER = '{:<25} {:<60} {:<30} {:<25}\n'.format('Item Short Name', 'Item Normalized Name', 'Item GUID', 'Have (FIR) Need (FIR)')
 MAP_HEADER = '{:<30} {:<20}\n'.format('Map Normalized Name', 'Map GUID')
 TRADER_HEADER = '{:<30} {:<20}\n'.format('Trader Normalized Name', 'Trader GUID')
 INVENTORY_HEADER = '{:<20} {:<25} {:<20} {:<25} {:<20} {:<25} \n'.format('Item', 'Have (FIR) Need (FIR)', 'Item', 'Have (FIR) Need (FIR)', 'Item', 'Have (FIR) Need (FIR)')
-INVENTORY_HAVE_HEADER = '{:<20} {:<25} {:<20} {:<25} {:<20} {:<25} \n'.format('Item', 'Have (FIR)', 'Item', 'Have (FIR)', 'Item', 'Have (FIR)')
+INVENTORY_OWNED_HEADER = '{:<20} {:<25} {:<20} {:<25} {:<20} {:<25} \n'.format('Item', 'Have (FIR)', 'Item', 'Have (FIR)', 'Item', 'Have (FIR)')
 INVENTORY_NEEDED_HEADER = '{:<20} {:<25} {:<20} {:<25} {:<20} {:<25} \n'.format('Item', 'Need (FIR)', 'Item', 'Need (FIR)', 'Item', 'Need (FIR)')
-TASK_HEADER = '{:<40} {:<20} {:<20} {:<20} {:<20}\n'.format('Task Title', 'Task Giver', 'Task Status', 'Tracked', 'Kappa?')
-HIDEOUT_HEADER = '{:<40} {:<20} {:<20}\n'.format('Station Name', 'Station Status', 'Tracked')
+TASK_HEADER = '{:<40} {:<20} {:<20} {:<20} {:<20} {:<40}\n'.format('Task Title', 'Task Giver', 'Task Status', 'Tracked', 'Kappa?', 'Task GUID')
+HIDEOUT_HEADER = '{:<40} {:<20} {:<20} {:<40}\n'.format('Station Name', 'Station Status', 'Tracked', 'Station GUID')
 BARTER_HEADER = '{:<40} {:<20} {:<20} {:<20}\n'.format('Barter GUID', 'Trader', 'Level', 'Tracked')
 UNTRACKED_HEADER = '{:<40} {:<20} {:<20}\n'.format('Entity Name', 'Type', 'Tracked')
 BUFFER = '-------------------------------------------------------------------------------------------------------------------------------------\n'
@@ -37,184 +143,309 @@ BUFFER = '----------------------------------------------------------------------
 ###################################################
 
 
-def parser(command):
-    if (DEV_MODE):
-        logging.info('RUNNING IN DEBUG MODE. All changes will affect only the debug database file!')
-        tracker_file = './bin/debug_tracker.json'
+# Command parsing
+def parser(tracker_file, command):
+    command = command.lower().split(' ')
+    logging.debug(f'Parsing command: {command}')
+
+    # Inventory
+    if (command[0] == 'inv'):
+        if (len(command) == 1):
+            logging.debug(f'Executing command: {command[0]} {command[1]}')
+            list_inventory(tracker_file)
+        elif (command[1] == 'tasks'):
+            logging.debug(f'Executing command: {command[0]} {command[1]}')
+            list_inventory_tasks(tracker_file)
+        elif (command[1] == 'stations' or command[1] == 'hideout'):
+            logging.debug(f'Executing command: {command[0]} {command[1]}')
+            list_inventory_stations(tracker_file)
+        elif (command[1] == 'barters'):
+            logging.debug(f'Executing command: {command[0]} {command[1]}')
+            list_inventory_barters(tracker_file)
+        elif (command[1] == 'owned'):
+            logging.debug(f'Executing command: {command[0]} {command[1]}')
+            list_inventory_owned(tracker_file)
+        elif (command[1] == 'needed'):
+            logging.debug(f'Executing command: {command[0]} {command[1]}')
+            list_inventory_needed(tracker_file)
+        elif (command[1] == 'help' or command[1] == 'h'):
+            logging.debug(f'Executing command: {command[0]} {command[1]}')
+            logging.info(INV_HELP)
+        else:
+            logging.debug(f'Failed to execute command: {command[0]} {command[1]}')
+            logging.error('Unhandled inv argument')
+            logging.info(INV_HELP)
+    # List
+    elif (command[0] == 'ls'):
+        if (len(command) < 2):
+            logging.debug(f'Failed to execute command: {command[0]}')
+            logging.error('Missing ls argument')
+            logging.info(LS_HELP)
+        elif (command[1] == 'tasks'):
+            if (len(command) == 3):
+                logging.debug(f'Executing command: {command[0]} {command[1]} {command[2]}')
+                list_tasks(tracker_file, command[2])
+            else:
+                logging.debug(f'Executing command: {command[0]} {command[1]} all')
+                list_tasks(tracker_file, 'all')
+        elif (command[1] == 'stations' or command[1] == 'hideout'):
+            logging.debug(f'Executing command: {command[0]} {command[1]}')
+            list_stations(tracker_file)
+        elif (command[1] == 'barters'):
+            if (len(command) == 3):
+                logging.debug(f'Executing command: {command[0]} {command[1]} {command[2]}')
+                list_barters(tracker_file, command[2])
+            else:
+                logging.debug(f'Executing command: {command[0]} {command[1]} all')
+                list_barters(tracker_file, 'all')
+        elif (command[1] == 'untracked'):
+            logging.debug(f'Executing command: {command[0]} {command[1]}')
+            list_untracked(tracker_file)
+        elif (command[1] == 'maps'):
+            logging.debug(f'Executing command: {command[0]} {command[1]}')
+            list_maps(tracker_file)
+        elif (command[1] == 'traders'):
+            logging.debug(f'Executing command: {command[0]} {command[1]}')
+            list_traders(tracker_file)
+        elif (command[1] == 'help' or command[1] == 'h'):
+            logging.debug(f'Executing command: {command[0]} {command[1]}')
+            logging.info(LS_HELP)
+        else:
+            logging.debug(f'Failed to execute command: {command[0]} {command[1]}')
+            logging.error('Unhandled ls argument')
+            logging.info(LS_HELP)
+    # Reset
+    elif (command[0] == 'reset'):
+        if (len(command) < 2):
+            logging.debug(f'Failed to execute command: {command[0]}')
+            logging.error('Missing reset argument')
+            logging.info(RESET_HELP)
+        elif (command[1] == 'help' or command[1] == 'h'):
+            logging.info(RESET_HELP)
+        else:
+            logging.warning('You are about to reset progress! Are you sure you wish to proceed? (Y/N)')
+            confirmation = input('> ').lower()
+
+            if (confirmation == 'y'):
+                if (command[1] == 'tasks'):
+                    logging.debug(f'Executing command: {command[0]} {command[1]}')
+                    reset_tasks(tracker_file)
+                elif (command[1] == 'stations' or command[1] == 'hideout'):
+                    logging.debug(f'Executing command: {command[0]} {command[1]}')
+                    reset_stations(tracker_file)
+                elif (command[1] == 'barters'):
+                    logging.debug(f'Executing command: {command[0]} {command[1]}')
+                    reset_barters(tracker_file)
+                elif (command[1] == 'inv'):
+                    logging.debug(f'Executing command: {command[0]} {command[1]}')
+                    reset_inventory(tracker_file)
+                elif (command[1] == 'all'):
+                    logging.debug(f'Executing command: {command[0]} {command[1]}')
+                    reset_tasks(tracker_file)
+                    reset_stations(tracker_file)
+                    reset_barters(tracker_file)
+                    reset_inventory(tracker_file)
+                else:
+                    logging.debug(f'Failed to execute command: {command[0]} {command[1]}')
+                    logging.error('Unhandled reset argument')
+                    logging.info(RESET_HELP)
+            else:
+                logging.debug(f'Aborted command execution for {command[0]} {command[1]} due to confirmation response of {confirmation}')
+                logging.info('Reset aborted')
+    # Restart
+    elif (command[0] == 'restart'):
+        if (len(command) < 2):
+            logging.debug(f'Failed to execute command: {command[0]}')
+            logging.error('Missing barter GUID')
+            logging.info(RESTART_HELP)
+        elif (is_guid(command[1])):
+            logging.debug(f'Executing command: {command[0]} {command[1]}')
+            restart_barter(tracker_file, command[1])
+        elif (command[1] == 'help' or command[1] == 'h'):
+            logging.debug(f'Executing command: {command[0]} {command[1]}')
+            logging.info(RESTART_HELP)
+        else:
+            logging.debug(f'Failed to execute command: {command[0]} {command[1]}')
+            logging.error('Invalid GUID argument')
+            logging.info(RESTART_HELP)
+    # Refresh
+    elif (command[0] == 'refresh'):
+        if (len(command) < 2):
+            logging.warning('You are about to reset progress! Are you sure you wish to proceed? (Y/N)')
+            confirmation = input('> ').lower()
+
+            if (confirmation == 'y'):
+                refresh(tracker_file)
+            else:
+                logging.debug(f'Aborted command execution for {command[0]} {command[1]} due to confirmation response of {confirmation}')
+                logging.info('Refresh aborted')
+        elif (command[1] == 'help' or command[1] == 'h'):
+            logging.debug(f'Executing command: {command[0]} {command[1]}')
+            logging.info(REFRESH_HELP)
+        else:
+            logging.debug(f'Failed to execute command: {command[0]} {command[1]}')
+            logging.error('Invalid refresh argument')
+            logging.info(REFRESH_HELP)
+    # Search
+    elif (command[0] == 'search'):
+        if (len(command) < 2):
+            logging.debug(f'Failed to execute command: {command[0]}')
+            logging.error('Missing search pattern')
+            logging.info(SEARCH_HELP)
+        else:
+            if (command[1] == 'help' or command[1] == 'h'):
+                logging.debug(f'Executing command: {command[0]} {command[1]}')
+                logging.info(SEARCH_HELP)
+            elif (command[-1] == 'barters'):
+                if (command[-2] == 'fuzzy'):
+                    logging.debug(f'Executing command: {command[0]} {command[1:-2]} {command[-2]} {command[-1]}')
+                    ignore_barters = False
+                    pattern = ' '.join(command[1:-2])
+                    fuzzy_search(tracker_file, pattern, ignore_barters)
+                elif (command[-2] == 'required'):
+                    logging.debug(f'Executing command: {command[0]} {command[1:-2]} {command[-2]} {command[-1]}')
+                    ignore_barters = False
+                    pattern = ' '.join(command[1:-2])
+                    required_search(tracker_file, pattern, ignore_barters)
+                else:
+                    logging.debug(f'Executing command: {command[0]} {command[1:-1]} {command[-1]}')
+                    ignore_barters = False
+                    pattern = ' '.join(command[1:-1])
+                    search(tracker_file, pattern, ignore_barters)
+            elif (command[-1] == 'fuzzy'):
+                logging.debug(f'Executing command: {command[0]} {command[1:-1]} {command[-1]}')
+                ignore_barters = True
+                pattern = ' '.join(command[1:-1])
+                fuzzy_search(tracker_file, pattern, ignore_barters)
+            elif (command[-1] == 'required'):
+                logging.debug(f'Executing command: {command[0]} {command[1:-1]}  {command[-1]}')
+                ignore_barters = True
+                pattern = ' '.join(command[1:-1])
+                required_search(tracker_file, pattern, ignore_barters)
+            else:
+                logging.debug(f'Executing command: {command[0]} {command[1:]}')
+                ignore_barters = True
+                pattern = ' '.join(command[1:])
+                search(tracker_file, pattern, ignore_barters)
+    # Track
+    elif (command[0] == 'track'):
+        if (len(command) < 2):
+            logging.debug(f'Failed to execute command: {command[0]}')
+            logging.error('Missing name or barter GUID')
+            logging.info(TRACK_HELP)
+        elif (command[1] == 'help' or command[1] == 'h'):
+            logging.debug(f'Executing command: {command[0]} {command[1]}')
+            logging.info(TRACK_HELP)
+        else:
+            logging.debug(f'Executing command: {command[0]} {command[1:]}')
+            track(tracker_file, ' '.join(command[1:]))
+    elif (command[0] == 'untrack'):
+        if (len(command) < 2):
+            logging.debug(f'Failed to execute command: {command[0]}')
+            logging.error('Missing name or barter GUID')
+            logging.info(UNTRACK_HELP)
+        elif (command[1] == 'help' or command[1] == 'h'):
+            logging.debug(f'Executing command: {command[0]} {command[1]}')
+            logging.info(UNTRACK_HELP)
+        else:
+            logging.debug(f'Executing command: {command[0]} {command[1:]}')
+            untrack(tracker_file, ' '.join(command[1:]))
+    # Complete
+    elif (command[0] == 'complete'):
+        if (len(command) < 2):
+            logging.debug(f'Failed to execute command: {command[0]}')
+            logging.error('Missing name or barter GUID')
+            logging.info(COMPLETE_HELP)
+        else:
+            if (command[1] == 'help' or command[1] == 'h'):
+                logging.debug(f'Executing command: {command[0]} {command[1]}')
+                logging.info(COMPLETE_HELP)
+                return True
+            elif (command[-1] == 'force'):
+                logging.debug(f'Executing command: {command[0]} {command[1:-1]} {command[-1]}')
+                force = True
+                recurse = False
+                argument = ' '.join(command[1:-1])
+            elif (command[-1] == 'recurse'):
+                logging.debug(f'Executing command: {command[0]} {command[1:-1]} {command[-1]}')
+                force = True
+                recurse = True
+                argument = ' '.join(command[1:-1])
+            else:
+                logging.debug(f'Executing command: {command[0]} {command[1:]}')
+                force = False
+                recurse = False
+                argument = ' '.join(command[1:])
+
+            complete(tracker_file, argument, force, recurse)
+    # Add
+    elif (command[0] == 'add'):
+        if (len(command) < 3):
+            logging.debug(f'Failed to execute command: {command[0]}')
+            logging.error('Missing item name or item count')
+            logging.info(ADD_HELP)
+        else:
+            if (command[1] == 'help' or command[1] == 'h'):
+                logging.debug(f'Executing command: {command[0]} {command[1]}')
+                logging.info(ADD_HELP)
+            if ((not command[-1] == 'fir' and (not command[-1].isdigit() or int(command[-1]) < 1)) or (command[-1] == 'fir' and (not command[-2].isdigit() or int(command[-2]) < 1))):
+                logging.debug(f'Failed to execute command: {command[0]} {command[1:]}')
+                logging.error('Invalid integer entered for count')
+                logging.info(ADD_HELP)
+            elif (command[-1] == 'fir'):
+                logging.debug(f'Executing command: {command[0]} {command[1:-2]} {command[-2]} {command[-1]}')
+                count = int(command[-2])
+                argument = ' '.join(command[1:-2])
+                add_item_fir(tracker_file, argument, count)
+            else:
+                logging.debug(f'Executing command: {command[0]} {command[1:-1]} {command[-1]}')
+                count = int(command[-1])
+                argument = ' '.join(command[1:-1])
+                add_item_nir(tracker_file, argument, count)
+    # Level
+    elif (command[0] == 'level'):
+        if (len(command) > 1):
+            if (command[1] == 'up'):
+                logging.debug(f'Executing command: {command[0]} {command[1]}')
+                level_up(tracker_file)
+            elif (command[1] == 'help' or command[1] == 'h'):
+                logging.debug(f'Executing command: {command[0]} {command[1]}')
+                logging.info(LEVEL_HELP)
+            elif (command[1] == 'set'):
+                if (len(command) == 3):
+                    if (command[2].isdigit() and int(command[2]) > 0):
+                        logging.debug(f'Executing command: {command[0]} {command[1]} {command[2]}')
+                        set_level(tracker_file, int(command[2]))
+                    else:
+                        logging.debug(f'Failed to execute command: {command[0]} {command[1]} {command[2]}')
+                        logging.error('Invalid integer entered for level')
+                        logging.info(LEVEL_HELP)
+                else:
+                    logging.debug(f'Failed to execute command: {command[0]} {command[1]}')
+                    logging.error('Missing integer for level')
+                    logging.info(LEVEL_HELP)
+            else:
+                logging.debug(f'Failed to execute command: {command[0]} {command[1]}')
+                logging.error('Unhandled level argument')
+                logging.info(LEVEL_HELP)
+        else:
+            logging.debug(f'Executing command: {command[0]}')
+            check_level(tracker_file)
+    # Help
+    elif (command[0] == 'help' or command[0] == 'h'):
+        logging.debug(f'Executing command: {command[0]}')
+        logging.info(USAGE)
+    # Exit
+    elif (command[0] == 'stop' or command[0] == 's' or command[0] == 'quit' or command[0] == 'q' or command[0] == 'exit'):
+        logging.debug(f'Executing command: {command[0]}')
+        return False
+    # Error
     else:
-        tracker_file = './bin/tracker.json'
-
-    parser = argparse.ArgumentParser(prog = 'tart.py', usage = USAGE)
-
-    # Inventory
-    parser.add_argument('-Inventory', '-inventory', '-i', action = "store_true", help = 'Lists all items in the player\'s inventory')
-    parser.add_argument('-InventoryTasks', '-inventorytasks', '-it', action = "store_true", help = 'Lists all items in the player\'s inventory pertaining to tasks')
-    parser.add_argument('-InventoryStations', '-inventorystations', '-is', action = "store_true", help = 'Lists all items in the player\'s inventory pertaining to hideout stations')
-    parser.add_argument('-InventoryBarters', '-inventorybarters', '-ib', action = "store_true", help = 'Lists all items in the player\'s inventory pertaining to barters')
-    parser.add_argument('-Have', '-have', action = "store_true", help = 'Lists all items the player currently has')
-    parser.add_argument('-Need', '-need', action = "store_true", help = 'Lists all remaining items that the player needs for tasks, hideout stations, and tracked barters')
-
-    # List entities
-    parser.add_argument('-Tasks', '-tasks', '-t', type = str, help = '"{str}" Lists tracked and available tasks by [All, Map, Trader]', nargs = 1, default = False)
-    parser.add_argument('-Stations', '-stations', '-Hideout', '-hideout', '-st', action = "store_true", help = 'Lists tracked and available hideout stations')
-    parser.add_argument('-Barters', '-barters', '-b', type = str, help = '"{str}" Lists tracked barters by [All, Trader]', nargs = 1, default = False)
-    parser.add_argument('-Untracked', '-untracked', '-u', action = "store_true", help = 'Lists all untracked hideout stations and Kappa required tasks')
-
-    # List consts
-    parser.add_argument('-Maps', '-maps', '-m', action = "store_true", help = 'Lists available maps')
-    parser.add_argument('-Traders', '-traders', '-tr', action = "store_true", help = 'Lists available traders')
-
-    # Reset
-    parser.add_argument('-ResetTasks', '-resettasks', action = "store_true", help = 'Resets all task progress')
-    parser.add_argument('-ResetStations', '-resetstations', '-ResetHideout', '-resethideout', action = "store_true", help = 'Resets all hideout station progress')
-    parser.add_argument('-ResetBarters', '-resetbarters', action = "store_true", help = 'Resets all barter progress and tracking')
-    parser.add_argument('-RestartBarter', '-restartbarter', type = str, help = '"{str}" Restarts the barter of given GUID and adds the required items to needed inventory again (Use after completing a barter and wishing to do it again', nargs = 1, default = False)
-    parser.add_argument('-ResetInventory', '-resetinventory', action = "store_true", help = 'Removes all items from the player\'s inventory')
-    parser.add_argument('-ResetAll', '-resetall', action = "store_true", help = 'Resets all progress and clears the player\'s inventory')
-    parser.add_argument('-Refresh', '-refresh', action = "store_true", help = 'Pulls updated game data from api.tarkov.dev. (WARNING: This will also reset all progression and clear the player\'s inventory!)')
-
-    # Searching
-    parser.add_argument('-Search', '-search', '-s', type = str, help = '"{str}" Searches for this normalized name', nargs = 1, default = False)
-    parser.add_argument('-GUID', '-guid', '-g', type = str, help = '"{str}" Searches for this GUID', nargs = 1, default = False)
-    parser.add_argument('-FuzzySearch', '-fuzzysearch', '-f', type = str, help = '"{str}" Searches for any entity containing this text. (WARNING: This may take a while!)', nargs = 1, default = False)
-    parser.add_argument('-Requires', '-requires', '-r', type = str, help = '"{str}" Lists all entites which require this item', nargs = 1, default = False)
-    parser.add_argument('-IgnoreBarters', '-ignorebarters', '-nob', action = "store_true", help = 'Ignores barters from searches')
-
-    # Tracking
-    parser.add_argument('-Track', '-track', type = str, help = '"{str}" Begins tracking the specified task, hideout station, or barter and adds required items to the needed inventory', nargs = '+', default = False)
-    parser.add_argument('-Untrack', '-untrack', type = str, help = '"{str}" Stops tracking the specified task, hideout station, or barter and removes required items from the needed inventory', nargs = '+', default = False)
-
-    # Completing
-    parser.add_argument('-Complete', '-complete', type = str, help = '"{str}" Marks the specified task, hideout station, or barter as complete', nargs = '+', default = False)
-    parser.add_argument('-Force', '-force', action = "store_true", help = 'Forces the entity to complete regardless if enough items are found in the player\'s inventory')
-    parser.add_argument('-RecursiveForce', '-recursiveforce', action = "store_true", help = 'Forces the entity and all prerequisite entities to recursively complete regardless if enough items are found in the player\'s inventory')
-
-    # Items
-    parser.add_argument('-AddItemFIR', '-additemfir', '-fir', type = str, help = '"{str}" Adds the specified item in shortname notation to the player\'s inventory with Found In Raid (FIR) status', nargs = '+', default = False)
-    parser.add_argument('-AddItemNIR', '-additemnir', '-nir', type = str, help = '"{str}" Adds the specified item in shortname notation to the player\'s inventory without Found In Raid (FIR) status', nargs = '+', default = False)
-    parser.add_argument('-Count', '-count', '-c', type = int, help = '{int} The amount of an item to add to the player\'s inventory. This is required with either -AddItem commands', default = False)
-
-    # Level
-    parser.add_argument('-Level', '-level', action = "store_true", help = 'Displays the player\'s current level')
-    parser.add_argument('-LevelUp', '-levelup', '-up', action = "store_true", help = 'Increments the player\'s level by one (1)')
-    parser.add_argument('-SetLevel', '-setlevel', type = int, help = '{int} Sets the player to the specified level', default = False)
-
-    parsed = parser.parse_args(command)
-
-    # Inventory
-    if (parsed.Inventory):
-        list_inventory(tracker_file)
-    if (parsed.InventoryTasks):
-        list_inventory_tasks(tracker_file)
-    if (parsed.InventoryStations):
-        list_inventory_stations(tracker_file)
-    if (parsed.InventoryBarters):
-        list_inventory_barters(tracker_file)
-    if (parsed.Have):
-        list_owned_items(tracker_file)
-    if (parsed.Need):
-        list_needed_items(tracker_file)
-
-    # List entities
-    if (parsed.Tasks):
-        list_tasks(tracker_file, normalize(''.join(parsed.Tasks)))
-    if (parsed.Stations):
-        list_stations(tracker_file)
-    if (parsed.Barters):
-        list_barters(tracker_file, normalize(''.join(parsed.Barters)))
-    if (parsed.Untracked):
-        list_untracked(tracker_file)
-
-    # List consts
-    if (parsed.Maps):
-        list_maps(tracker_file)
-    if (parsed.Traders):
-        list_traders(tracker_file)
+        logging.debug(f'Failed to execute command: {command[0]}')
+        logging.error('Unhandled command')
+        logging.info(USAGE)
     
-    # Reset
-    if (parsed.ResetTasks):
-        logging.warning('This will reset all progress on tasks! Are you sure you wish to proceed? (Y/N)')
-
-        if (input('> ').lower() == 'y'):
-            reset_tasks(tracker_file)
-        else:
-            logging.info('Aborted task reset.')
-    if (parsed.ResetStations):
-        logging.warning('This will reset all progress on hideout stations! Are you sure you wish to proceed? (Y/N)')
-
-        if (input('> ').lower() == 'y'):
-            reset_stations(tracker_file)
-        else:
-            logging.info('Aborted hideout reset.')
-    if (parsed.ResetBarters):
-        logging.warning('This will reset all progress on barters! Are you sure you wish to proceed? (Y/N)')
-
-        if (input('> ').lower() == 'y'):
-            reset_barters(tracker_file)
-        else:
-            logging.info('Aborted barter reset.')
-    if (parsed.RestartBarter):
-        restart_barter(tracker_file, parsed.RestartBarter)
-    if (parsed.ResetInventory):
-        logging.warning('This will clear all items from the player\'s inventory! Are you sure you wish to proceed? (Y/N)')
-
-        if (input('> ').lower() == 'y'):
-            reset_inventory(tracker_file)
-        else:
-            logging.info('Aborted item reset.')
-    if (parsed.ResetAll):
-        logging.warning('This will reset all progress and clear the player\'s inventory! Are you sure you wish to proceed? (Y/N)')
-
-        if (input('> ').lower() == 'y'):
-            reset_tasks(tracker_file)
-            reset_stations(tracker_file)
-            reset_barters(tracker_file)
-            reset_inventory(tracker_file)
-        else:
-            logging.info('Aborted reset.')
-    if (parsed.Refresh):
-        logging.warning('This will refresh all application data with the latest from api.tarkov.dev! Are you sure you wish to proceed? (Y/N)')
-
-        if (input('> ').lower() == 'y'):
-            refresh(tracker_file)
-        else:
-            logging.info('Aborted refresh.')
-
-    # Searching
-    if (parsed.Search):
-        search(tracker_file, super_normalize(''.join(parsed.Search)), parsed.IgnoreBarters)
-    if (parsed.GUID):
-        guid(tracker_file, normalize(''.join(parsed.GUID)), parsed.IgnoreBarters)
-    if (parsed.FuzzySearch):
-        fuzzy_search(tracker_file, normalize(''.join(parsed.FuzzySearch)), parsed.IgnoreBarters)
-    if (parsed.Requires):
-        requires(tracker_file, normalize(''.join(parsed.Requires)), parsed.IgnoreBarters)
-
-    # Tracking
-    if (parsed.Track):
-        track(tracker_file, normalize(''.join(parsed.Track)))
-    if (parsed.Untrack):
-        untrack(tracker_file, normalize(''.join(parsed.Untrack)))
-
-    # Completing
-    if (parsed.Complete):
-        complete(tracker_file, normalize(''.join(parsed.Complete)), parsed.Force, parsed.RecursiveForce)
-
-    # Items
-    if (parsed.AddItemFIR and parsed.Count):
-        add_item_fir(tracker_file, normalize(''.join(parsed.AddItemFIR)), parsed.Count)
-    if (parsed.AddItemNIR and parsed.Count):
-        add_item_nir(tracker_file, normalize(''.join(parsed.AddItemNIR)), parsed.Count)
-    
-    # Level
-    if (parsed.Level):
-        check_level(tracker_file)
-    if (parsed.LevelUp):
-        level_up(tracker_file)
-    if (parsed.SetLevel):
-        set_level(tracker_file, parsed.SetLevel)
-    
-    return
+    return True
 
 # Database editing
 def open_database(file_path):
@@ -222,7 +453,7 @@ def open_database(file_path):
         with open(file_path, 'r', encoding = 'utf-8') as open_file:
             file = json.load(open_file)
     except FileNotFoundError:
-        logging.error('I couldn\'t find the tracker database file in the bin. Try doing a full refresh with -Refresh')
+        logging.error('Database file not found. Please perform a refresh')
         exit(1)
     return file
 
@@ -672,7 +903,7 @@ def track_task(database, guid):
 
                     if (objective['foundInRaid']):
                         database['inventory'][item_guid]['need_fir'] = database['inventory'][item_guid]['need_fir'] + count
-                        logging.info(f'Added {count} {guid_to_item(database, item_guid)} to needed (FIR) inventory')
+                        logging.info(f'Added {count} {guid_to_item(database, item_guid)} to needed Found In Raid (FIR) inventory')
                     else:
                         database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] + count
                         logging.info(f'Added {count} {guid_to_item(database, item_guid)} to needed inventory')
@@ -711,7 +942,19 @@ def track_barter(database, guid):
             for requirement in barter['requiredItems']:
                 item_guid = requirement['item']['id']
                 count = requirement['count']
-                database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] + count
+                
+                if (item_guid not in database['inventory'].keys()):
+                    database['inventory'][item_guid] = {
+                        'need_fir': 0,
+                        'need_nir': count,
+                        'have_fir': 0,
+                        'have_nir': 0,
+                        'consumed_fir': 0,
+                        'consumed_nir': 0
+                    }
+                else:
+                    database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] + count
+
                 logging.info(f'Added {count} {guid_to_item(database, item_guid)} to needed inventory')
 
             barter['tracked'] = True
@@ -733,7 +976,7 @@ def untrack_task(database, guid):
 
                     if (objective['foundInRaid']):
                         database['inventory'][item_guid]['need_fir'] = database['inventory'][item_guid]['need_fir'] - count
-                        logging.info(f'Removed {count} {guid_to_item(database, item_guid)} from needed (FIR) inventory')
+                        logging.info(f'Removed {count} {guid_to_item(database, item_guid)} from needed Found In Raid (FIR) inventory')
                     else:
                         database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] - count
                         logging.info(f'Removed {count} {guid_to_item(database, item_guid)} from needed inventory')
@@ -808,7 +1051,7 @@ def complete_task(database, guid, force):
                             diff_fir = need_fir - have_fir
 
                             if (diff_fir > 0):
-                                logging.error(f'{diff_fir} more {guid_to_item(database, item_guid)} required to complete this task. Use the -Force flag to override')
+                                logging.error(f'{diff_fir} more {guid_to_item(database, item_guid)} required to complete this task. Override with the force optional argument')
                                 return False
                             else:
                                 continue
@@ -818,7 +1061,7 @@ def complete_task(database, guid, force):
                             diff_nir = need_nir - have_nir
 
                             if (diff_nir > 0):
-                                logging.error(f'{diff_nir} more {guid_to_item(database, item_guid)} required to complete this task. Use the -Force flag to override')
+                                logging.error(f'{diff_nir} more {guid_to_item(database, item_guid)} required to complete this task. Override with the force optional argument')
                                 return False
                             else:
                                 continue
@@ -834,7 +1077,7 @@ def complete_task(database, guid, force):
 
                         if (diff_fir > 0):
                             database['inventory'][item_guid]['have_fir'] = database['inventory'][item_guid]['have_fir'] + diff_fir
-                            logging.info(f'Added {diff_fir} {guid_to_item(database, item_guid)} to the player\'s inventory as Found In Raid (FIR) to complete {task["name"]}')
+                            logging.info(f'Added {diff_fir} {guid_to_item(database, item_guid)} to the inventory as Found In Raid (FIR) to complete {task["name"]}')
                         
                         database['inventory'][item_guid]['consumed_fir'] = database['inventory'][item_guid]['consumed_fir'] + need_fir
                     else:
@@ -844,7 +1087,7 @@ def complete_task(database, guid, force):
 
                         if (diff_nir > 0):
                             database['inventory'][item_guid]['have_nir'] = database['inventory'][item_guid]['have_nir'] + diff_nir
-                            logging.info(f'Added {diff_nir} {guid_to_item(database, item_guid)} to the player\'s inventory to complete {task["name"]}')
+                            logging.info(f'Added {diff_nir} {guid_to_item(database, item_guid)} to the inventory to complete {task["name"]}')
                         
                         database['inventory'][item_guid]['consumed_nir'] = database['inventory'][item_guid]['consumed_nir'] + need_nir
             
@@ -857,7 +1100,10 @@ def complete_task(database, guid, force):
     return database
 
 def complete_recursive_task(database, guid, force):
-    database = complete_task(database, guid, force)
+    updated_database = complete_task(database, guid, force)
+
+    if (updated_database):
+        database = updated_database
 
     for task in database['tasks']:
         if (task['id'] == guid):
@@ -886,7 +1132,7 @@ def complete_station(database, guid, force):
                         diff_nir = need_nir - have_nir
 
                         if (diff_nir > 0):
-                            logging.error(f'{diff_nir} more {guid_to_item(database, item_guid)} required to complete this hideout station. Use the -Force flag to override')
+                            logging.error(f'{diff_nir} more {guid_to_item(database, item_guid)} required to complete this hideout station. Override with the force optional argument')
                             return False
                         else:
                             continue
@@ -899,7 +1145,7 @@ def complete_station(database, guid, force):
 
                     if (diff_nir > 0):
                         database['inventory'][item_guid]['have_nir'] = database['inventory'][item_guid]['have_nir'] + diff_nir
-                        logging.info(f'Added {diff_nir} {guid_to_item(database, item_guid)} to the player\'s inventory to complete {level["normalizedName"]}')
+                        logging.info(f'Added {diff_nir} {guid_to_item(database, item_guid)} to the inventory to complete {level["normalizedName"]}')
                     
                     database['inventory'][item_guid]['consumed_nir'] = database['inventory'][item_guid]['consumed_nir'] + need_nir
                 
@@ -937,7 +1183,7 @@ def complete_barter(database, guid, force):
                     diff_nir = need_nir - have_nir
 
                     if (diff_nir > 0):
-                        logging.error(f'{diff_nir} more {guid_to_item(database, item_guid)} required to complete this barter. Use the -Force flag to override')
+                        logging.error(f'{diff_nir} more {guid_to_item(database, item_guid)} required to complete this barter. Override with the force optional argument')
                         return False
                     else:
                         continue
@@ -950,7 +1196,7 @@ def complete_barter(database, guid, force):
 
                 if (diff_nir > 0):
                     database['inventory'][item_guid]['have_nir'] = database['inventory'][item_guid]['have_nir'] + diff_nir
-                    logging.info(f'Added {diff_nir} {guid_to_item(database, item_guid)} to the player\'s inventory to complete {barter["id"]}')
+                    logging.info(f'Added {diff_nir} {guid_to_item(database, item_guid)} to the inventory to complete {barter["id"]}')
                 
                 database['inventory'][item_guid]['consumed_nir'] = database['inventory'][item_guid]['consumed_nir'] + need_nir
             
@@ -987,8 +1233,8 @@ def print_inventory(database, items):
     print(display)
     return
 
-def print_inventory_have(database, items):
-    display = INVENTORY_HAVE_HEADER + BUFFER
+def print_inventory_owned(database, items):
+    display = INVENTORY_OWNED_HEADER + BUFFER
     items_in_this_row = 0
 
     for guid in items.keys():
@@ -1025,7 +1271,7 @@ def print_tasks(database, tasks):
     display = TASK_HEADER + BUFFER
     
     for task in tasks:
-        display = display + '{:<40} {:<20} {:<20} {:<20} {:<20}\n'.format(task['name'], guid_to_trader(database, task['trader']['id']), task['status'], print_bool(task['tracked']), print_bool(task['kappaRequired']))
+        display = display + '{:<40} {:<20} {:<20} {:<20} {:<20} {:<40}\n'.format(task['name'], guid_to_trader(database, task['trader']['id']), task['status'], print_bool(task['tracked']), print_bool(task['kappaRequired']), task['id'])
 
         for objective in task['objectives']:
             objective_string = '-->'
@@ -1073,7 +1319,7 @@ def print_hideout_stations(database, stations):
     display = HIDEOUT_HEADER + BUFFER
 
     for level in stations:
-        display = display + '{:<40} {:<20} {:<20}\n'.format(level['normalizedName'], level['status'], print_bool(level['tracked']))
+        display = display + '{:<40} {:<20} {:<20} {:<40}\n'.format(level['normalizedName'], level['status'], print_bool(level['tracked']), level['id'])
 
         for item in level['itemRequirements']:
             short_name = guid_to_item(database, item['item']['id'])
@@ -1221,18 +1467,18 @@ def list_inventory_barters(tracker_file):
 
     return True
 
-def list_owned_items(tracker_file):
+def list_inventory_owned(tracker_file):
     database = open_database(tracker_file)
     owned_items = get_items_owned(database)
     
     if (not bool(owned_items)):
         logging.info('Your inventory is empty!')
     else:
-        print_inventory_have(database, owned_items)
+        print_inventory_owned(database, owned_items)
 
     return
 
-def list_needed_items(tracker_file):
+def list_inventory_needed(tracker_file):
     database = open_database(tracker_file)
     needed_items = get_items_needed(database)
     
@@ -1243,9 +1489,10 @@ def list_needed_items(tracker_file):
 
     return
 
-# List entities
+# List
 def list_tasks(tracker_file, argument):
     database = open_database(tracker_file)
+    argument = normalize(argument)
     guid, type = name_guid_lookup(database, argument)
 
     if (not guid and argument != 'all'):
@@ -1279,6 +1526,7 @@ def list_stations(tracker_file):
 
 def list_barters(tracker_file, argument):
     database = open_database(tracker_file)
+    argument = normalize(argument)
     guid, type = name_guid_lookup(database, argument)
 
     if (type == 'trader'):
@@ -1304,7 +1552,6 @@ def list_untracked(tracker_file):
 
     return True
 
-# List maps or traders
 def list_maps(tracker_file):
     database = open_database(tracker_file)
     maps = ', '.join(map['normalizedName'] for map in database['maps']).strip(', ')
@@ -1354,9 +1601,6 @@ def reset_barters(tracker_file):
     logging.info('All barter progress has been reset')
     return True
 
-def restart_barter(tracker_file, argument):
-    return
-
 def reset_inventory(tracker_file):
     database = open_database(tracker_file)
     
@@ -1365,9 +1609,38 @@ def reset_inventory(tracker_file):
         database['inventory'][guid]['have_nir'] = 0
     
     write_database(tracker_file, database)
-    logging.info('The player\'s inventory has been cleared')
+    logging.info('The inventory has been cleared')
     return True
 
+# Restart
+def restart_barter(tracker_file, argument):
+    database = open_database(tracker_file)
+
+    for barter in database['barters']:
+        if (barter['id'] == argument):
+            if (not barter['tracked']):
+                logging.error(f'Barter {argument} is not currently tracked and therefore cannot be restarted')
+                return False
+            
+            if (barter['status'] == 'complete'):
+                barter['status'] = 'incomplete'
+                logging.info(f'Set barter {argument} to incomplete')
+            else:
+                logging.error(f'Barter {argument} is not yet completed and therefore cannot be restarted')
+                return False
+            
+            for requirement in barter['requiredItems']:
+                guid = requirement['item']['id']
+                count = requirement['count']
+                database['inventory'][guid]['need_nir'] = database['inventory'][guid]['need_nir'] + count
+                logging.info(f'Added {count} of {guid_to_item(database, guid)} to the needed inventory')
+            
+            return True
+    
+    logging.error(f'Encountered an unhandled error when restarting barter {argument}')
+    return False
+
+# Refresh
 def refresh(tracker_file):
     database = {
         'tasks': [],
@@ -1771,12 +2044,19 @@ def refresh(tracker_file):
     
     logging.info('Overwrote normalized name for "Streets of Tarkov" to "streets" and for "The Lab" to "labs"')
     write_database(tracker_file, database)
-    logging.info('Generated a new database file in /bin')
+    logging.info(f'Generated a new database file {tracker_file}')
     return
 
-# Searching
+# Search
 def search(tracker_file, argument, ignore_barters):
     database = open_database(tracker_file)
+    
+    if (not is_guid(argument)):
+        argument = super_normalize(argument)
+        guid = False
+    else:
+        guid = True
+
     tasks = []
     stations = []
     barters = []
@@ -1785,27 +2065,64 @@ def search(tracker_file, argument, ignore_barters):
     maps = []
 
     for task in database['tasks']:
-        if (super_normalize(task['name']).startswith(argument) or super_normalize(task['normalizedName']).startswith(argument)):
+        if (not guid):
+            if (super_normalize(task['name']).startswith(argument) or super_normalize(task['normalizedName']).startswith(argument)):
+                tasks.append(task)
+        elif (task['id'] == argument):
             tasks.append(task)
 
     for station in database['hideout']:
         for level in station['levels']:
-            if (super_normalize(level['normalizedName']).startswith(argument)):
-                stations.append(station)
+            if (not guid):
+                if (super_normalize(level['normalizedName']).startswith(argument)):
+                    stations.append(level)
+            elif (level['id'] == argument):
+                stations.append(level)
 
     if (not ignore_barters):
         for barter in database['barters']:
-            for requirement in barter['requiredItems']:
-                item = guid_to_item_object(database, requirement['item']['id'])
-                if (super_normalize(item['shortName']).startswith(argument) or super_normalize(item['normalizedName']).startswith(argument)):
-                    barters.append(barter)
-            for reward in barter['rewardItems']:
-                item = guid_to_item_object(database, reward['item']['id'])
-                if (super_normalize(item['shortName']).startswith(argument) or super_normalize(item['normalizedName']).startswith(argument)):
-                    barters.append(barter)
+            if (not guid):
+                for requirement in barter['requiredItems']:
+                    item = guid_to_item_object(database, requirement['item']['id'])
+
+                    if (super_normalize(item['shortName']).startswith(argument) or super_normalize(item['normalizedName']).startswith(argument)):
+                        barters.append(barter)
+                for reward in barter['rewardItems']:
+                    item = guid_to_item_object(database, reward['item']['id'])
+
+                    if (super_normalize(item['shortName']).startswith(argument) or super_normalize(item['normalizedName']).startswith(argument)):
+                        barters.append(barter)
+            elif (barter['id'] == argument):
+                barters.append(barter)
 
     for item in database['all_items']:
-        if (super_normalize(item['shortName']).startswith(argument) or super_normalize(item['normalizedName']).startswith(argument)):
+        if (not guid):
+            if (super_normalize(item['shortName']).startswith(argument) or super_normalize(item['normalizedName']).startswith(argument)):
+                if (item['id'] in database['inventory'].keys()):
+                    items.append({
+                        'need_fir': database['inventory'][item['id']]['need_fir'],
+                        'need_nir': database['inventory'][item['id']]['need_nir'],
+                        'have_fir': database['inventory'][item['id']]['have_fir'],
+                        'have_nir': database['inventory'][item['id']]['have_nir'],
+                        'consumed_fir': database['inventory'][item['id']]['consumed_fir'],
+                        'consumed_nir': database['inventory'][item['id']]['consumed_nir'],
+                        'shortName': item['shortName'],
+                        'normalizedName': item['normalizedName'],
+                        'id': item['id']
+                    })
+                else:
+                    items.append({
+                        'need_fir': 0,
+                        'need_nir': 0,
+                        'have_fir': 0,
+                        'have_nir': 0,
+                        'consumed_fir': 0,
+                        'consumed_nir': 0,
+                        'shortName': item['shortName'],
+                        'normalizedName': item['normalizedName'],
+                        'id': item['id']
+                    })
+        elif (item['id'] == argument):
             if (item['id'] in database['inventory'].keys()):
                 items.append({
                     'need_fir': database['inventory'][item['id']]['need_fir'],
@@ -1832,28 +2149,193 @@ def search(tracker_file, argument, ignore_barters):
                 })
 
     for trader in database['traders']:
-        if (super_normalize(trader['normalizedName']).startswith(argument)):
+        if (not guid):
+            if (super_normalize(trader['normalizedName']).startswith(argument)):
+                traders.append(trader)
+        elif (trader['id'] == argument):
             traders.append(trader)
 
     for map in database['maps']:
-        if (super_normalize(map['normalizedName']).startswith(argument)):
+        if (not guid):
+            if (super_normalize(map['normalizedName']).startswith(argument)):
+                maps.append(map)
+        elif (map['id'] == argument):
             maps.append(map)
 
     print_search(database, tasks, stations, barters, items, traders, maps)
     return True
 
-def guid(tracker_file, argument):
-    return
+def fuzzy_search(tracker_file, argument, ignore_barters):
+    database = open_database(tracker_file)
+    
+    if (not is_guid(argument)):
+        argument = super_normalize(argument)
+        guid = False
+    else:
+        guid = True
 
-def fuzzy_search(tracker_file, argument):
-    return
+    tasks = []
+    stations = []
+    barters = []
+    items = []
+    traders = []
+    maps = []
 
-def requires(tracker_file, argument):
-    return
+    for task in database['tasks']:
+        if (not guid):
+            if (argument in super_normalize(task['name']) or argument in super_normalize(task['normalizedName'])):
+                tasks.append(task)
+        elif (task['id'] == argument):
+            tasks.append(task)
 
-# Tracking
+    for station in database['hideout']:
+        for level in station['levels']:
+            if (not guid):
+                if (argument in super_normalize(level['normalizedName'])):
+                    stations.append(level)
+            elif (level['id'] == argument):
+                stations.append(level)
+
+    if (not ignore_barters):
+        for barter in database['barters']:
+            if (not guid):
+                for requirement in barter['requiredItems']:
+                    item = guid_to_item_object(database, requirement['item']['id'])
+
+                    if (argument in super_normalize(item['shortName']) or argument in super_normalize(item['normalizedName'])):
+                        barters.append(barter)
+                for reward in barter['rewardItems']:
+                    item = guid_to_item_object(database, reward['item']['id'])
+
+                    if (argument in super_normalize(item['shortName']) or argument in super_normalize(item['normalizedName'])):
+                        barters.append(barter)
+            elif (barter['id'] == argument):
+                barters.append(barter)
+
+    for item in database['all_items']:
+        if (not guid):
+            if (argument in super_normalize(item['shortName']) or argument in super_normalize(item['normalizedName'])):
+                if (item['id'] in database['inventory'].keys()):
+                    items.append({
+                        'need_fir': database['inventory'][item['id']]['need_fir'],
+                        'need_nir': database['inventory'][item['id']]['need_nir'],
+                        'have_fir': database['inventory'][item['id']]['have_fir'],
+                        'have_nir': database['inventory'][item['id']]['have_nir'],
+                        'consumed_fir': database['inventory'][item['id']]['consumed_fir'],
+                        'consumed_nir': database['inventory'][item['id']]['consumed_nir'],
+                        'shortName': item['shortName'],
+                        'normalizedName': item['normalizedName'],
+                        'id': item['id']
+                    })
+                else:
+                    items.append({
+                        'need_fir': 0,
+                        'need_nir': 0,
+                        'have_fir': 0,
+                        'have_nir': 0,
+                        'consumed_fir': 0,
+                        'consumed_nir': 0,
+                        'shortName': item['shortName'],
+                        'normalizedName': item['normalizedName'],
+                        'id': item['id']
+                    })
+        elif (item['id'] == argument):
+            if (item['id'] in database['inventory'].keys()):
+                items.append({
+                    'need_fir': database['inventory'][item['id']]['need_fir'],
+                    'need_nir': database['inventory'][item['id']]['need_nir'],
+                    'have_fir': database['inventory'][item['id']]['have_fir'],
+                    'have_nir': database['inventory'][item['id']]['have_nir'],
+                    'consumed_fir': database['inventory'][item['id']]['consumed_fir'],
+                    'consumed_nir': database['inventory'][item['id']]['consumed_nir'],
+                    'shortName': item['shortName'],
+                    'normalizedName': item['normalizedName'],
+                    'id': item['id']
+                })
+            else:
+                items.append({
+                    'need_fir': 0,
+                    'need_nir': 0,
+                    'have_fir': 0,
+                    'have_nir': 0,
+                    'consumed_fir': 0,
+                    'consumed_nir': 0,
+                    'shortName': item['shortName'],
+                    'normalizedName': item['normalizedName'],
+                    'id': item['id']
+                })
+
+    for trader in database['traders']:
+        if (not guid):
+            if (argument in super_normalize(trader['normalizedName'])):
+                traders.append(trader)
+        elif (trader['id'] == argument):
+            traders.append(trader)
+
+    for map in database['maps']:
+        if (not guid):
+            if (argument in super_normalize(map['normalizedName'])):
+                maps.append(map)
+        elif (map['id'] == argument):
+            maps.append(map)
+
+    print_search(database, tasks, stations, barters, items, traders, maps)
+    return True
+
+def required_search(tracker_file, argument, ignore_barters):
+    database = open_database(tracker_file)
+    
+    if (not is_guid(argument)):
+        argument = super_normalize(argument)
+        guid = False
+    else:
+        guid = True
+
+    tasks = []
+    stations = []
+    barters = []
+    items, traders, maps = [], [], []
+
+    for task in database['tasks']:
+        for objective in task['objectives']:
+            if (objective['type'] == 'giveItem'):
+                if (not guid):
+                    item = guid_to_item_object(database, objective['item']['id'])
+
+                    if (super_normalize(item['shortName']).startswith(argument) or super_normalize(item['normalizedName']).startswith(argument)):
+                        tasks.append(task)
+                elif (objective['item']['id'] == argument):
+                    tasks.append(task)
+
+    for station in database['hideout']:
+        for level in station['levels']:
+            for requirement in level['itemRequirements']:
+                if (not guid):
+                    item = guid_to_item_object(database, requirement['item']['id'])
+
+                    if (super_normalize(item['shortName']).startswith(argument) or super_normalize(item['normalizedName']).startswith(argument)):
+                        stations.append(level)
+                elif (requirement['item']['id'] == argument):
+                    stations.append(level)
+
+    if (not ignore_barters):
+        for barter in database['barters']:
+            for requirement in barter['requiredItems']:
+                if (not guid):
+                    item = guid_to_item_object(database, requirement['item']['id'])
+
+                    if (super_normalize(item['shortName']).startswith(argument) or super_normalize(item['normalizedName']).startswith(argument)):
+                        barters.append(barter)
+                elif (requirement['item']['id'] == argument):
+                    barters.append(barter)
+
+    print_search(database, tasks, stations, barters, items, traders, maps)
+    return True
+
+# Track
 def track(tracker_file, argument):
     database = open_database(tracker_file)
+    argument = normalize(argument)
 
     if (is_guid(argument)):
         guid = argument
@@ -1883,6 +2365,7 @@ def track(tracker_file, argument):
 
 def untrack(tracker_file, argument):
     database = open_database(tracker_file)
+    argument = normalize(argument)
 
     if (is_guid(argument)):
         guid = argument
@@ -1910,10 +2393,11 @@ def untrack(tracker_file, argument):
 
     return False
 
-# Completing
+# Complete
 def complete(tracker_file, argument, force, recurse):
     database = open_database(tracker_file)
-
+    argument = normalize(argument)
+    
     if (is_guid(argument)):
         guid = argument
         type = 'barter'
@@ -1921,7 +2405,7 @@ def complete(tracker_file, argument, force, recurse):
         guid, type = name_guid_lookup(database, argument)
 
     if (not guid):
-        logging.error('Invalid arguments. Accepted arguments are [Task Name, Station Name, Barter GUID]')
+        logging.error('Invalid arguments')
         return False
 
     if (type == 'task' and not recurse):
@@ -1942,9 +2426,10 @@ def complete(tracker_file, argument, force, recurse):
 
     return False
 
-# Items
+# Add
 def add_item_fir(tracker_file, argument, count):
     database = open_database(tracker_file)
+    argument = normalize(argument)
     guid = item_to_guid(database, argument)
 
     if (not guid):
@@ -1974,6 +2459,7 @@ def add_item_fir(tracker_file, argument, count):
 
 def add_item_nir(tracker_file, argument, count):
     database = open_database(tracker_file)
+    argument = normalize(argument)
     guid = item_to_guid(database, argument)
 
     if (not guid):
@@ -2019,8 +2505,23 @@ def level_up(tracker_file):
 
 
 def main(args):
-    logging.basicConfig(level = logging.INFO, format = '[%(asctime)s] [%(levelname)s]: %(message)s')
-    parser(args[1:])
+    if (args[1].lower() == 'debug'):
+        logging.basicConfig(level = logging.DEBUG, format = '[%(asctime)s] [%(levelname)s]: %(message)s')
+        logging.info('Welcome to the TARkov Tracker (TART)!')
+        logging.info('RUNNING IN DEBUG MODE. All changes will affect only the debug database file!')
+        tracker_file = 'debug.json'
+    else:
+        logging.basicConfig(level = logging.INFO, format = '[%(asctime)s] [%(levelname)s]: %(message)s')
+        logging.info('Welcome to the TARkov Tracker (TART)!')
+        tracker_file = 'database.json'
+
+    while(True):
+        command = input('> ')
+        exited = parser(tracker_file, command)
+        
+        if (not exited):
+            logging.info('Gracefully quit!')
+            break
 
 if (__name__ == '__main__'):
-    main(sys.argv)  
+    main(sys.argv)

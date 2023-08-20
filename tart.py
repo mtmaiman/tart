@@ -154,7 +154,7 @@ def parser(command):
         else:
             logging.info('Aborted barter reset.')
     if (parsed.RestartBarter):
-        restart_barter(tracker_file, argument)
+        restart_barter(tracker_file, parsed.RestartBarter)
     if (parsed.ResetInventory):
         logging.warning('This will clear all items from the player\'s inventory! Are you sure you wish to proceed? (Y/N)')
 
@@ -2023,4 +2023,4 @@ def main(args):
     parser(args[1:])
 
 if (__name__ == '__main__'):
-    main(sys.argv)
+    main(sys.argv)  

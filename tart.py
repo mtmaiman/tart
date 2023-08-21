@@ -8,6 +8,10 @@ import re
 import requests
 
 
+#TODO: Add val feature to search
+#TODO: Use cached data for val feature
+#TODO: Set all items to refresh every 24 hours
+#TODO: Create manual all items refresh function
 #TODO: Add bullet rankings (need to check API)
 USAGE = '''
 tart.py {debug}\n
@@ -708,6 +712,10 @@ def is_guid(text):
 def normalize(text):
     normalized = text.lower().replace('-',' ')
     normalized = normalized.replace('the', '')
+    normalized = normalized.replace('.', '')
+    normalized = normalized.replace('(', '')
+    normalized = normalized.replace(')', '')
+    normalized = normalized.replace('+', '')
     normalized = re.sub(' +', ' ', normalized)
     normalized = normalized.replace(' ','')
     logging.debug(f'Normalized {text} to {normalized}')

@@ -2575,6 +2575,16 @@ def required_search(tracker_file, argument, ignore_barters):
                         tasks.append(task)
                 elif (objective['item']['id'] == argument):
                     tasks.append(task)
+        
+        for needed_key in task['neededKeys']:
+            for key in needed_key['keys']:
+                if (not guid):
+                    key = guid_to_item_object(database, key['id'])
+
+                    if (normalize(key['shortName']).startswith(argument) or normalize(key['normalizedName']).startswith(argument)):
+                        tasks.append(task)
+                elif (key['id'] == argument):
+                    tasks.append(task)
 
     for station in database['hideout']:
         for level in station['levels']:

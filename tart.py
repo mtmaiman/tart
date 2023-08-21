@@ -17,18 +17,19 @@ A lightweigth python CLI for tracking task, hideout, and barter progression, inc
 NOTE: Command arguments expect names or GUIDs. Please use search functions to find these if you are unsure\n
 DEBUG: Execute the python script with a positional argument of "debug" to enter debug mode
 Commands:
-\tinv -help
-\tls -help
-\treset -help
-\trestart -help
-\trefresh -help
-\tsearch -help
-\ttrack -help
-\tuntrack -help
-\tcomplete -help
-\tadd -help
-\tval -help
-\tlevel -help
+\tinv help
+\tls help
+\treset help
+\trestart help
+\trefresh help
+\tsearch help
+\trequires help
+\ttrack help
+\tuntrack help
+\tcomplete help
+\tadd help
+\tval help
+\tlevel help
 '''
 INV_HELP = '''
 > inv {inventory}\n
@@ -80,13 +81,20 @@ prices
 \tprices : Manually refreshes only item price data (Does not reset any progress)
 '''
 SEARCH_HELP = '''
-> search [pattern] {method} {barters}\n
+> search [pattern] {fuzzy} {barters}\n
 Searches the database on the specified pattern\n
 pattern
 \t{pattern} : The name or guid of an object to search for
-\t\tmethods
-\t\t\tfuzzy : Searches for objects which contain the specified pattern anywhere in the name
-\t\t\trequired : Searches for objects which have the specified pattern as a requirement
+\t\tfuzzy
+\t\t\tfuzzy : More aggressively searches for the specified pattern (Returns more results)
+\t\tbarters
+\t\t\tbarters : Will also search all available barters (May cause excessive results)
+'''
+REQUIRES_HELP = '''
+> requires [item] {barters}\n
+Searches the database for objects which require the specified item name or guid\n
+item
+\t{item} : The name or guid of an item to search for
 \t\tbarters
 \t\t\tbarters : Will also search all available barters (May cause excessive results)
 '''
@@ -315,11 +323,6 @@ def parser(tracker_file, command):
                     ignore_barters = False
                     pattern = ' '.join(command[1:-2])
                     fuzzy_search(tracker_file, pattern, ignore_barters)
-                elif (command[-2] == 'required'):
-                    logging.debug(f'Executing command: {command[0]} {command[1:-2]} {command[-2]} {command[-1]}')
-                    ignore_barters = False
-                    pattern = ' '.join(command[1:-2])
-                    required_search(tracker_file, pattern, ignore_barters)
                 else:
                     logging.debug(f'Executing command: {command[0]} {command[1:-1]} {command[-1]}')
                     ignore_barters = False
@@ -330,16 +333,31 @@ def parser(tracker_file, command):
                 ignore_barters = True
                 pattern = ' '.join(command[1:-1])
                 fuzzy_search(tracker_file, pattern, ignore_barters)
-            elif (command[-1] == 'required'):
-                logging.debug(f'Executing command: {command[0]} {command[1:-1]}  {command[-1]}')
+            else:
+                logging.debug(f'Executing command: {command[0]} {command[1:]}')
                 ignore_barters = True
+                pattern = ' '.join(command[1:])
+                search(tracker_file, pattern, ignore_barters)
+    # Requires
+    elif (command[0] == 'requires'):
+        if (len(command) < 2):
+            logging.debug(f'Failed to execute command: {command[0]}')
+            logging.error('Missing item name or guid')
+            logging.info(REQUIRES_HELP)
+        else:
+            if (command[1] == 'help' or command[1] == 'h'):
+                logging.debug(f'Executing command: {command[0]} {command[1]}')
+                logging.info(REQUIRES_HELP)
+            elif (command[-1] == 'barters'):
+                logging.debug(f'Executing command: {command[0]} {command[1:-1]} {command[-1]}')
+                ignore_barters = False
                 pattern = ' '.join(command[1:-1])
                 required_search(tracker_file, pattern, ignore_barters)
             else:
                 logging.debug(f'Executing command: {command[0]} {command[1:]}')
                 ignore_barters = True
                 pattern = ' '.join(command[1:])
-                search(tracker_file, pattern, ignore_barters)
+                required_search(tracker_file, pattern, ignore_barters)
     # Track
     elif (command[0] == 'track'):
         if (len(command) < 2):

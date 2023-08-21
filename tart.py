@@ -8,7 +8,6 @@ import re
 import requests
 
 
-#TODO: Add single slot value lookup for items (need to check API)
 #TODO: Add bullet rankings (need to check API)
 USAGE = '''
 tart.py {debug}\n
@@ -133,7 +132,7 @@ operations
 \t\t\tlevel : The integer value greater than 0 to set the player level at
 '''
 ITEM_HEADER = '{:<25} {:<60} {:<30} {:<25}\n'.format('Item Short Name', 'Item Normalized Name', 'Item GUID', 'Have (FIR) Need (FIR)')
-VALUE_HEADER = '{:<25} {:<60} {:<30} {:<25} {:<25}'.format('Item Short Name', 'Item Normalized Name', 'Item GUID', 'Trader Per Slot', 'Flea Per Slot')
+VALUE_HEADER = '{:<25} {:<60} {:<30} {:<25} {:<25}\n'.format('Item Short Name', 'Item Normalized Name', 'Item GUID', 'Trader Per Slot', 'Flea Per Slot (- Fee)')
 MAP_HEADER = '{:<30} {:<20}\n'.format('Map Normalized Name', 'Map GUID')
 TRADER_HEADER = '{:<30} {:<20}\n'.format('Trader Normalized Name', 'Trader GUID')
 INVENTORY_HEADER = '{:<20} {:<25} {:<20} {:<25} {:<20} {:<25} \n'.format('Item', 'Have (FIR) Need (FIR)', 'Item', 'Have (FIR) Need (FIR)', 'Item', 'Have (FIR) Need (FIR)')
@@ -143,7 +142,7 @@ TASK_HEADER = '{:<40} {:<20} {:<20} {:<20} {:<20} {:<40}\n'.format('Task Title',
 HIDEOUT_HEADER = '{:<40} {:<20} {:<20} {:<40}\n'.format('Station Name', 'Station Status', 'Tracked', 'Station GUID')
 BARTER_HEADER = '{:<40} {:<20} {:<20} {:<20}\n'.format('Barter GUID', 'Trader', 'Level', 'Tracked')
 UNTRACKED_HEADER = '{:<40} {:<20} {:<20}\n'.format('Entity Name', 'Type', 'Tracked')
-BUFFER = '-------------------------------------------------------------------------------------------------------------------------------------\n'
+BUFFER = '----------------------------------------------------------------------------------------------------------------------------------------------------------------------\n'
 
 
 ###################################################
@@ -475,7 +474,8 @@ def open_database(file_path):
             file = json.load(open_file)
     except FileNotFoundError:
         logging.error('Database file not found. Please perform a refresh')
-        exit(1)
+        return False
+    
     return file
 
 def write_database(file_path, data):
@@ -572,7 +572,7 @@ def item_to_guid(database, item_name):
     items = []
 
     for item in database['all_items']:
-        if (item['shortName'].lower() == item_name or item['normalizedName'] == item_name):
+        if (normalize(item['shortName'].lower()) == item_name or normalize(item['normalizedName']) == item_name):
             logging.debug(f'Found item matching name {item_name}')
             items.append(item)
 
@@ -596,11 +596,25 @@ def item_to_guid(database, item_name):
         return False
     else:
         return items[0]['id']
+    
+def item_to_multi_guid(database, item_name):
+    logging.debug(f'Searching for item matching name {item_name}')
+    guids = []
+
+    for item in database['all_items']:
+        if (normalize(item['shortName'].lower()) == item_name or normalize(item['normalizedName']) == item_name):
+            logging.debug(f'Found item matching name {item_name}')
+            guids.append(item['id'])
+
+    if (len(guids) == 0):
+        return False
+    
+    return guids
 
 def task_to_guid(database, task_name):
     logging.debug(f'Searching for task matching name {task_name}')
     for task in database['tasks']:
-        if (task['normalizedName'] == task_name):
+        if (normalize(task['normalizedName']) == task_name):
             logging.debug(f'Found task matching name {task_name}')
             return task['id']
     
@@ -610,7 +624,7 @@ def station_to_guid(database, station_name):
     logging.debug(f'Searching for hideout station matching name {station_name}')
     for station in database['hideout']:
         for level in station['levels']:
-            if (level['normalizedName'] == station_name):
+            if (normalize(level['normalizedName']) == station_name):
                 logging.debug(f'Found hideout station matching name {station_name}')
                 return level['id']
     
@@ -619,7 +633,7 @@ def station_to_guid(database, station_name):
 def map_to_guid(database, map_name):
     logging.debug(f'Searching for map matching name {map_name}')
     for map in database['maps']:
-        if (map['normalizedName'] == map_name):
+        if (normalize(map['normalizedName']) == map_name):
             logging.debug(f'Found map matching name {map_name}')
             return map['id']
     
@@ -628,7 +642,7 @@ def map_to_guid(database, map_name):
 def trader_to_guid(database, trader_name):
     logging.debug(f'Searching for trader matching name {trader_name}')
     for trader in database['traders']:
-        if (trader['normalizedName'] == trader_name):
+        if (normalize(trader['normalizedName']) == trader_name):
             logging.debug(f'Found trader matching name {trader_name}')
             return trader['id']
     
@@ -693,18 +707,11 @@ def is_guid(text):
 
 def normalize(text):
     normalized = text.lower().replace('-',' ')
+    normalized = normalized.replace('the', '')
     normalized = re.sub(' +', ' ', normalized)
-    normalized = normalized.replace(' ','-')
+    normalized = normalized.replace(' ','')
     logging.debug(f'Normalized {text} to {normalized}')
     return normalized
-
-def super_normalize(text):
-    super_normalized = text.lower().replace('-',' ')
-    super_normalized = super_normalized.replace('the', '')
-    super_normalized = re.sub(' +', ' ', super_normalized)
-    super_normalized = super_normalized.replace(' ','')
-    logging.debug(f'Normalized {text} to {super_normalized}')
-    return super_normalized
 
 def alphabetize_items(database, items):
     logging.debug(f'Alphabetizing item dict of size {len(items)}')
@@ -1059,13 +1066,12 @@ def refresh_all_items(database, headers):
             item['vend'] = 0
         else:
             item['vend'] = f'{max_vend_trader} : {int(max_vend / item_area):,}'
-            
+
         del item['sellFor']
         del item['width']
         del item['height']
         del item['fleaMarketFee']
 
-    logging.info('Added 24hr vendor and flea price per slot for all items')
     return database
 
 # Track functions
@@ -1565,9 +1571,9 @@ def print_items_value(items):
     display = VALUE_HEADER + BUFFER
 
     for item in items:
-        display = display + '{:<25} {:<60} {:<30} {:<25} {:<25}'.format(item['shortName'], item['normalizedName'], item['id'], item['vend'], item['flea'])
+        display = display + '{:<25} {:<60} {:<30} {:<25} {:<25}\n'.format(item['shortName'], item['normalizedName'], item['id'], item['vend'], item['flea'])
 
-    display = display = '\n\n'
+    display = display + '\n\n'
     print(display)
     return True
 
@@ -1623,12 +1629,20 @@ def print_search(database, tasks, stations, barters, items, traders, maps):
 # Inventory
 def list_inventory(tracker_file):
     database = open_database(tracker_file)
+
+    if (not database):
+        return False
+
     inventory = database['inventory']
     print_inventory(database, inventory)
     return True
 
 def list_inventory_tasks(tracker_file):
     database = open_database(tracker_file)
+
+    if (not database):
+        return False
+    
     task_items = get_items_needed_for_tasks(database)
 
     if (not bool(task_items)):
@@ -1640,6 +1654,10 @@ def list_inventory_tasks(tracker_file):
 
 def list_inventory_stations(tracker_file):
     database = open_database(tracker_file)
+
+    if (not database):
+        return False
+    
     station_items = get_items_needed_for_stations(database)
 
     if (not bool(station_items)):
@@ -1651,6 +1669,10 @@ def list_inventory_stations(tracker_file):
 
 def list_inventory_barters(tracker_file):
     database = open_database(tracker_file)
+
+    if (not database):
+        return False
+    
     barter_items = get_items_needed_for_barters(database)
 
     if (not bool(barter_items)):
@@ -1662,6 +1684,10 @@ def list_inventory_barters(tracker_file):
 
 def list_inventory_owned(tracker_file):
     database = open_database(tracker_file)
+
+    if (not database):
+        return False
+    
     owned_items = get_items_owned(database)
     
     if (not bool(owned_items)):
@@ -1673,6 +1699,10 @@ def list_inventory_owned(tracker_file):
 
 def list_inventory_needed(tracker_file):
     database = open_database(tracker_file)
+
+    if (not database):
+        return False
+    
     needed_items = get_items_needed(database)
     
     if (not bool(needed_items)):
@@ -1685,11 +1715,15 @@ def list_inventory_needed(tracker_file):
 # List
 def list_tasks(tracker_file, argument):
     database = open_database(tracker_file)
+
+    if (not database):
+        return False
+    
     argument = normalize(argument)
     guid, type = name_guid_lookup(database, argument)
 
     if (not guid and argument != 'all'):
-        logging.error('Invalid arguments. Accepted arguments are [All, Map, Trader]')
+        logging.error('Invalid arguments')
         return False
 
     if (type == 'map'):
@@ -1708,6 +1742,10 @@ def list_tasks(tracker_file, argument):
 
 def list_stations(tracker_file):
     database = open_database(tracker_file)
+
+    if (not database):
+        return False
+    
     stations = get_hideout_stations(database)
 
     if (len(stations) == 0):
@@ -1719,6 +1757,10 @@ def list_stations(tracker_file):
 
 def list_barters(tracker_file, argument):
     database = open_database(tracker_file)
+
+    if (not database):
+        return False
+    
     argument = normalize(argument)
     guid, type = name_guid_lookup(database, argument)
 
@@ -1736,6 +1778,10 @@ def list_barters(tracker_file, argument):
 
 def list_untracked(tracker_file):
     database = open_database(tracker_file)
+
+    if (not database):
+        return False
+    
     untracked = get_untracked(database)
 
     if (len(untracked) == 0):
@@ -1747,17 +1793,28 @@ def list_untracked(tracker_file):
 
 def list_maps(tracker_file):
     database = open_database(tracker_file)
+
+    if (not database):
+        return False
+    
     maps = ', '.join(map['normalizedName'] for map in database['maps']).strip(', ')
     logging.info(f'Accepted map names are: {maps}')
 
 def list_traders(tracker_file):
     database = open_database(tracker_file)
+
+    if (not database):
+        return False
+    
     traders = ', '.join(trader['normalizedName'] for trader in database['traders']).strip(', ')
     logging.info(f'Accepted trader names are: {traders}')
 
 # Reset
 def reset_tasks(tracker_file):
     database = open_database(tracker_file)
+
+    if (not database):
+        return False
     
     for task in database['tasks']:
         task['status'] = 'incomplete'
@@ -1773,6 +1830,9 @@ def reset_tasks(tracker_file):
 
 def reset_stations(tracker_file):
     database = open_database(tracker_file)
+
+    if (not database):
+        return False
     
     for station in database['hideout']:
         for level in station['levels']:
@@ -1785,6 +1845,9 @@ def reset_stations(tracker_file):
 
 def reset_barters(tracker_file):
     database = open_database(tracker_file)
+
+    if (not database):
+        return False
     
     for barter in database['barters']:
         barter['status'] = 'incomplete'
@@ -1796,6 +1859,9 @@ def reset_barters(tracker_file):
 
 def reset_inventory(tracker_file):
     database = open_database(tracker_file)
+
+    if (not database):
+        return False
     
     for guid in database['inventory'].keys():
         database['inventory'][guid]['have_fir'] = 0
@@ -1808,6 +1874,9 @@ def reset_inventory(tracker_file):
 # Restart
 def restart_barter(tracker_file, argument):
     database = open_database(tracker_file)
+
+    if (not database):
+        return False
 
     for barter in database['barters']:
         if (barter['id'] == argument):
@@ -2219,9 +2288,12 @@ def refresh(tracker_file):
 # Search
 def search(tracker_file, argument, ignore_barters):
     database = open_database(tracker_file)
+
+    if (not database):
+        return False
     
     if (not is_guid(argument)):
-        argument = super_normalize(argument)
+        argument = normalize(argument)
         guid = False
     else:
         guid = True
@@ -2235,7 +2307,7 @@ def search(tracker_file, argument, ignore_barters):
 
     for task in database['tasks']:
         if (not guid):
-            if (super_normalize(task['name']).startswith(argument) or super_normalize(task['normalizedName']).startswith(argument)):
+            if (normalize(task['name']).startswith(argument) or normalize(task['normalizedName']).startswith(argument)):
                 tasks.append(task)
         elif (task['id'] == argument):
             tasks.append(task)
@@ -2243,7 +2315,7 @@ def search(tracker_file, argument, ignore_barters):
     for station in database['hideout']:
         for level in station['levels']:
             if (not guid):
-                if (super_normalize(level['normalizedName']).startswith(argument)):
+                if (normalize(level['normalizedName']).startswith(argument)):
                     stations.append(level)
             elif (level['id'] == argument):
                 stations.append(level)
@@ -2254,19 +2326,19 @@ def search(tracker_file, argument, ignore_barters):
                 for requirement in barter['requiredItems']:
                     item = guid_to_item_object(database, requirement['item']['id'])
 
-                    if (super_normalize(item['shortName']).startswith(argument) or super_normalize(item['normalizedName']).startswith(argument)):
+                    if (normalize(item['shortName']).startswith(argument) or normalize(item['normalizedName']).startswith(argument)):
                         barters.append(barter)
                 for reward in barter['rewardItems']:
                     item = guid_to_item_object(database, reward['item']['id'])
 
-                    if (super_normalize(item['shortName']).startswith(argument) or super_normalize(item['normalizedName']).startswith(argument)):
+                    if (normalize(item['shortName']).startswith(argument) or normalize(item['normalizedName']).startswith(argument)):
                         barters.append(barter)
             elif (barter['id'] == argument):
                 barters.append(barter)
 
     for item in database['all_items']:
         if (not guid):
-            if (super_normalize(item['shortName']).startswith(argument) or super_normalize(item['normalizedName']).startswith(argument)):
+            if (normalize(item['shortName']).startswith(argument) or normalize(item['normalizedName']).startswith(argument)):
                 if (item['id'] in database['inventory'].keys()):
                     items.append({
                         'need_fir': database['inventory'][item['id']]['need_fir'],
@@ -2319,14 +2391,14 @@ def search(tracker_file, argument, ignore_barters):
 
     for trader in database['traders']:
         if (not guid):
-            if (super_normalize(trader['normalizedName']).startswith(argument)):
+            if (normalize(trader['normalizedName']).startswith(argument)):
                 traders.append(trader)
         elif (trader['id'] == argument):
             traders.append(trader)
 
     for map in database['maps']:
         if (not guid):
-            if (super_normalize(map['normalizedName']).startswith(argument)):
+            if (normalize(map['normalizedName']).startswith(argument)):
                 maps.append(map)
         elif (map['id'] == argument):
             maps.append(map)
@@ -2336,9 +2408,12 @@ def search(tracker_file, argument, ignore_barters):
 
 def fuzzy_search(tracker_file, argument, ignore_barters):
     database = open_database(tracker_file)
+
+    if (not database):
+        return False
     
     if (not is_guid(argument)):
-        argument = super_normalize(argument)
+        argument = normalize(argument)
         guid = False
     else:
         guid = True
@@ -2352,7 +2427,7 @@ def fuzzy_search(tracker_file, argument, ignore_barters):
 
     for task in database['tasks']:
         if (not guid):
-            if (argument in super_normalize(task['name']) or argument in super_normalize(task['normalizedName'])):
+            if (argument in normalize(task['name']) or argument in normalize(task['normalizedName'])):
                 tasks.append(task)
         elif (task['id'] == argument):
             tasks.append(task)
@@ -2360,7 +2435,7 @@ def fuzzy_search(tracker_file, argument, ignore_barters):
     for station in database['hideout']:
         for level in station['levels']:
             if (not guid):
-                if (argument in super_normalize(level['normalizedName'])):
+                if (argument in normalize(level['normalizedName'])):
                     stations.append(level)
             elif (level['id'] == argument):
                 stations.append(level)
@@ -2371,19 +2446,19 @@ def fuzzy_search(tracker_file, argument, ignore_barters):
                 for requirement in barter['requiredItems']:
                     item = guid_to_item_object(database, requirement['item']['id'])
 
-                    if (argument in super_normalize(item['shortName']) or argument in super_normalize(item['normalizedName'])):
+                    if (argument in normalize(item['shortName']) or argument in normalize(item['normalizedName'])):
                         barters.append(barter)
                 for reward in barter['rewardItems']:
                     item = guid_to_item_object(database, reward['item']['id'])
 
-                    if (argument in super_normalize(item['shortName']) or argument in super_normalize(item['normalizedName'])):
+                    if (argument in normalize(item['shortName']) or argument in normalize(item['normalizedName'])):
                         barters.append(barter)
             elif (barter['id'] == argument):
                 barters.append(barter)
 
     for item in database['all_items']:
         if (not guid):
-            if (argument in super_normalize(item['shortName']) or argument in super_normalize(item['normalizedName'])):
+            if (argument in normalize(item['shortName']) or argument in normalize(item['normalizedName'])):
                 if (item['id'] in database['inventory'].keys()):
                     items.append({
                         'need_fir': database['inventory'][item['id']]['need_fir'],
@@ -2436,14 +2511,14 @@ def fuzzy_search(tracker_file, argument, ignore_barters):
 
     for trader in database['traders']:
         if (not guid):
-            if (argument in super_normalize(trader['normalizedName'])):
+            if (argument in normalize(trader['normalizedName'])):
                 traders.append(trader)
         elif (trader['id'] == argument):
             traders.append(trader)
 
     for map in database['maps']:
         if (not guid):
-            if (argument in super_normalize(map['normalizedName'])):
+            if (argument in normalize(map['normalizedName'])):
                 maps.append(map)
         elif (map['id'] == argument):
             maps.append(map)
@@ -2453,9 +2528,12 @@ def fuzzy_search(tracker_file, argument, ignore_barters):
 
 def required_search(tracker_file, argument, ignore_barters):
     database = open_database(tracker_file)
+
+    if (not database):
+        return False
     
     if (not is_guid(argument)):
-        argument = super_normalize(argument)
+        argument = normalize(argument)
         guid = False
     else:
         guid = True
@@ -2471,7 +2549,7 @@ def required_search(tracker_file, argument, ignore_barters):
                 if (not guid):
                     item = guid_to_item_object(database, objective['item']['id'])
 
-                    if (super_normalize(item['shortName']).startswith(argument) or super_normalize(item['normalizedName']).startswith(argument)):
+                    if (normalize(item['shortName']).startswith(argument) or normalize(item['normalizedName']).startswith(argument)):
                         tasks.append(task)
                 elif (objective['item']['id'] == argument):
                     tasks.append(task)
@@ -2482,7 +2560,7 @@ def required_search(tracker_file, argument, ignore_barters):
                 if (not guid):
                     item = guid_to_item_object(database, requirement['item']['id'])
 
-                    if (super_normalize(item['shortName']).startswith(argument) or super_normalize(item['normalizedName']).startswith(argument)):
+                    if (normalize(item['shortName']).startswith(argument) or normalize(item['normalizedName']).startswith(argument)):
                         stations.append(level)
                 elif (requirement['item']['id'] == argument):
                     stations.append(level)
@@ -2493,7 +2571,7 @@ def required_search(tracker_file, argument, ignore_barters):
                 if (not guid):
                     item = guid_to_item_object(database, requirement['item']['id'])
 
-                    if (super_normalize(item['shortName']).startswith(argument) or super_normalize(item['normalizedName']).startswith(argument)):
+                    if (normalize(item['shortName']).startswith(argument) or normalize(item['normalizedName']).startswith(argument)):
                         barters.append(barter)
                 elif (requirement['item']['id'] == argument):
                     barters.append(barter)
@@ -2504,6 +2582,10 @@ def required_search(tracker_file, argument, ignore_barters):
 # Track
 def track(tracker_file, argument):
     database = open_database(tracker_file)
+
+    if (not database):
+        return False
+    
     argument = normalize(argument)
 
     if (is_guid(argument)):
@@ -2513,7 +2595,7 @@ def track(tracker_file, argument):
         guid, type = name_guid_lookup(database, argument)
 
     if (not guid):
-        logging.error('Invalid arguments. Accepted arguments are [Task Name, Station Name, Barter GUID]')
+        logging.error('Invalid arguments')
         return False
 
     if (type == 'task'):
@@ -2534,6 +2616,10 @@ def track(tracker_file, argument):
 
 def untrack(tracker_file, argument):
     database = open_database(tracker_file)
+
+    if (not database):
+        return False
+    
     argument = normalize(argument)
 
     if (is_guid(argument)):
@@ -2543,7 +2629,7 @@ def untrack(tracker_file, argument):
         guid, type = name_guid_lookup(database, argument)
 
     if (not guid):
-        logging.error('Invalid arguments. Accepted arguments are [Task Name, Station Name, Barter GUID]')
+        logging.error('Invalid arguments')
         return False
 
     if (type == 'task'):
@@ -2565,6 +2651,10 @@ def untrack(tracker_file, argument):
 # Complete
 def complete(tracker_file, argument, force, recurse):
     database = open_database(tracker_file)
+
+    if (not database):
+        return False
+    
     argument = normalize(argument)
     
     if (is_guid(argument)):
@@ -2598,6 +2688,10 @@ def complete(tracker_file, argument, force, recurse):
 # Add
 def add_item_fir(tracker_file, argument, count):
     database = open_database(tracker_file)
+
+    if (not database):
+        return False
+    
     argument = normalize(argument)
     guid = item_to_guid(database, argument)
 
@@ -2628,6 +2722,10 @@ def add_item_fir(tracker_file, argument, count):
 
 def add_item_nir(tracker_file, argument, count):
     database = open_database(tracker_file)
+
+    if (not database):
+        return False
+    
     argument = normalize(argument)
     guid = item_to_guid(database, argument)
 
@@ -2648,33 +2746,46 @@ def add_item_nir(tracker_file, argument, count):
 # Val
 def lookup_item_val(tracker_file, argument):
     database = open_database(tracker_file)
+
+    if (not database):
+        return False
+    
     database = refresh_all_items(database, {
         'Content-Type': 'application/json'
     })
-    write_database(database)
+    write_database(tracker_file, database)
     argument = normalize(argument)
-    guid = item_to_guid(database, argument)
+    guids = item_to_multi_guid(database, argument)
+    items = []
 
-    if (not guid):
+    if (not guids):
         logging.error(f'Could not find any item that matches {argument}')
         return False
     
-    for item in database['all_items']:
-        if (item['id'] == guid):
-            print_item_value(item)
-            return True
-        
-    logging.error(f'Could not match guid {guid} to an item')
-    return False
+    for guid in guids:
+        for item in database['all_items']:
+            if (item['id'] == guid):
+                items.append(item)
+    
+    print_items_value(items)
+    return True
 
 # Level
 def check_level(tracker_file):
     database = open_database(tracker_file)
+
+    if (not database):
+        return False
+    
     logging.info(f'Player level is {database["player_level"]}')
     return True
 
 def set_level(tracker_file, level):
     database = open_database(tracker_file)
+
+    if (not database):
+        return False
+    
     database['player_level'] = level
     write_database(tracker_file, database)
     logging.info(f'Updated player level to {level}')
@@ -2682,6 +2793,10 @@ def set_level(tracker_file, level):
 
 def level_up(tracker_file):
     database = open_database(tracker_file)
+
+    if (not database):
+        return False
+    
     database['player_level'] = database['player_level'] + 1
     write_database(tracker_file, database)
     logging.info(f'Incremented the player level by 1. Level is now {database["player_level"]}')
@@ -2696,7 +2811,7 @@ def level_up(tracker_file):
 
 
 def main(args):
-    if (args[1].lower() == 'debug'):
+    if (len(args) > 1 and args[1] == 'debug'):
         logging.basicConfig(level = logging.DEBUG, format = '[%(asctime)s] [%(levelname)s]: %(message)s')
         logging.info('Welcome to the TARkov Tracker (TART)!')
         logging.info('RUNNING IN DEBUG MODE. All changes will affect only the debug database file!')

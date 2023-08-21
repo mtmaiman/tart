@@ -1,4 +1,5 @@
 # Standard library
+from datetime import datetime, timedelta
 import logging
 import json
 import sys
@@ -8,10 +9,6 @@ import re
 import requests
 
 
-#TODO: Add val feature to search
-#TODO: Use cached data for val feature
-#TODO: Set all items to refresh every 24 hours
-#TODO: Create manual all items refresh function
 #TODO: Add bullet rankings (need to check API)
 USAGE = '''
 tart.py {debug}\n
@@ -77,8 +74,10 @@ guid
 \t{guid} : A guid belonging to a barter
 '''
 REFRESH_HELP = '''
-> refresh\n
+> refresh {prices}\n
 Pulls latest Escape From Tarkov game data from api.tarkov.dev and overwrites all application files (WARNING: This will reset all progress!)
+prices
+\tprices : Manually refreshes only item price data (Does not reset any progress)
 '''
 SEARCH_HELP = '''
 > search [pattern] {method} {barters}\n
@@ -120,12 +119,6 @@ item
 \t\tfir
 \t\t\tfir : Adds the item as Found In Raid (FIR), otherwise adds as Not found In Raid (NIR)
 '''
-VAL_HELP = '''
-> val [item]\n
-Looks up the 24hr vendor and flea price per slot for the specified item\n
-item
-\t{item} : The name or guid of an item to lookup
-'''
 LEVEL_HELP = '''
 > level {operation} {level}\n
 Displays the player level\n
@@ -135,8 +128,7 @@ operations
 \t\tlevel
 \t\t\tlevel : The integer value greater than 0 to set the player level at
 '''
-ITEM_HEADER = '{:<25} {:<60} {:<30} {:<25}\n'.format('Item Short Name', 'Item Normalized Name', 'Item GUID', 'Have (FIR) Need (FIR)')
-VALUE_HEADER = '{:<25} {:<60} {:<30} {:<25} {:<25}\n'.format('Item Short Name', 'Item Normalized Name', 'Item GUID', 'Trader Per Slot', 'Flea Per Slot (- Fee)')
+ITEM_HEADER = '{:<25} {:<60} {:<30} {:<25} {:<25} {:<25}\n'.format('Item Short Name', 'Item Normalized Name', 'Item GUID', 'Have (FIR) Need (FIR)', 'Vend', 'Flea')
 MAP_HEADER = '{:<30} {:<20}\n'.format('Map Normalized Name', 'Map GUID')
 TRADER_HEADER = '{:<30} {:<20}\n'.format('Trader Normalized Name', 'Trader GUID')
 INVENTORY_HEADER = '{:<20} {:<25} {:<20} {:<25} {:<20} {:<25} \n'.format('Item', 'Have (FIR) Need (FIR)', 'Item', 'Have (FIR) Need (FIR)', 'Item', 'Have (FIR) Need (FIR)')
@@ -146,7 +138,7 @@ TASK_HEADER = '{:<40} {:<20} {:<20} {:<20} {:<20} {:<40}\n'.format('Task Title',
 HIDEOUT_HEADER = '{:<40} {:<20} {:<20} {:<40}\n'.format('Station Name', 'Station Status', 'Tracked', 'Station GUID')
 BARTER_HEADER = '{:<40} {:<20} {:<20} {:<20}\n'.format('Barter GUID', 'Trader', 'Level', 'Tracked')
 UNTRACKED_HEADER = '{:<40} {:<20} {:<20}\n'.format('Entity Name', 'Type', 'Tracked')
-BUFFER = '----------------------------------------------------------------------------------------------------------------------------------------------------------------------\n'
+BUFFER = '-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n'
 
 
 ###################################################
@@ -295,6 +287,14 @@ def parser(tracker_file, command):
         elif (command[1] == 'help' or command[1] == 'h'):
             logging.debug(f'Executing command: {command[0]} {command[1]}')
             logging.info(REFRESH_HELP)
+        elif (command[1] == 'prices'):
+            logging.debug(f'Executing command: {command[0]} {command[1]}')
+            database = open_database(tracker_file)
+            database = refresh_all_items(database, {
+                'Content-Tyoe': 'application/json'
+            })
+            logging.info('Manually refreshed all item price data')
+            write_database(tracker_file, database)
         else:
             logging.debug(f'Failed to execute command: {command[0]} {command[1]}')
             logging.error('Invalid refresh argument')
@@ -415,16 +415,6 @@ def parser(tracker_file, command):
                 count = int(command[-1])
                 argument = ' '.join(command[1:-1])
                 add_item_nir(tracker_file, argument, count)
-    # Val
-    elif (command[0] == 'val'):
-        if (len(command) < 2):
-            logging.debug(f'Failed to execute command: {command[0]}')
-            logging.error('Missing item name')
-            logging.info(VAL_HELP)
-        else:
-            logging.debug(f'Executing command: {command[0]} {command[1:]}')
-            argument = ' '.join(command[1:])
-            lookup_item_val(tracker_file, argument)
     # Level
     elif (command[0] == 'level'):
         if (len(command) > 1):
@@ -1052,7 +1042,6 @@ def refresh_all_items(database, headers):
                 logging.error(f'Encountered an error while retrieving item data! >> {json.dumps(response.json())}')
                 exit(1)
 
-        logging.info('Retrieved latest item data from the api.tarkov.dev server')
         database['all_items'] = response.json()['data']['items']
 
     for item in database['all_items']:
@@ -1080,6 +1069,7 @@ def refresh_all_items(database, headers):
         del item['height']
         del item['fleaMarketFee']
 
+    database['last_price_refresh'] = datetime.now().isoformat()
     return database
 
 # Track functions
@@ -1569,17 +1559,7 @@ def print_items(items):
 
     for item in items:
         item_display = f'{item["have_nir"]} ({item["have_fir"]}) {item["need_nir"]} ({item["need_fir"]})'
-        display = display + '{:<25} {:<60} {:<30} {:<25}\n'.format(item['shortName'], item['normalizedName'], item['id'], item_display)
-
-    display = display + '\n\n'
-    print(display)
-    return True
-
-def print_items_value(items):
-    display = VALUE_HEADER + BUFFER
-
-    for item in items:
-        display = display + '{:<25} {:<60} {:<30} {:<25} {:<25}\n'.format(item['shortName'], item['normalizedName'], item['id'], item['vend'], item['flea'])
+        display = display + '{:<25} {:<60} {:<30} {:<25} {:<25} {:<25}\n'.format(item['shortName'], item['normalizedName'], item['id'], item_display, item['vend'], item['flea'])
 
     display = display + '\n\n'
     print(display)
@@ -1920,7 +1900,8 @@ def refresh(tracker_file):
         'barters': [],
         'all_items': [],
         'inventory': {},
-        'player_level': 1
+        'player_level': 1,
+        'last_item_refresh': ''
     }
 
     headers = {
@@ -2289,6 +2270,7 @@ def refresh(tracker_file):
     
     logging.info('Overwrote normalized name for "Streets of Tarkov" to "streets" and for "The Lab" to "labs"')
     database = refresh_all_items(database, headers)
+    logging.info('Retrieved latest item data from the api.tarkov.dev server')
     write_database(tracker_file, database)
     logging.info(f'Generated a new database file {tracker_file}')
     return True
@@ -2345,6 +2327,14 @@ def search(tracker_file, argument, ignore_barters):
                 barters.append(barter)
 
     for item in database['all_items']:
+        if (datetime.fromisoformat(database['last_price_refresh']) < (datetime.now() - timedelta(hours = 24))):
+            logging.info('Item price data is over 24 hours old. Refreshing...')
+            database = refresh_all_items(database, {
+                'Content-Type': 'application/json'
+            })
+            write_database(tracker_file, database)
+            logging.info('Item price data has been refreshed')
+
         if (not guid):
             if (normalize(item['shortName']).startswith(argument) or normalize(item['normalizedName']).startswith(argument)):
                 if (item['id'] in database['inventory'].keys()):
@@ -2357,7 +2347,9 @@ def search(tracker_file, argument, ignore_barters):
                         'consumed_nir': database['inventory'][item['id']]['consumed_nir'],
                         'shortName': item['shortName'],
                         'normalizedName': item['normalizedName'],
-                        'id': item['id']
+                        'id': item['id'],
+                        'flea': item['flea'],
+                        'vend': item['vend']
                     })
                 else:
                     items.append({
@@ -2369,7 +2361,9 @@ def search(tracker_file, argument, ignore_barters):
                         'consumed_nir': 0,
                         'shortName': item['shortName'],
                         'normalizedName': item['normalizedName'],
-                        'id': item['id']
+                        'id': item['id'],
+                        'flea': item['flea'],
+                        'vend': item['vend']
                     })
         elif (item['id'] == argument):
             if (item['id'] in database['inventory'].keys()):
@@ -2382,7 +2376,9 @@ def search(tracker_file, argument, ignore_barters):
                     'consumed_nir': database['inventory'][item['id']]['consumed_nir'],
                     'shortName': item['shortName'],
                     'normalizedName': item['normalizedName'],
-                    'id': item['id']
+                    'id': item['id'],
+                    'flea': item['flea'],
+                    'vend': item['vend']
                 })
             else:
                 items.append({
@@ -2394,7 +2390,9 @@ def search(tracker_file, argument, ignore_barters):
                     'consumed_nir': 0,
                     'shortName': item['shortName'],
                     'normalizedName': item['normalizedName'],
-                    'id': item['id']
+                    'id': item['id'],
+                    'flea': item['flea'],
+                    'vend': item['vend']
                 })
 
     for trader in database['traders']:
@@ -2465,6 +2463,14 @@ def fuzzy_search(tracker_file, argument, ignore_barters):
                 barters.append(barter)
 
     for item in database['all_items']:
+        if (datetime.fromisoformat(database['last_price_refresh']) < (datetime.now() - timedelta(hours = 24))):
+            logging.info('Item price data is over 24 hours old. Refreshing...')
+            database = refresh_all_items(database, {
+                'Content-Type': 'application/json'
+            })
+            write_database(tracker_file, database)
+            logging.info('Item price data has been refreshed')
+        
         if (not guid):
             if (argument in normalize(item['shortName']) or argument in normalize(item['normalizedName'])):
                 if (item['id'] in database['inventory'].keys()):
@@ -2477,7 +2483,9 @@ def fuzzy_search(tracker_file, argument, ignore_barters):
                         'consumed_nir': database['inventory'][item['id']]['consumed_nir'],
                         'shortName': item['shortName'],
                         'normalizedName': item['normalizedName'],
-                        'id': item['id']
+                        'id': item['id'],
+                        'flea': item['flea'],
+                        'vend': item['vend']
                     })
                 else:
                     items.append({
@@ -2489,7 +2497,9 @@ def fuzzy_search(tracker_file, argument, ignore_barters):
                         'consumed_nir': 0,
                         'shortName': item['shortName'],
                         'normalizedName': item['normalizedName'],
-                        'id': item['id']
+                        'id': item['id'],
+                        'flea': item['flea'],
+                        'vend': item['vend']
                     })
         elif (item['id'] == argument):
             if (item['id'] in database['inventory'].keys()):
@@ -2502,7 +2512,9 @@ def fuzzy_search(tracker_file, argument, ignore_barters):
                     'consumed_nir': database['inventory'][item['id']]['consumed_nir'],
                     'shortName': item['shortName'],
                     'normalizedName': item['normalizedName'],
-                    'id': item['id']
+                    'id': item['id'],
+                    'flea': item['flea'],
+                    'vend': item['vend']
                 })
             else:
                 items.append({
@@ -2514,7 +2526,9 @@ def fuzzy_search(tracker_file, argument, ignore_barters):
                     'consumed_nir': 0,
                     'shortName': item['shortName'],
                     'normalizedName': item['normalizedName'],
-                    'id': item['id']
+                    'id': item['id'],
+                    'flea': item['flea'],
+                    'vend': item['vend']
                 })
 
     for trader in database['traders']:
@@ -2749,33 +2763,6 @@ def add_item_nir(tracker_file, argument, count):
     logging.info(f'Added {count} {argument} to Not found In Raid (NIR) inventory')
 
     write_database(tracker_file, database)
-    return True
-
-# Val
-def lookup_item_val(tracker_file, argument):
-    database = open_database(tracker_file)
-
-    if (not database):
-        return False
-    
-    database = refresh_all_items(database, {
-        'Content-Type': 'application/json'
-    })
-    write_database(tracker_file, database)
-    argument = normalize(argument)
-    guids = item_to_multi_guid(database, argument)
-    items = []
-
-    if (not guids):
-        logging.error(f'Could not find any item that matches {argument}')
-        return False
-    
-    for guid in guids:
-        for item in database['all_items']:
-            if (item['id'] == guid):
-                items.append(item)
-    
-    print_items_value(items)
     return True
 
 # Level

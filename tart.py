@@ -8,8 +8,6 @@ import re
 import requests
 
 
-#TODO: Alphabetize items on print
-#TODO: Alphabetize tasks by map, then by level
 #TODO: Add single slot value lookup for items (need to check API)
 #TODO: Add bullet rankings (need to check API)
 USAGE = '''
@@ -29,6 +27,7 @@ Commands:
 \tuntrack -help
 \tcomplete -help
 \tadd -help
+\tval -help
 \tlevel -help
 '''
 INV_HELP = '''
@@ -118,6 +117,12 @@ item
 \t\tfir
 \t\t\tfir : Adds the item as Found In Raid (FIR), otherwise adds as Not found In Raid (NIR)
 '''
+VAL_HELP = '''
+> val [item]\n
+Looks up the 24hr vendor and flea price per slot for the specified item\n
+item
+\t{item} : The name or guid of an item to lookup
+'''
 LEVEL_HELP = '''
 > level {operation} {level}\n
 Displays the player level\n
@@ -128,6 +133,7 @@ operations
 \t\t\tlevel : The integer value greater than 0 to set the player level at
 '''
 ITEM_HEADER = '{:<25} {:<60} {:<30} {:<25}\n'.format('Item Short Name', 'Item Normalized Name', 'Item GUID', 'Have (FIR) Need (FIR)')
+VALUE_HEADER = '{:<25} {:<60} {:<30} {:<25} {:<25}'.format('Item Short Name', 'Item Normalized Name', 'Item GUID', 'Trader Per Slot', 'Flea Per Slot')
 MAP_HEADER = '{:<30} {:<20}\n'.format('Map Normalized Name', 'Map GUID')
 TRADER_HEADER = '{:<30} {:<20}\n'.format('Trader Normalized Name', 'Trader GUID')
 INVENTORY_HEADER = '{:<20} {:<25} {:<20} {:<25} {:<20} {:<25} \n'.format('Item', 'Have (FIR) Need (FIR)', 'Item', 'Have (FIR) Need (FIR)', 'Item', 'Have (FIR) Need (FIR)')
@@ -281,7 +287,7 @@ def parser(tracker_file, command):
             if (confirmation == 'y'):
                 refresh(tracker_file)
             else:
-                logging.debug(f'Aborted command execution for {command[0]} {command[1]} due to confirmation response of {confirmation}')
+                logging.debug(f'Aborted command execution for {command[0]} due to confirmation response of {confirmation}')
                 logging.info('Refresh aborted')
         elif (command[1] == 'help' or command[1] == 'h'):
             logging.debug(f'Executing command: {command[0]} {command[1]}')
@@ -406,6 +412,16 @@ def parser(tracker_file, command):
                 count = int(command[-1])
                 argument = ' '.join(command[1:-1])
                 add_item_nir(tracker_file, argument, count)
+    # Val
+    elif (command[0] == 'val'):
+        if (len(command) < 2):
+            logging.debug(f'Failed to execute command: {command[0]}')
+            logging.error('Missing item name')
+            logging.info(VAL_HELP)
+        else:
+            logging.debug(f'Executing command: {command[0]} {command[1:]}')
+            argument = ' '.join(command[1:])
+            lookup_item_val(tracker_file, argument)
     # Level
     elif (command[0] == 'level'):
         if (len(command) > 1):
@@ -553,12 +569,33 @@ def guid_name_lookup(database, guid):
 # Name to GUID
 def item_to_guid(database, item_name):
     logging.debug(f'Searching for item matching name {item_name}')
+    items = []
+
     for item in database['all_items']:
         if (item['shortName'].lower() == item_name or item['normalizedName'] == item_name):
             logging.debug(f'Found item matching name {item_name}')
-            return item['id']
-    
-    return False
+            items.append(item)
+
+    if (len(items) > 1):
+        logging.warning('Found multiple items matching the provided name! Please select which to perform the operation on by choosing a number below')
+        count = 1
+
+        for item in items:
+            logging.info(f'[{count}] {item["normalizedName"]}')
+            count = count + 1
+
+        choice = input('> ')
+
+        if (not choice.isdigit() or choice < 1 or choice > count):
+            logging.error(f'{choice} was an invalid selection. Aborting operation')
+            return False
+
+        return items[choice - 1]['id']
+
+    elif (len(items) == 0):
+        return False
+    else:
+        return items[0]['id']
 
 def task_to_guid(database, task_name):
     logging.debug(f'Searching for task matching name {task_name}')
@@ -966,6 +1003,70 @@ def get_untracked(database):
 #                                                 #
 ###################################################
 
+
+# Refresh functions
+def refresh_all_items(database, headers):
+    data = {
+        'query': """
+            {
+                items {
+                    id
+                    normalizedName
+                    shortName
+                    width
+                    height
+                    sellFor {
+                        vendor {
+                            normalizedName
+                        }
+                        priceRUB
+                    }
+                    fleaMarketFee
+                }
+            }
+        """
+    }
+
+    response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+
+    if (response.status_code < 200 or response.status_code > 299):
+        logging.error(f'Failed to retrieve item data! >> [{response.status_code}] {response.json()}')
+        exit(1)
+    else:
+        if ('errors' in response.json().keys()):
+                logging.error(f'Encountered an error while retrieving item data! >> {json.dumps(response.json())}')
+                exit(1)
+
+        logging.info('Retrieved latest item data from the api.tarkov.dev server')
+        database['all_items'] = response.json()['data']['items']
+
+    for item in database['all_items']:
+        item_area = item['width'] * item['height']
+        max_vend = 0
+        max_vend_trader = ''
+        
+        for vendor in item['sellFor']:
+            if (vendor['vendor']['normalizedName'] == 'flea-market'):
+                item['flea'] = f'{int((vendor["priceRUB"] - item["fleaMarketFee"]) / item_area):,}'
+            elif (vendor['priceRUB'] > max_vend):
+                max_vend = vendor['priceRUB']
+                max_vend_trader = vendor['vendor']['normalizedName']
+
+        if ('flea' not in item.keys()):
+            item['flea'] = 0
+
+        if (max_vend == 0 or max_vend_trader == ''):
+            item['vend'] = 0
+        else:
+            item['vend'] = f'{max_vend_trader} : {int(max_vend / item_area):,}'
+            
+        del item['sellFor']
+        del item['width']
+        del item['height']
+        del item['fleaMarketFee']
+
+    logging.info('Added 24hr vendor and flea price per slot for all items')
+    return database
 
 # Track functions
 def track_task(database, guid):
@@ -1457,6 +1558,16 @@ def print_items(items):
         display = display + '{:<25} {:<60} {:<30} {:<25}\n'.format(item['shortName'], item['normalizedName'], item['id'], item_display)
 
     display = display + '\n\n'
+    print(display)
+    return True
+
+def print_items_value(items):
+    display = VALUE_HEADER + BUFFER
+
+    for item in items:
+        display = display + '{:<25} {:<60} {:<30} {:<25} {:<25}'.format(item['shortName'], item['normalizedName'], item['id'], item['vend'], item['flea'])
+
+    display = display = '\n\n'
     print(display)
     return True
 
@@ -2051,31 +2162,6 @@ def refresh(tracker_file):
 
         logging.info('Retrieved latest trader data from the api.tarkov.dev server')
         database['traders'] = response.json()['data']['traders']
-
-    data = {
-        'query': """
-            {
-                items {
-                    id
-                    normalizedName
-                    shortName
-                }
-            }
-        """
-    }
-
-    response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
-
-    if (response.status_code < 200 or response.status_code > 299):
-        logging.error(f'Failed to retrieve item data! >> [{response.status_code}] {response.json()}')
-        exit(1)
-    else:
-        if ('errors' in response.json().keys()):
-                logging.error(f'Encountered an error while retrieving item data! >> {json.dumps(response.json())}')
-                exit(1)
-
-        logging.info('Retrieved latest item data from the api.tarkov.dev server')
-        database['all_items'] = response.json()['data']['items']
     
     for task in database['tasks']:
         for objective in task['objectives']:
@@ -2125,9 +2211,10 @@ def refresh(tracker_file):
             map['normalizedName'] = 'labs'
     
     logging.info('Overwrote normalized name for "Streets of Tarkov" to "streets" and for "The Lab" to "labs"')
+    database = refresh_all_items(database, headers)
     write_database(tracker_file, database)
     logging.info(f'Generated a new database file {tracker_file}')
-    return
+    return True
 
 # Search
 def search(tracker_file, argument, ignore_barters):
@@ -2557,6 +2644,28 @@ def add_item_nir(tracker_file, argument, count):
 
     write_database(tracker_file, database)
     return True
+
+# Val
+def lookup_item_val(tracker_file, argument):
+    database = open_database(tracker_file)
+    database = refresh_all_items(database, {
+        'Content-Type': 'application/json'
+    })
+    write_database(database)
+    argument = normalize(argument)
+    guid = item_to_guid(database, argument)
+
+    if (not guid):
+        logging.error(f'Could not find any item that matches {argument}')
+        return False
+    
+    for item in database['all_items']:
+        if (item['id'] == guid):
+            print_item_value(item)
+            return True
+        
+    logging.error(f'Could not match guid {guid} to an item')
+    return False
 
 # Level
 def check_level(tracker_file):

@@ -9,10 +9,11 @@ import re
 import requests
 
 
+#TODO: Searching name of task, barter, or hideout station shows inv needed for it too
 #TODO: Add bullet rankings (need to check API)
 USAGE = '''
 tart.py {debug}\n
-> command [positional args] {options}\n
+> command [required args] {optional args}\n
 A lightweigth python CLI for tracking task, hideout, and barter progression, including item collection, for Escape From Tarkov. Please read below for usage notes and command details.\n
 NOTE: Command arguments expect names or GUIDs. Please use search functions to find these if you are unsure\n
 DEBUG: Execute the python script with a positional argument of "debug" to enter debug mode
@@ -47,8 +48,8 @@ Lists all items in an available iterable\n
 iterables
 \ttasks : Lists all available tasks
 \t\tfilters
-\t\t\t{map} : Lists all available tasks for the specified map
-\t\t\t{trader} : Lists all available tasks for the specified trader
+\t\t\tmap : The name of a map to list tasks for
+\t\t\ttrader : The name of a trader to list tasks for
 \tstations : Lists all hideout stations
 \thideout : Lists all hideout stations
 \tbarters : Lists all tracked barters
@@ -57,9 +58,9 @@ iterables
 \ttraders : Lists all traders
 '''
 RESET_HELP = '''
-> reset [data structure]\n
+> reset [object]\n
 Resets all progression on a or all data structure(s)\n
-data structures
+objects
 \ttasks : Resets all progress on tasks
 \tstations : Resets all progress on hideout stations
 \thideout : Resets all progress on hideout stations
@@ -70,61 +71,50 @@ data structures
 RESTART_HELP = '''
 > restart [guid]\n
 Restarts the barter at the specified guid. Required items for the barter are added to the needed inventory\n
-guid
-\t{guid} : A guid belonging to a barter
+guid : A guid belonging to a barter
 '''
 REFRESH_HELP = '''
 > refresh {prices}\n
-Pulls latest Escape From Tarkov game data from api.tarkov.dev and overwrites all application files (WARNING: This will reset all progress!)
-prices
-\tprices : Manually refreshes only item price data (Does not reset any progress)
+Pulls latest Escape From Tarkov game data from api.tarkov.dev and overwrites all application files (WARNING: This will reset all progress!)\n
+prices : Manually refreshes only item price data (Does not reset any progress)
 '''
 SEARCH_HELP = '''
 > search [pattern] {fuzzy} {barters}\n
 Searches the database on the specified pattern\n
-pattern
-\t{pattern} : The name or guid of an object to search for
-\t\tfuzzy
-\t\t\tfuzzy : More aggressively searches for the specified pattern (Returns more results)
-\t\tbarters
-\t\t\tbarters : Will also search all available barters (May cause excessive results)
+pattern : The name or guid of an object to search for
+fuzzy : More aggressively searches for the specified pattern (Returns more results)
+barters : Will also search all available barters (May cause excessive results)
 '''
 REQUIRES_HELP = '''
 > requires [item] {barters}\n
 Searches the database for objects which require the specified item name or guid\n
-item
-\t{item} : The name or guid of an item to search for
-\t\tbarters
-\t\t\tbarters : Will also search all available barters (May cause excessive results)
+item : The name or guid of an item to search for
+barters : Will also search all available barters (May cause excessive results)
 '''
 TRACK_HELP = '''
 > track [pattern]\n
 Starts tracking and adds required items to the needed inventory for the object which matches the specified pattern\n
-pattern
-\t{pattern} : The name or guid of an object to track
+pattern : The name or guid of an object to track
 '''
 UNTRACK_HELP = '''
 > untrack [pattern]\n
 Stops tracking and removes required items from the needed inventory for the object which matches the specified pattern\n
-pattern
-\t{pattern} : The name or guid of an object to untrack
+pattern : The name or guid of an object to untrack
 '''
 COMPLETE_HELP = '''
 > complete [pattern] {modifier}\n
 Marks the object which matches the specified pattern as complete and consumes required items if available\n
-pattern
-\t{pattern} : The name or guid of an object to complete
-\t\tmodifiers
-\t\t\tforce : Forcefully completes the object whether the requirements are satisfied or not (adds missing items to the owned inventory)
-\t\t\trecurse: Recursively and forcefully completes all prerequisite objects whether the requirements are satisfied or not (adds missing items to the inventory)
+pattern : The name or guid of an object to complete
+modifiers
+\tforce : Forcefully completes the object whether the requirements are satisfied or not (adds missing items to the owned inventory)
+\trecurse: Recursively and forcefully completes all prerequisite objects whether the requirements are satisfied or not (adds missing items to the inventory)
 '''
 ADD_HELP = '''
-> add [item] {fir}\n
+> add [count] [item] {fir}\n
 Adds the specified item by name or guid to the owned inventory\n
-item
-\t{item} : The name or guid of an item to add
-\t\tfir
-\t\t\tfir : Adds the item as Found In Raid (FIR), otherwise adds as Not found In Raid (NIR)
+count : A positive integer of items to add to the inventory
+item : The name or guid of an item to add
+fir : Adds the item as Found In Raid (FIR), otherwise adds as Not found In Raid (NIR)
 '''
 LEVEL_HELP = '''
 > level {operation} {level}\n
@@ -132,8 +122,7 @@ Displays the player level\n
 operations
 \tup : Increments the player level by one (1)
 \tset : Sets the player level to {level}
-\t\tlevel
-\t\t\tlevel : The integer value greater than 0 to set the player level at
+level : The integer value greater than 0 to set the player level at
 '''
 ITEM_HEADER = '{:<25} {:<60} {:<30} {:<25} {:<25} {:<25}\n'.format('Item Short Name', 'Item Normalized Name', 'Item GUID', 'Have (FIR) Need (FIR)', 'Vend', 'Flea')
 MAP_HEADER = '{:<30} {:<20}\n'.format('Map Normalized Name', 'Map GUID')
@@ -418,19 +407,19 @@ def parser(tracker_file, command):
             if (command[1] == 'help' or command[1] == 'h'):
                 logging.debug(f'Executing command: {command[0]} {command[1]}')
                 logging.info(ADD_HELP)
-            if ((not command[-1] == 'fir' and (not command[-1].isdigit() or int(command[-1]) < 1)) or (command[-1] == 'fir' and (not command[-2].isdigit() or int(command[-2]) < 1))):
-                logging.debug(f'Failed to execute command: {command[0]} {command[1:]}')
+            elif (not command[1].isdigit() or int(command[1]) < 1):
+                logging.debug(f'Failed to execute command: {command[0]} {command[1]} {command[2:]}')
                 logging.error('Invalid integer entered for count')
                 logging.info(ADD_HELP)
             elif (command[-1] == 'fir'):
-                logging.debug(f'Executing command: {command[0]} {command[1:-2]} {command[-2]} {command[-1]}')
-                count = int(command[-2])
-                argument = ' '.join(command[1:-2])
+                logging.debug(f'Executing command: {command[0]} {command[1]} {command[2:-1]} {command[-1]}')
+                count = int(command[1])
+                argument = ' '.join(command[2:-1])
                 add_item_fir(tracker_file, argument, count)
             else:
-                logging.debug(f'Executing command: {command[0]} {command[1:-1]} {command[-1]}')
-                count = int(command[-1])
-                argument = ' '.join(command[1:-1])
+                logging.debug(f'Executing command: {command[0]} {command[1]} {command[2:]}')
+                count = int(command[1])
+                argument = ' '.join(command[2:])
                 add_item_nir(tracker_file, argument, count)
     # Level
     elif (command[0] == 'level'):
@@ -1496,17 +1485,24 @@ def print_tasks(database, tasks):
 
             objective_string = objective_string + ' ' + objective['description']
 
-            if ('count' in objective):
-                objective_string = objective_string + f' ({objective["count"]})'
+            if (objective['type'] == 'giveItem'):
+                guid = objective['item']['id']
+                have_available_fir = database['inventory'][guid]['have_fir'] - database['inventory'][guid]['consumed_fir']
+                have_available_nir = database['inventory'][guid]['have_nir'] - database['inventory'][guid]['consumed_nir']
 
-            if ('foundInRaid' in objective and objective['foundInRaid']):
-                objective_string = objective_string + f' (FIR)'
+                if ('foundInRaid' in objective and objective['foundInRaid']):
+                    objective_string = objective_string + f' ({have_available_fir}/{objective["count"]} FIR available)'
+                else:
+                    objective_string = objective_string + f' ({have_available_nir}/{objective["count"]} available)'
+
+            elif ('count' in objective):
+                objective_string = objective_string + f' ({objective["count"]})'
 
             if ('skillLevel' in objective):
                 objective_string = objective_string + f'({objective["skillLevel"]["level"]})'
 
             if ('exitStatus' in objective):
-                objective_string = objective_string + f' // Exit with status {objective["exitStatus"]}'
+                objective_string = objective_string + f' with exit status {objective["exitStatus"]}'
 
             objective_string = objective_string + '\n'
             display = display + objective_string
@@ -1537,9 +1533,11 @@ def print_hideout_stations(database, stations):
         display = display + '{:<40} {:<20} {:<20} {:<40}\n'.format(level['normalizedName'], level['status'], print_bool(level['tracked']), level['id'])
 
         for item in level['itemRequirements']:
-            short_name = guid_to_item(database, item['item']['id'])
+            guid = item['item']['id']
+            have_available_nir = database['inventory'][guid]['have_nir'] - database['inventory'][guid]['consumed_nir']
+            short_name = guid_to_item(database, guid)
             count = item['count']
-            display = display + f'--> Requires {count} {short_name}\n'
+            display = display + f'--> {have_available_nir}/{count} {short_name} available\n'
         
         display = display + '\n\n'
 
@@ -1553,9 +1551,11 @@ def print_barters(database, barters):
         display = display + '{:<40} {:<20} {:<20} {:<20}\n'.format(barter['id'], guid_to_trader(database, barter['trader']['id']), barter['level'], print_bool(barter['tracked']))
 
         for item in barter['requiredItems']:
-            short_name = guid_to_item(database, item['item']['id'])
+            guid = item['item']['id']
+            have_available_nir = database['inventory'][guid]['have_nir'] - database['inventory'][guid]['consumed_nir']
+            short_name = guid_to_item(database, guid)
             count = item['count']
-            display = display + f'--> Give {count} {short_name}\n'
+            display = display + f'--> Give {have_available_nir}/{count} {short_name} available\n'
 
         for item in barter['rewardItems']:
             short_name = guid_to_item(database, item['item']['id'])

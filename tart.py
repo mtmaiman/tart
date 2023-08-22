@@ -9,7 +9,7 @@ import re
 import requests
 
 
-#TODO: Searching name of task, barter, or hideout station shows inv needed for it too
+#TODO: Alphabetize search results for items
 #TODO: Add bullet rankings (need to check API)
 USAGE = '''
 tart.py {debug}\n
@@ -79,10 +79,9 @@ Pulls latest Escape From Tarkov game data from api.tarkov.dev and overwrites all
 prices : Manually refreshes only item price data (Does not reset any progress)
 '''
 SEARCH_HELP = '''
-> search [pattern] {fuzzy} {barters}\n
+> search [pattern] {barters}\n
 Searches the database on the specified pattern\n
 pattern : The name or guid of an object to search for
-fuzzy : More aggressively searches for the specified pattern (Returns more results)
 barters : Will also search all available barters (May cause excessive results)
 '''
 REQUIRES_HELP = '''
@@ -306,21 +305,10 @@ def parser(tracker_file, command):
                 logging.debug(f'Executing command: {command[0]} {command[1]}')
                 logging.info(SEARCH_HELP)
             elif (command[-1] == 'barters'):
-                if (command[-2] == 'fuzzy'):
-                    logging.debug(f'Executing command: {command[0]} {command[1:-2]} {command[-2]} {command[-1]}')
-                    ignore_barters = False
-                    pattern = ' '.join(command[1:-2])
-                    fuzzy_search(tracker_file, pattern, ignore_barters)
-                else:
-                    logging.debug(f'Executing command: {command[0]} {command[1:-1]} {command[-1]}')
-                    ignore_barters = False
-                    pattern = ' '.join(command[1:-1])
-                    search(tracker_file, pattern, ignore_barters)
-            elif (command[-1] == 'fuzzy'):
                 logging.debug(f'Executing command: {command[0]} {command[1:-1]} {command[-1]}')
-                ignore_barters = True
+                ignore_barters = False
                 pattern = ' '.join(command[1:-1])
-                fuzzy_search(tracker_file, pattern, ignore_barters)
+                search(tracker_file, pattern, ignore_barters)
             else:
                 logging.debug(f'Executing command: {command[0]} {command[1:]}')
                 ignore_barters = True
@@ -487,6 +475,7 @@ def write_database(file_path, data):
 # GUID to name or object
 def guid_to_item(database, guid):
     logging.debug(f'Searching for item matching guid {guid}')
+
     for item in database['all_items']:
         if (item['id'] == guid):
             logging.debug(f'Found item matching guid {guid}')
@@ -496,6 +485,7 @@ def guid_to_item(database, guid):
 
 def guid_to_item_object(database, guid):
     logging.debug(f'Searching for item matching guid {guid}')
+
     for item in database['all_items']:
         if (item['id'] == guid):
             logging.debug(f'Found item matching guid {guid}')
@@ -505,6 +495,7 @@ def guid_to_item_object(database, guid):
 
 def guid_to_task(database, guid):
     logging.debug(f'Searching for task matching guid {guid}')
+
     for task in database['tasks']:
         if (task['id'] == guid):
             logging.debug(f'Found task matching guid {guid}')
@@ -512,27 +503,9 @@ def guid_to_task(database, guid):
         
     return False
 
-def guid_to_station(database, guid):
-    logging.debug(f'Searching for hideout station matching guid {guid}')
-    for station in database['hideout']:
-        for level in station['levels']:
-            if (level['id'] == guid):
-                logging.debug(f'Found hideout station matching guid {guid}')
-                return level['normalizedName']
-    
-    return False
-
-def guid_to_map(database, guid):
-    logging.debug(f'Searching for map matching guid {guid}')
-    for map in database['maps']:
-        if (map['id'] == guid):
-            logging.debug(f'Found map matching guid {guid}')
-            return map['normalizedName']
-    
-    return False
-
 def guid_to_trader(database, guid):
     logging.debug(f'Searching for trader matching guid {guid}')
+
     for trader in database['traders']:
         if (trader['id'] == guid):
             logging.debug(f'Found trader matching guid {guid}')
@@ -540,39 +513,13 @@ def guid_to_trader(database, guid):
     
     return False
 
-def guid_name_lookup(database, guid):
-    normalized_name = guid_to_trader(database, guid)
-    found = 'trader'
-
-    if (not normalized_name):
-        normalized_name = guid_to_map(database, guid)
-        found = 'map'
-
-        if (not normalized_name):
-            normalized_name = guid_to_item(database, guid)
-            found = 'item'
-
-            if (not normalized_name):
-                normalized_name = guid_to_task(database, guid)
-                found = 'task'
-
-                if (not normalized_name):
-                    normalized_name = guid_to_station(database, guid)
-                    found = 'station'
-
-                    if (not normalized_name):
-                        logging.debug(f'Did not find anything matching guid {guid}')
-                        return False, None
-    
-    return normalized_name, found
-
 # Name to GUID
 def item_to_guid(database, item_name):
     logging.debug(f'Searching for item matching name {item_name}')
     items = []
 
     for item in database['all_items']:
-        if (normalize(item['shortName'].lower()) == item_name or normalize(item['normalizedName']) == item_name):
+        if (string_compare(item_name, item['shortName']) or string_compare(item_name, item['normalizedName'])):
             logging.debug(f'Found item matching name {item_name}')
             items.append(item)
 
@@ -586,54 +533,83 @@ def item_to_guid(database, item_name):
 
         choice = input('> ')
 
-        if (not choice.isdigit() or choice < 1 or choice > count):
-            logging.error(f'{choice} was an invalid selection. Aborting operation')
-            return False
-
-        return items[choice - 1]['id']
-
+        if (choice.isdigit() and int(choice) > 0 and int(choice) < count):
+            return items[int(choice) - 1]['id']
+        
+        logging.error(f'{choice} was an invalid selection. Aborting operation')
+        return False
+    
     elif (len(items) == 0):
         return False
     else:
         return items[0]['id']
-    
-def item_to_multi_guid(database, item_name):
-    logging.debug(f'Searching for item matching name {item_name}')
-    guids = []
-
-    for item in database['all_items']:
-        if (normalize(item['shortName'].lower()) == item_name or normalize(item['normalizedName']) == item_name):
-            logging.debug(f'Found item matching name {item_name}')
-            guids.append(item['id'])
-
-    if (len(guids) == 0):
-        return False
-    
-    return guids
 
 def task_to_guid(database, task_name):
     logging.debug(f'Searching for task matching name {task_name}')
+    tasks = []
+
     for task in database['tasks']:
-        if (normalize(task['normalizedName']) == task_name):
+        if (string_compare(task_name, task['normalizedName'])):
             logging.debug(f'Found task matching name {task_name}')
-            return task['id']
+            tasks.append(task)
+
+    if (len(tasks) > 1):
+        logging.warning('Found multiple tasks matching the provided name! Please select which to perform the operation on by choosing a number below')
+        count = 1
+
+        for task in tasks:
+            logging.info(f'[{count}] {task["normalizedName"]}')
+            count = count + 1
+
+        choice = input('> ')
+
+        if (choice.isdigit() and int(choice) > 0 and int(choice) < count):
+            return tasks[int(choice) - 1]['id']
+        
+        logging.error(f'{choice} was an invalid selection. Aborting operation')
+        return False
     
-    return False
+    elif (len(tasks) == 0):
+        return False
+    else:
+        return tasks[0]['id']
 
 def station_to_guid(database, station_name):
     logging.debug(f'Searching for hideout station matching name {station_name}')
+    stations = []
+
     for station in database['hideout']:
         for level in station['levels']:
-            if (normalize(level['normalizedName']) == station_name):
+            if (string_compare(station_name, level['normalizedName'])):
                 logging.debug(f'Found hideout station matching name {station_name}')
-                return level['id']
+                stations.append(level)
+
+    if (len(stations) > 1):
+        logging.warning('Found multiple tasks matching the provided name! Please select which to perform the operation on by choosing a number below')
+        count = 1
+
+        for station in stations:
+            logging.info(f'[{count}] {station["normalizedName"]}')
+            count = count + 1
+
+        choice = input('> ')
+
+        if (choice.isdigit() and int(choice) > 0 and int(choice) < count):
+            return stations[int(choice) - 1]['id']
+        
+        logging.error(f'{choice} was an invalid selection. Aborting operation')
+        return False
     
-    return False
+    elif (len(stations) == 0):
+        return False
+    else:
+        return stations[0]['id']
 
 def map_to_guid(database, map_name):
     logging.debug(f'Searching for map matching name {map_name}')
+
     for map in database['maps']:
-        if (normalize(map['normalizedName']) == map_name):
+        if (normalize(map['normalizedName']) == normalize(map_name)):
             logging.debug(f'Found map matching name {map_name}')
             return map['id']
     
@@ -641,38 +617,13 @@ def map_to_guid(database, map_name):
 
 def trader_to_guid(database, trader_name):
     logging.debug(f'Searching for trader matching name {trader_name}')
+
     for trader in database['traders']:
-        if (normalize(trader['normalizedName']) == trader_name):
+        if (normalize(trader['normalizedName']) == normalize(trader_name)):
             logging.debug(f'Found trader matching name {trader_name}')
             return trader['id']
     
     return False
-
-def name_guid_lookup(database, name):
-    guid = trader_to_guid(database, name)
-    found = 'trader'
-
-    if (not guid):
-        guid = map_to_guid(database, name)
-        found = 'map'
-
-        if (not guid):
-            guid = item_to_guid(database, name)
-            found = 'item'
-
-            if (not guid):
-                guid = task_to_guid(database, name)
-                found = 'task'
-
-                if (not guid):
-                    guid = station_to_guid(database, name)
-                    found = 'station'
-
-                    if (not guid):
-                        logging.debug(f'Did not find anything matching name {name}')
-                        return False, None
-
-    return guid, found
 
 # Inventory functions
 def get_fir_count_by_guid(database, guid):
@@ -706,14 +657,17 @@ def is_guid(text):
     return False
 
 def normalize(text):
-    normalized = text.lower().replace('-',' ')
-    normalized = normalized.replace('the', '')
-    normalized = normalized.replace('.', '')
-    normalized = normalized.replace('(', '')
-    normalized = normalized.replace(')', '')
-    normalized = normalized.replace('+', '')
+    whitespace_strings = ['-', '_']
+    unwanted_strings = ['the', '', '.', '(', ')', '+', '=', '\'', '"', ',', '\\', '/', '?', '#', '$', '&', '!', '@', '[', ']', '{', '}']
+    normalized = text.lower()
+
+    for string in whitespace_strings:
+        normalized = normalized.replace(string, ' ')
+
+    for string in unwanted_strings:
+        normalized = normalized.replace(string, '')
+    
     normalized = re.sub(' +', ' ', normalized)
-    normalized = normalized.replace(' ','')
     logging.debug(f'Normalized {text} to {normalized}')
     return normalized
 
@@ -731,6 +685,16 @@ def alphabetize_items(database, items):
         }
     
     return {short_name:unsorted_items[short_name] for short_name in sorted(unsorted_items.keys())}
+
+def string_compare(searcher, searchee):
+    searcher_list = normalize(searcher).split(' ')
+    searchee_list = normalize(searchee).split(' ')
+
+    for searcher_string in searcher_list:
+        if (not any(searcher_string in searchee_string for searchee_string in searchee_list)):
+            return False
+
+    return True
 
 # Verify functions
 def verify_task(database, task, task_table):
@@ -1506,13 +1470,12 @@ def print_tasks(database, tasks):
 
             objective_string = objective_string + '\n'
             display = display + objective_string
-
-        if (len(task['neededKeys']) > 0):
+        
+        if (task['neededKeys'] is not None and len(task['neededKeys']) > 0):
             for key_object in task['neededKeys']:
                 for key in key_object['keys']:
                     key_string = '-->'
                     key_guid = key['id']
-                    database = open_database(database)
 
                     for item in database['all_items']:
                         if (item['id'] == key_guid):
@@ -1735,19 +1698,17 @@ def list_tasks(tracker_file, argument):
     if (not database):
         return False
     
-    argument = normalize(argument)
-    guid, type = name_guid_lookup(database, argument)
+    guid = map_to_guid(database, argument)
 
-    if (not guid and argument != 'all'):
-        logging.error('Invalid arguments')
-        return False
-
-    if (type == 'map'):
+    if (guid):
         tasks = get_tasks_by_map(database, guid)
-    elif (type == 'trader'):
-        tasks = get_tasks_by_trader(database, guid)
     else:
-        tasks = get_available_tasks(database)
+        guid = trader_to_guid(database, argument)
+
+        if (guid):
+            tasks = get_tasks_by_trader(database, guid)
+        else:
+            tasks = get_available_tasks(database)
 
     if (len(tasks) == 0):
         logging.info('No available or tracked tasks')
@@ -1777,10 +1738,9 @@ def list_barters(tracker_file, argument):
     if (not database):
         return False
     
-    argument = normalize(argument)
-    guid, type = name_guid_lookup(database, argument)
+    guid = trader_to_guid(database, argument)
 
-    if (type == 'trader'):
+    if (guid):
         barters = get_barters_by_trader(database, guid)
     else:
         barters = get_barters(database)
@@ -2306,16 +2266,7 @@ def refresh(tracker_file):
 # Search
 def search(tracker_file, argument, ignore_barters):
     database = open_database(tracker_file)
-
-    if (not database):
-        return False
-    
-    if (not is_guid(argument)):
-        argument = normalize(argument)
-        guid = False
-    else:
-        guid = True
-
+    guid = False
     tasks = []
     stations = []
     barters = []
@@ -2323,9 +2274,15 @@ def search(tracker_file, argument, ignore_barters):
     traders = []
     maps = []
 
+    if (not database):
+        return False
+    
+    if (is_guid(argument)):
+        guid = True
+
     for task in database['tasks']:
         if (not guid):
-            if (normalize(task['name']).startswith(argument) or normalize(task['normalizedName']).startswith(argument)):
+            if (string_compare(argument, task['name']) or string_compare(argument, task['normalizedName'])):
                 tasks.append(task)
         elif (task['id'] == argument):
             tasks.append(task)
@@ -2333,7 +2290,7 @@ def search(tracker_file, argument, ignore_barters):
     for station in database['hideout']:
         for level in station['levels']:
             if (not guid):
-                if (normalize(level['normalizedName']).startswith(argument)):
+                if (string_compare(argument, level['normalizedName'])):
                     stations.append(level)
             elif (level['id'] == argument):
                 stations.append(level)
@@ -2344,148 +2301,12 @@ def search(tracker_file, argument, ignore_barters):
                 for requirement in barter['requiredItems']:
                     item = guid_to_item_object(database, requirement['item']['id'])
 
-                    if (normalize(item['shortName']).startswith(argument) or normalize(item['normalizedName']).startswith(argument)):
+                    if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
                         barters.append(barter)
                 for reward in barter['rewardItems']:
                     item = guid_to_item_object(database, reward['item']['id'])
 
-                    if (normalize(item['shortName']).startswith(argument) or normalize(item['normalizedName']).startswith(argument)):
-                        barters.append(barter)
-            elif (barter['id'] == argument):
-                barters.append(barter)
-
-    for item in database['all_items']:
-        if (datetime.fromisoformat(database['last_price_refresh']) < (datetime.now() - timedelta(hours = 24))):
-            logging.info('Item price data is over 24 hours old. Refreshing...')
-            database = refresh_all_items(database, {
-                'Content-Type': 'application/json'
-            })
-            write_database(tracker_file, database)
-            logging.info('Item price data has been refreshed')
-
-        if (not guid):
-            if (normalize(item['shortName']).startswith(argument) or normalize(item['normalizedName']).startswith(argument)):
-                if (item['id'] in database['inventory'].keys()):
-                    items.append({
-                        'need_fir': database['inventory'][item['id']]['need_fir'],
-                        'need_nir': database['inventory'][item['id']]['need_nir'],
-                        'have_fir': database['inventory'][item['id']]['have_fir'],
-                        'have_nir': database['inventory'][item['id']]['have_nir'],
-                        'consumed_fir': database['inventory'][item['id']]['consumed_fir'],
-                        'consumed_nir': database['inventory'][item['id']]['consumed_nir'],
-                        'shortName': item['shortName'],
-                        'normalizedName': item['normalizedName'],
-                        'id': item['id'],
-                        'flea': item['flea'],
-                        'vend': item['vend']
-                    })
-                else:
-                    items.append({
-                        'need_fir': 0,
-                        'need_nir': 0,
-                        'have_fir': 0,
-                        'have_nir': 0,
-                        'consumed_fir': 0,
-                        'consumed_nir': 0,
-                        'shortName': item['shortName'],
-                        'normalizedName': item['normalizedName'],
-                        'id': item['id'],
-                        'flea': item['flea'],
-                        'vend': item['vend']
-                    })
-        elif (item['id'] == argument):
-            if (item['id'] in database['inventory'].keys()):
-                items.append({
-                    'need_fir': database['inventory'][item['id']]['need_fir'],
-                    'need_nir': database['inventory'][item['id']]['need_nir'],
-                    'have_fir': database['inventory'][item['id']]['have_fir'],
-                    'have_nir': database['inventory'][item['id']]['have_nir'],
-                    'consumed_fir': database['inventory'][item['id']]['consumed_fir'],
-                    'consumed_nir': database['inventory'][item['id']]['consumed_nir'],
-                    'shortName': item['shortName'],
-                    'normalizedName': item['normalizedName'],
-                    'id': item['id'],
-                    'flea': item['flea'],
-                    'vend': item['vend']
-                })
-            else:
-                items.append({
-                    'need_fir': 0,
-                    'need_nir': 0,
-                    'have_fir': 0,
-                    'have_nir': 0,
-                    'consumed_fir': 0,
-                    'consumed_nir': 0,
-                    'shortName': item['shortName'],
-                    'normalizedName': item['normalizedName'],
-                    'id': item['id'],
-                    'flea': item['flea'],
-                    'vend': item['vend']
-                })
-
-    for trader in database['traders']:
-        if (not guid):
-            if (normalize(trader['normalizedName']).startswith(argument)):
-                traders.append(trader)
-        elif (trader['id'] == argument):
-            traders.append(trader)
-
-    for map in database['maps']:
-        if (not guid):
-            if (normalize(map['normalizedName']).startswith(argument)):
-                maps.append(map)
-        elif (map['id'] == argument):
-            maps.append(map)
-
-    print_search(database, tasks, stations, barters, items, traders, maps)
-    return True
-
-def fuzzy_search(tracker_file, argument, ignore_barters):
-    database = open_database(tracker_file)
-
-    if (not database):
-        return False
-    
-    if (not is_guid(argument)):
-        argument = normalize(argument)
-        guid = False
-    else:
-        guid = True
-
-    tasks = []
-    stations = []
-    barters = []
-    items = []
-    traders = []
-    maps = []
-
-    for task in database['tasks']:
-        if (not guid):
-            if (argument in normalize(task['name']) or argument in normalize(task['normalizedName'])):
-                tasks.append(task)
-        elif (task['id'] == argument):
-            tasks.append(task)
-
-    for station in database['hideout']:
-        for level in station['levels']:
-            if (not guid):
-                if (argument in normalize(level['normalizedName'])):
-                    stations.append(level)
-            elif (level['id'] == argument):
-                stations.append(level)
-
-    if (not ignore_barters):
-        for barter in database['barters']:
-            if (not guid):
-                for requirement in barter['requiredItems']:
-                    item = guid_to_item_object(database, requirement['item']['id'])
-
-                    if (argument in normalize(item['shortName']) or argument in normalize(item['normalizedName'])):
-                        barters.append(barter)
-                for reward in barter['rewardItems']:
-                    item = guid_to_item_object(database, reward['item']['id'])
-
-                    if (argument in normalize(item['shortName']) or argument in normalize(item['normalizedName'])):
+                    if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
                         barters.append(barter)
             elif (barter['id'] == argument):
                 barters.append(barter)
@@ -2500,7 +2321,7 @@ def fuzzy_search(tracker_file, argument, ignore_barters):
             logging.info('Item price data has been refreshed')
         
         if (not guid):
-            if (argument in normalize(item['shortName']) or argument in normalize(item['normalizedName'])):
+            if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
                 if (item['id'] in database['inventory'].keys()):
                     items.append({
                         'need_fir': database['inventory'][item['id']]['need_fir'],
@@ -2561,14 +2382,14 @@ def fuzzy_search(tracker_file, argument, ignore_barters):
 
     for trader in database['traders']:
         if (not guid):
-            if (argument in normalize(trader['normalizedName'])):
+            if (string_compare(argument, trader['normalizedName'])):
                 traders.append(trader)
         elif (trader['id'] == argument):
             traders.append(trader)
 
     for map in database['maps']:
         if (not guid):
-            if (argument in normalize(map['normalizedName'])):
+            if (string_compare(argument, map['normalizedName'])):
                 maps.append(map)
         elif (map['id'] == argument):
             maps.append(map)
@@ -2578,20 +2399,17 @@ def fuzzy_search(tracker_file, argument, ignore_barters):
 
 def required_search(tracker_file, argument, ignore_barters):
     database = open_database(tracker_file)
-
-    if (not database):
-        return False
-    
-    if (not is_guid(argument)):
-        argument = normalize(argument)
-        guid = False
-    else:
-        guid = True
-
+    guid = False
     tasks = []
     stations = []
     barters = []
     items, traders, maps = [], [], []
+
+    if (not database):
+        return False
+    
+    if (is_guid(argument)):
+        guid = True
 
     for task in database['tasks']:
         for objective in task['objectives']:
@@ -2599,7 +2417,7 @@ def required_search(tracker_file, argument, ignore_barters):
                 if (not guid):
                     item = guid_to_item_object(database, objective['item']['id'])
 
-                    if (normalize(item['shortName']).startswith(argument) or normalize(item['normalizedName']).startswith(argument)):
+                    if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
                         tasks.append(task)
                 elif (objective['item']['id'] == argument):
                     tasks.append(task)
@@ -2610,7 +2428,7 @@ def required_search(tracker_file, argument, ignore_barters):
                     if (not guid):
                         key = guid_to_item_object(database, key['id'])
 
-                        if (normalize(key['shortName']).startswith(argument) or normalize(key['normalizedName']).startswith(argument)):
+                        if (string_compare(argument, key['shortName']) or string_compare(argument, key['normalizedName'])):
                             tasks.append(task)
                     elif (key['id'] == argument):
                         tasks.append(task)
@@ -2621,7 +2439,7 @@ def required_search(tracker_file, argument, ignore_barters):
                 if (not guid):
                     item = guid_to_item_object(database, requirement['item']['id'])
 
-                    if (normalize(item['shortName']).startswith(argument) or normalize(item['normalizedName']).startswith(argument)):
+                    if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
                         stations.append(level)
                 elif (requirement['item']['id'] == argument):
                     stations.append(level)
@@ -2632,7 +2450,7 @@ def required_search(tracker_file, argument, ignore_barters):
                 if (not guid):
                     item = guid_to_item_object(database, requirement['item']['id'])
 
-                    if (normalize(item['shortName']).startswith(argument) or normalize(item['normalizedName']).startswith(argument)):
+                    if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
                         barters.append(barter)
                 elif (requirement['item']['id'] == argument):
                     barters.append(barter)
@@ -2646,28 +2464,23 @@ def track(tracker_file, argument):
 
     if (not database):
         return False
-    
-    argument = normalize(argument)
 
     if (is_guid(argument)):
         guid = argument
-        type = 'barter'
-    else:
-        guid, type = name_guid_lookup(database, argument)
-
-    if (not guid):
-        logging.error('Invalid arguments')
-        return False
-
-    if (type == 'task'):
-        database = track_task(database, guid)
-    elif (type == 'station'):
-        database = track_station(database, guid)
-    elif (type == 'barter'):
         database = track_barter(database, guid)
     else:
-        logging.error(f'Track operation is unsupported for {type}')
-        return False
+        guid = task_to_guid(database, argument)
+
+        if (guid):
+            database = track_task(database, guid)
+        else:
+            guid = station_to_guid(database, argument)
+
+            if (guid):
+                database = track_station(database, guid)
+            else:
+                logging.error('Invalid argument')
+                return False
     
     if (database):
         write_database(tracker_file, database)
@@ -2680,28 +2493,23 @@ def untrack(tracker_file, argument):
 
     if (not database):
         return False
-    
-    argument = normalize(argument)
 
     if (is_guid(argument)):
         guid = argument
-        type = 'barter'
-    else:
-        guid, type = name_guid_lookup(database, argument)
-
-    if (not guid):
-        logging.error('Invalid arguments')
-        return False
-
-    if (type == 'task'):
-        database = untrack_task(database, guid)
-    elif (type == 'station'):
-        database = untrack_station(database, guid)
-    elif (type == 'barter'):
         database = untrack_barter(database, guid)
     else:
-        logging.error(f'Untrack operation is unsupported for {type}')
-        return False
+        guid = task_to_guid(database, argument)
+
+        if (guid):
+            database = untrack_task(database, guid)
+        else:
+            guid = station_to_guid(database, argument)
+
+            if (guid):
+                database = untrack_station(database, guid)
+            else:
+                logging.error('Invalid argument')
+                return False
     
     if (database):
         write_database(tracker_file, database)
@@ -2716,29 +2524,24 @@ def complete(tracker_file, argument, force, recurse):
     if (not database):
         return False
     
-    argument = normalize(argument)
-    
     if (is_guid(argument)):
         guid = argument
-        type = 'barter'
+        database = complete_barter(database, guid)
     else:
-        guid, type = name_guid_lookup(database, argument)
+        guid = task_to_guid(database, argument)
 
-    if (not guid):
-        logging.error('Invalid arguments')
-        return False
+        if (guid and not recurse):
+            database = complete_task(database, guid, force)
+        elif (guid and recurse):
+            database = complete_recursive_task(database, guid, True)
+        else:
+            guid = station_to_guid(database, argument)
 
-    if (type == 'task' and not recurse):
-        database = complete_task(database, guid, force)
-    elif (type == 'task' and recurse):
-        database = complete_recursive_task(database, guid, True)
-    elif (type == 'station'):
-        database = complete_station(database, guid, force)
-    elif (type == 'barter'):
-        database = complete_barter(database, guid, force)
-    else:
-        logging.error(f'Complete operation is unsupported for {type}')
-        return False
+            if (guid):
+                database = complete_station(database, guid)
+            else:
+                logging.error('Invalid argument')
+                return False
     
     if (database):
         write_database(tracker_file, database)
@@ -2753,7 +2556,6 @@ def add_item_fir(tracker_file, argument, count):
     if (not database):
         return False
     
-    argument = normalize(argument)
     guid = item_to_guid(database, argument)
 
     if (not guid):
@@ -2764,6 +2566,10 @@ def add_item_fir(tracker_file, argument, count):
         logging.error(f'Invalid or missing count argument. Accepts an integer greater than 0')
         return False
     
+    if (guid not in database['inventory'].keys()):
+        logging.error(f'Item {guid_to_item(database, guid)} is not needed in the inventory. Skipping')
+        return False
+
     if (database['inventory'][guid]['have_fir'] + count > database['inventory'][guid]['need_fir']):
         if (database['inventory'][guid]['need_fir'] > 0):
             diff = database['inventory'][guid]['have_fir'] + count - database['inventory'][guid]['need_fir']
@@ -2787,7 +2593,6 @@ def add_item_nir(tracker_file, argument, count):
     if (not database):
         return False
     
-    argument = normalize(argument)
     guid = item_to_guid(database, argument)
 
     if (not guid):
@@ -2798,6 +2603,10 @@ def add_item_nir(tracker_file, argument, count):
         logging.error(f'Invalid or missing count argument. Accepts an integer greater than 0')
         return False
     
+    if (guid not in database['inventory'].keys()):
+        logging.error(f'Item {guid_to_item(database, guid)} is not needed in the inventory. Skipping')
+        return False
+
     database['inventory'][guid]['have_nir'] = database['inventory'][guid]['have_nir'] + count
     logging.info(f'Added {count} {argument} to Not found In Raid (NIR) inventory')
 

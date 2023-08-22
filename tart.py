@@ -734,8 +734,12 @@ def alphabetize_items(database, items):
 
     for guid in items.keys():
         short_name = guid_to_item(database, guid)
+        alphabetize_key = short_name.lower()
         items[guid]['short_name'] = short_name
-        unsorted_items[short_name] = guid
+        unsorted_items[alphabetize_key] = {
+            'short_name': short_name,
+            'id': guid
+        }
     
     return {short_name:unsorted_items[short_name] for short_name in sorted(unsorted_items.keys())}
 
@@ -1421,7 +1425,10 @@ def print_inventory(database, items):
     items_in_this_row = 0
     sorted_items = alphabetize_items(database, items)
 
-    for short_name, guid in sorted_items.items():
+    for alphabetized_item in sorted_items.keys():
+        guid = sorted_items[alphabetized_item]['id']
+        short_name = sorted_items[alphabetized_item]['short_name']
+
         if (items[guid]["have_nir"] != 0 or items[guid]["have_fir"] != 0 or items[guid]["need_nir"] != 0 or items[guid]["need_fir"]):
             item_string = f'{items[guid]["have_nir"]} ({items[guid]["have_fir"]}) {items[guid]["need_nir"]} ({items[guid]["need_fir"]})'
             display = display + '{:<20} {:<25} '.format(short_name, item_string)
@@ -1440,7 +1447,9 @@ def print_inventory_owned(database, items):
     items_in_this_row = 0
     sorted_items = alphabetize_items(database, items)
 
-    for short_name, guid in sorted_items.items():
+    for alphabetized_item in sorted_items.keys():
+        guid = sorted_items[alphabetized_item]['id']
+        short_name = sorted_items[alphabetized_item]['short_name']
         item_string = f'{items[guid]["have_nir"]} ({items[guid]["have_fir"]})'
         display = display + '{:<20} {:<25} '.format(short_name, item_string)
         items_in_this_row = items_in_this_row + 1
@@ -1458,7 +1467,9 @@ def print_inventory_needed(database, items):
     items_in_this_row = 0
     sorted_items = alphabetize_items(database, items)
 
-    for short_name, guid in sorted_items.items():
+    for alphabetized_item in sorted_items.keys():
+        guid = sorted_items[alphabetized_item]['id']
+        short_name = sorted_items[alphabetized_item]['short_name']
         item_string = f'{items[guid]["need_nir"]} ({items[guid]["need_fir"]})'
         display = display + '{:<20} {:<25} '.format(short_name, item_string)
         items_in_this_row = items_in_this_row + 1

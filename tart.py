@@ -38,8 +38,8 @@ inventories
 \tstations : Lists all items in the inventory required for hideout stations
 \thideout : Lists all items in the inventory required for hideout stations
 \tbarters : Lists all items in the inventory required for tracked barters
-\towned : Lists all items in the owned inventory
-\tneeded : Lists all items in the needed inventory (all needed minus owned)
+\thave : Lists all items you have in the inventory
+\tneed : Lists all items you still need
 '''
 LS_HELP = '''
 > ls [iterable] {filter}\n
@@ -64,8 +64,8 @@ objects
 \tstations : Resets all progress on hideout stations
 \thideout : Resets all progress on hideout stations
 \tbarters : Resets all progress on barters
-\tinv : Clears the inventory of owned items
-\tall : Resets progress for all data structures and clears the inventory of owned items
+\tinv : Clears the inventory of all items
+\tall : Resets progress for all data structures and clears the inventory of all items
 '''
 RESTART_HELP = '''
 > restart [guid]\n
@@ -104,12 +104,12 @@ COMPLETE_HELP = '''
 Marks the object which matches the specified pattern as complete and consumes required items if available\n
 pattern : The name or guid of an object to complete
 modifiers
-\tforce : Forcefully completes the object whether the requirements are satisfied or not (adds missing items to the owned inventory)
+\tforce : Forcefully completes the object whether the requirements are satisfied or not (adds missing items to the inventory)
 \trecurse: Recursively and forcefully completes all prerequisite objects whether the requirements are satisfied or not (adds missing items to the inventory)
 '''
 ADD_HELP = '''
 > add [count] [item] {fir}\n
-Adds the specified item by name or guid to the owned inventory\n
+Adds the specified item by name or guid to the inventory\n
 count : A positive integer of items to add to the inventory
 item : The name or guid of an item to add
 fir : Adds the item as Found In Raid (FIR), otherwise adds as Not found In Raid (NIR)
@@ -161,12 +161,12 @@ def parser(tracker_file, command):
         elif (command[1] == 'barters'):
             logging.debug(f'Executing command: {command[0]} {command[1]}')
             list_inventory_barters(tracker_file)
-        elif (command[1] == 'owned'):
+        elif (command[1] == 'have'):
             logging.debug(f'Executing command: {command[0]} {command[1]}')
-            list_inventory_owned(tracker_file)
-        elif (command[1] == 'needed'):
+            list_inventory_have(tracker_file)
+        elif (command[1] == 'need'):
             logging.debug(f'Executing command: {command[0]} {command[1]}')
-            list_inventory_needed(tracker_file)
+            list_inventory_need(tracker_file)
         elif (command[1] == 'help' or command[1] == 'h'):
             logging.debug(f'Executing command: {command[0]} {command[1]}')
             logging.info(INV_HELP)
@@ -832,7 +832,7 @@ def get_items_needed_for_barters(database):
 
 def get_items_owned(database):
     items = {}
-    logging.debug('Compiling all items in the owned inventory')
+    logging.debug('Compiling all items you have in the inventory')
 
     for guid in database['inventory'].keys():
         if (guid not in items.keys()):

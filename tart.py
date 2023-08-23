@@ -656,12 +656,8 @@ def is_guid(text):
     return False
 
 def normalize(text):
-    whitespace_strings = ['-', '_']
-    unwanted_strings = ['the', '', '.', '(', ')', '+', '=', '\'', '"', ',', '\\', '/', '?', '#', '$', '&', '!', '@', '[', ']', '{', '}']
+    unwanted_strings = ['the', '', '.', '(', ')', '+', '=', '\'', '"', ',', '\\', '/', '?', '#', '$', '&', '!', '@', '[', ']', '{', '}', '-', '_']
     normalized = text.lower()
-
-    for string in whitespace_strings:
-        normalized = normalized.replace(string, ' ')
 
     for string in unwanted_strings:
         normalized = normalized.replace(string, '')
@@ -669,6 +665,16 @@ def normalize(text):
     normalized = re.sub(' +', ' ', normalized)
     logging.debug(f'Normalized {text} to {normalized}')
     return normalized
+
+def string_compare(comparable, comparator):
+    comparable_words = normalize(comparable).split(' ')
+    comparator_words = normalize(comparator).split(' ')
+
+    for comparabale_word in comparable_words:
+        if (not any(comparabale_word in comparator_word for comparator_word in comparator_words)):
+            return False
+
+    return True
 
 def alphabetize_items(database, items):
     logging.debug(f'Alphabetizing item dict of size {len(items)}')
@@ -684,16 +690,6 @@ def alphabetize_items(database, items):
         }
     
     return {short_name:unsorted_items[short_name] for short_name in sorted(unsorted_items.keys())}
-
-def string_compare(searcher, searchee):
-    searcher_list = normalize(searcher).split(' ')
-    searchee_list = normalize(searchee).split(' ')
-
-    for searcher_string in searcher_list:
-        if (not any(searcher_string in searchee_string for searchee_string in searchee_list)):
-            return False
-
-    return True
 
 # Verify functions
 def verify_task(database, task, task_table):

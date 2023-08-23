@@ -9,7 +9,7 @@ import re
 import requests
 
 
-#TODO: Alphabetize search results for items
+#TODO: Add category to items and key string_compare on it
 #TODO: Add bullet rankings (need to check API)
 USAGE = '''
 tart.py {debug}\n
@@ -122,10 +122,10 @@ operations
 \tset : Sets the player level to {level}
 level : The integer value greater than 0 to set the player level at
 '''
-ITEM_HEADER = '{:<25} {:<60} {:<30} {:<25} {:<15} {:<25}\n'.format('Item Short Name', 'Item Normalized Name', 'Item GUID', 'Inv (FIR)', 'Vend', 'Flea')
+ITEM_HEADER = '{:<25} {:<60} {:<30} {:<15} {:<20} {:<20} {:<20}\n'.format('Item Short Name', 'Item Normalized Name', 'Item GUID', 'Inv (FIR)', 'Sell To', 'Vend', 'Flea')
 MAP_HEADER = '{:<30} {:<20}\n'.format('Map Normalized Name', 'Map GUID')
 TRADER_HEADER = '{:<30} {:<20}\n'.format('Trader Normalized Name', 'Trader GUID')
-INVENTORY_HEADER = '{:<20} {:<15} {:<20} {:<15} {:<20} {:<15} \n'.format('Item', 'Inv (FIR)', 'Item', 'Inv (FIR)', 'Item', 'Inv (FIR)')
+INVENTORY_HEADER = '{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} \n'.format('Item', 'Inv (FIR)', 'Item', 'Inv (FIR)', 'Item', 'Inv (FIR)')
 INVENTORY_HAVE_HEADER = '{:<20} {:<25} {:<20} {:<25} {:<20} {:<25} \n'.format('Item', 'Have (FIR)', 'Item', 'Have (FIR)', 'Item', 'Have (FIR)')
 INVENTORY_NEED_HEADER = '{:<20} {:<25} {:<20} {:<25} {:<20} {:<25} \n'.format('Item', 'Need (FIR)', 'Item', 'Need (FIR)', 'Item', 'Need (FIR)')
 TASK_HEADER = '{:<40} {:<20} {:<20} {:<20} {:<20} {:<40}\n'.format('Task Title', 'Task Giver', 'Task Status', 'Tracked', 'Kappa?', 'Task GUID')
@@ -656,7 +656,7 @@ def is_guid(text):
     return False
 
 def normalize(text):
-    unwanted_strings = ['the', '', '.', '(', ')', '+', '=', '\'', '"', ',', '\\', '/', '?', '#', '$', '&', '!', '@', '[', ']', '{', '}', '-', '_']
+    unwanted_strings = ['', '.', '(', ')', '+', '=', '\'', '"', ',', '\\', '/', '?', '#', '$', '&', '!', '@', '[', ']', '{', '}', '-', '_']
     normalized = text.lower()
 
     for string in unwanted_strings:
@@ -670,26 +670,16 @@ def string_compare(comparable, comparator):
     comparable_words = normalize(comparable).split(' ')
     comparator_words = normalize(comparator).split(' ')
 
-    for comparabale_word in comparable_words:
-        if (not any(comparabale_word in comparator_word for comparator_word in comparator_words)):
-            return False
+    for comparable_word in comparable_words:
+        for comparator_word in comparator_words:
+            if (comparable_word not in comparator_word):
+                return False
 
     return True
 
-def alphabetize_items(database, items):
+def alphabetize_items(items):
     logging.debug(f'Alphabetizing item dict of size {len(items)}')
-    unsorted_items = {}
-
-    for guid in items.keys():
-        short_name = guid_to_item(database, guid)
-        alphabetize_key = short_name.lower()
-        items[guid]['short_name'] = short_name
-        unsorted_items[alphabetize_key] = {
-            'short_name': short_name,
-            'id': guid
-        }
-    
-    return {short_name:unsorted_items[short_name] for short_name in sorted(unsorted_items.keys())}
+    return sorted(items, key = lambda item: item['shortName'].lower())
 
 # Verify functions
 def verify_task(database, task, task_table):
@@ -743,8 +733,24 @@ def verify_barter(barter):
     return True
 
 # Get functions
+def get_items(database):
+    items = []
+    logging.debug('Compiling all items')
+
+    for guid in database['inventory'].keys():
+        items.append({
+            'need_fir': database['inventory'][guid]['need_fir'],
+            'need_nir': database['inventory'][guid]['need_nir'],
+            'have_fir': database['inventory'][guid]['have_fir'],
+            'have_nir': database['inventory'][guid]['have_nir'],
+            'id': guid,
+            'shortName': guid_to_item(database, guid)
+        })
+
+    return items
+
 def get_items_needed_for_tasks(database):
-    items = {}
+    items = []
     logging.debug('Compiling all items required for tracked tasks')
 
     for task in database['tasks']:
@@ -752,117 +758,128 @@ def get_items_needed_for_tasks(database):
             if (task['tracked']):
                 if (objective['type'] == 'giveItem'):
                     guid = objective['item']['id']
+                    fir = objective['foundInRaid']
+                    item = {
+                        'need_fir': 0,
+                        'need_nir': 0,
+                        'have_fir': 0,
+                        'have_nir': 0,
+                        'id': guid,
+                        'shortName': guid_to_item(database, guid)
+                    }
 
-                    if (guid not in items.keys()):
-                        items[guid] = {
-                            'need_fir': 0,
-                            'need_nir': 0,
-                            'have_fir': 0,
-                            'have_nir': 0
-                        }
-
-                    if (objective['foundInRaid']):
-                        items[guid]['need_fir'] = items[guid]['need_fir'] + objective['count']
+                    if (fir):
+                        item['need_fir'] = objective['count']
                     else:
-                        items[guid]['need_nir'] = items[guid]['need_nir'] + objective['count']
+                        item['need_nir'] = objective['count']
 
-    for guid in database['inventory'].keys():
-        if (guid in items.keys()):
-            items[guid]['have_fir'] = database['inventory'][guid]['have_fir']
-            items[guid]['have_nir'] = database['inventory'][guid]['have_nir']
+                    if (guid in database['inventory'].keys()):
+                        item['have_fir'] = database['inventory'][guid]['have_fir']
+                        item['have_nir'] = database['inventory'][guid]['have_nir']
+
+                    for seen_item in items:
+                        if (seen_item['id'] == guid):
+                            if (fir):
+                                seen_item['need_fir'] = seen_item['need_fir'] + objective['count']
+                            else:
+                                seen_item['need_nir'] = seen_item['need_nir'] + objective['count']
+                            
+                            break
+                    else:
+                        items.append(item)
 
     return items
 
 def get_items_needed_for_stations(database):
-    items = {}
+    items = []
     logging.debug('Compiling all items required for tracked hideout stations')
 
     for station in database['hideout']:
         for level in station['levels']:
             if (level['tracked']):
-                for item in level['itemRequirements']:
-                    guid = item['item']['id']
-
-                    if (guid not in items.keys()):
-                        items[guid] = {
+                for requirement in level['itemRequirements']:
+                    guid = requirement['item']['id']
+                    item = {
                         'need_fir': 0,
                         'need_nir': 0,
                         'have_fir': 0,
-                        'have_nir': 0
+                        'have_nir': 0,
+                        'id': guid,
+                        'shortName': guid_to_item(database, guid)
                     }
+                    item['need_nir'] = requirement['count']
 
-                    items[guid]['need_nir'] = items[guid]['need_nir'] + item['count']
-    
-    for guid in database['inventory'].keys():
-        if (guid in items.keys()):
-            items[guid]['have_fir'] = database['inventory'][guid]['have_fir']
-            items[guid]['have_nir'] = database['inventory'][guid]['have_nir']
+                    if (guid in database['inventory'].keys()):
+                        item['have_fir'] = database['inventory'][guid]['have_fir']
+                        item['have_nir'] = database['inventory'][guid]['have_nir']
+
+                    for seen_item in items:
+                        if (seen_item['id'] == guid):
+                            seen_item['need_nir'] = seen_item['need_nir'] + requirement['count']
+                            break
+                    else:
+                        items.append(item)
 
     return items
 
 def get_items_needed_for_barters(database):
-    items = {}
+    items = []
     logging.debug('Compiling all items required for tracked barters')
 
     for barter in database['barters']:
         if (barter['tracked']):
-            for item in barter['requiredItems']:
-                guid = item['item']['id']
+            for requirement in barter['requiredItems']:
+                guid = requirement['item']['id']
+                item = {
+                    'need_fir': 0,
+                    'need_nir': 0,
+                    'have_fir': 0,
+                    'have_nir': 0,
+                    'id': guid,
+                    'shortName': guid_to_item(database, guid)
+                }
+                item['need_nir'] = requirement['count']
 
-                if (guid not in items.keys()):
-                    items[guid] = {
-                        'need_fir': 0,
-                        'need_nir': 0,
-                        'have_fir': 0,
-                        'have_nir': 0
-                    }
+                if (guid in database['inventory'].keys()):
+                    item['have_fir'] = database['inventory'][guid]['have_fir']
+                    item['have_nir'] = database['inventory'][guid]['have_nir']
 
-                items[guid]['need_nir'] = items[guid]['need_nir'] + item['count']
-    
-    for guid in database['inventory'].keys():
-        if (guid in items.keys()):
-            items[guid]['have_fir'] = database['inventory'][guid]['have_fir']
-            items[guid]['have_nir'] = database['inventory'][guid]['have_nir']
+                for seen_item in items:
+                    if (seen_item['id'] == guid):
+                        seen_item['need_nir'] = seen_item['need_nir'] + requirement['count']
+                        break
+                else:
+                    items.append(item)
 
     return items
 
 def get_items_owned(database):
-    items = {}
+    items = []
     logging.debug('Compiling all items you have in the inventory')
 
     for guid in database['inventory'].keys():
-        if (guid not in items.keys()):
-            items[guid] = {
-                'have_fir': 0,
-                'have_nir': 0
-            }
-        
-        items[guid]['have_fir'] = database['inventory'][guid]['have_fir']
-        items[guid]['have_nir'] = database['inventory'][guid]['have_nir']
-
-    for guid in list(items.keys()):
-        if (items[guid]['have_fir'] == 0 and items[guid]['have_nir'] == 0):
-            del items[guid]
+        if (database['inventory'][guid]['have_fir'] > 0 or database['inventory'][guid]['have_nir'] > 0):
+            items.append({
+                'have_fir': database['inventory'][guid]['have_fir'],
+                'have_nir': database['inventory'][guid]['have_nir'],
+                'id': guid,
+                'shortName': guid_to_item(database, guid)
+            })
 
     return items
 
 def get_items_needed(database):
-    items = {}
-    logging.debug('Compiling all items in the needed inventory')
+    items = []
+    logging.debug('Compiling all items needed in the inventory')
 
     for guid in database['inventory'].keys():
-        if (guid not in items.keys()):
-            items[guid] = {
-                'need_fir': 0,
-                'need_nir': 0
-            }
-
-        items[guid]['need_fir'] = database['inventory'][guid]['need_fir'] - database['inventory'][guid]['have_fir']
-        items[guid]['need_nir'] = database['inventory'][guid]['need_nir'] - database['inventory'][guid]['have_nir']
-
-    for guid in list(items.keys()):
-        if (items[guid]['need_fir'] < 1 and items[guid]['need_nir'] < 1):
-            del items[guid]
+        if (database['inventory'][guid]['need_fir'] > 0 or database['inventory'][guid]['need_nir'] > 0):
+            items.append({
+                'need_fir': database['inventory'][guid]['need_fir'],
+                'need_nir': database['inventory'][guid]['need_nir'],
+                'id': guid,
+                'shortName': guid_to_item(database, guid)
+            })
 
     return items
 
@@ -1020,18 +1037,20 @@ def refresh_all_items(database, headers):
         
         for vendor in item['sellFor']:
             if (vendor['vendor']['normalizedName'] == 'flea-market'):
-                item['flea'] = f'{int((vendor["priceRUB"] - item["fleaMarketFee"]) / item_area):,}'
+                item['flea'] = int((vendor["priceRUB"] - item["fleaMarketFee"]) / item_area)
             elif (vendor['priceRUB'] > max_vend):
                 max_vend = vendor['priceRUB']
                 max_vend_trader = vendor['vendor']['normalizedName']
 
         if ('flea' not in item.keys()):
-            item['flea'] = 0
+            item['flea'] = int(0)
 
         if (max_vend == 0 or max_vend_trader == ''):
-            item['vend'] = 0
+            item['trader'] = ''
+            item['vend'] = int(0)
         else:
-            item['vend'] = f'{max_vend_trader} : {int(max_vend / item_area):,}'
+            item['trader'] = max_vend_trader
+            item['vend'] = int(max_vend / item_area)
 
         del item['sellFor']
         del item['width']
@@ -1368,38 +1387,14 @@ def print_bool(bool_value):
     else:
         return 'false'
 
-def print_inventory(database, items):
+def print_inventory(items):
     display = INVENTORY_HEADER + BUFFER
     items_in_this_row = 0
-    sorted_items = alphabetize_items(database, items)
+    items = alphabetize_items(items)
 
-    for alphabetized_item in sorted_items.keys():
-        guid = sorted_items[alphabetized_item]['id']
-        short_name = sorted_items[alphabetized_item]['short_name']
-
-        if (items[guid]["have_nir"] != 0 or items[guid]["have_fir"] != 0 or items[guid]["need_nir"] != 0 or items[guid]["need_fir"]):
-            item_string = f'{items[guid]["have_nir"]}/{items[guid]["need_nir"]} ({items[guid]["have_fir"]}/{items[guid]["need_fir"]})'
-            display = display + '{:<20} {:<15} '.format(short_name, item_string)
-            items_in_this_row = items_in_this_row + 1
-            
-            if (items_in_this_row == 3):
-                display = display.strip(' ') + '\n'
-                items_in_this_row = 0
-    
-    display = display + '\n\n'
-    logging.info(f'\n{display}')
-    return
-
-def print_inventory_have(database, items):
-    display = INVENTORY_HAVE_HEADER + BUFFER
-    items_in_this_row = 0
-    sorted_items = alphabetize_items(database, items)
-
-    for alphabetized_item in sorted_items.keys():
-        guid = sorted_items[alphabetized_item]['id']
-        short_name = sorted_items[alphabetized_item]['short_name']
-        item_string = f'{items[guid]["have_nir"]} ({items[guid]["have_fir"]})'
-        display = display + '{:<20} {:<25} '.format(short_name, item_string)
+    for item in items:
+        item_string = f'{item["have_nir"]}/{item["need_nir"]} ({item["have_fir"]}/{item["need_fir"]})'
+        display = display + '{:<20} {:<20} '.format(item['shortName'], item_string)
         items_in_this_row = items_in_this_row + 1
         
         if (items_in_this_row == 3):
@@ -1410,16 +1405,32 @@ def print_inventory_have(database, items):
     logging.info(f'\n{display}')
     return
 
-def print_inventory_need(database, items):
+def print_inventory_have(items):
+    display = INVENTORY_HAVE_HEADER + BUFFER
+    items_in_this_row = 0
+    items = alphabetize_items(items)
+
+    for item in items:
+        item_string = f'{item["have_nir"]} ({item["have_fir"]})'
+        display = display + '{:<20} {:<15} '.format(item['shortName'], item_string)
+        items_in_this_row = items_in_this_row + 1
+        
+        if (items_in_this_row == 3):
+            display = display.strip(' ') + '\n'
+            items_in_this_row = 0
+    
+    display = display + '\n\n'
+    logging.info(f'\n{display}')
+    return
+
+def print_inventory_need(items):
     display = INVENTORY_NEED_HEADER + BUFFER
     items_in_this_row = 0
-    sorted_items = alphabetize_items(database, items)
+    items = alphabetize_items(items)
 
-    for alphabetized_item in sorted_items.keys():
-        guid = sorted_items[alphabetized_item]['id']
-        short_name = sorted_items[alphabetized_item]['short_name']
-        item_string = f'{items[guid]["need_nir"]} ({items[guid]["need_fir"]})'
-        display = display + '{:<20} {:<25} '.format(short_name, item_string)
+    for item in items:
+        item_string = f'{item["need_nir"]} ({item["need_fir"]})'
+        display = display + '{:<20} {:<15} '.format(item['shortName'], item_string)
         items_in_this_row = items_in_this_row + 1
         
         if (items_in_this_row == 3):
@@ -1542,10 +1553,15 @@ def print_untracked(untracked):
 
 def print_items(items):
     display = ITEM_HEADER + BUFFER
+    items = alphabetize_items(items)
 
     for item in items:
         item_display = f'{item["have_nir"]}/{item["need_nir"]} ({item["have_fir"]}/{item["need_fir"]})'
-        display = display + '{:<25} {:<60} {:<30} {:<25} {:<15} {:<25}\n'.format(item['shortName'], item['normalizedName'], item['id'], item_display, item['vend'], item['flea'])
+
+        if (item['flea'] > item['vend']):
+            display = display + '{:<25} {:<60} {:<30} {:<15} {:<20} {:<20,} {:<20,}\n'.format(item['shortName'], item['normalizedName'], item['id'], item_display, 'flea', item['vend'], item['flea'])
+        else:
+            display = display + '{:<25} {:<60} {:<30} {:<15} {:<20} {:<20,} {:<20,}\n'.format(item['shortName'], item['normalizedName'], item['id'], item_display, item['trader'], item['vend'], item['flea'])
 
     display = display + '\n\n'
     logging.info(f'\n{display}')
@@ -1607,8 +1623,8 @@ def list_inventory(tracker_file):
     if (not database):
         return False
 
-    inventory = database['inventory']
-    print_inventory(database, inventory)
+    inventory = get_items(database)
+    print_inventory(inventory)
     return True
 
 def list_inventory_tasks(tracker_file):
@@ -1622,7 +1638,7 @@ def list_inventory_tasks(tracker_file):
     if (not bool(task_items)):
         logging.info('Could not find any items needed for tasks')
     else:
-        print_inventory(database, task_items)
+        print_inventory(task_items)
 
     return True
 
@@ -1637,7 +1653,7 @@ def list_inventory_stations(tracker_file):
     if (not bool(station_items)):
         logging.info('Could not find any items needed for hideout stations')
     else:
-        print_inventory(database, station_items)
+        print_inventory(station_items)
 
     return True
 
@@ -1652,7 +1668,7 @@ def list_inventory_barters(tracker_file):
     if (not bool(barter_items)):
         logging.info('Could not find any items needed for barters')
     else:
-        print_inventory(database, barter_items)
+        print_inventory(barter_items)
 
     return True
 
@@ -1667,7 +1683,7 @@ def list_inventory_have(tracker_file):
     if (not bool(owned_items)):
         logging.info('Your inventory is empty!')
     else:
-        print_inventory_have(database, owned_items)
+        print_inventory_have(owned_items)
 
     return
 
@@ -1682,7 +1698,7 @@ def list_inventory_need(tracker_file):
     if (not bool(needed_items)):
         logging.info('Congratulations, you have no items remaining to collect!')
     else:
-        print_inventory_need(database, needed_items)
+        print_inventory_need(needed_items)
 
     return
 
@@ -2323,13 +2339,12 @@ def search(tracker_file, argument, ignore_barters):
                         'need_nir': database['inventory'][item['id']]['need_nir'],
                         'have_fir': database['inventory'][item['id']]['have_fir'],
                         'have_nir': database['inventory'][item['id']]['have_nir'],
-                        'consumed_fir': database['inventory'][item['id']]['consumed_fir'],
-                        'consumed_nir': database['inventory'][item['id']]['consumed_nir'],
+                        'id': item['id'],
                         'shortName': item['shortName'],
                         'normalizedName': item['normalizedName'],
-                        'id': item['id'],
-                        'flea': item['flea'],
-                        'vend': item['vend']
+                        'flea': int(item['flea']),
+                        'vend': int(item['vend']),
+                        'trader': item['trader']
                     })
                 else:
                     items.append({
@@ -2337,13 +2352,12 @@ def search(tracker_file, argument, ignore_barters):
                         'need_nir': 0,
                         'have_fir': 0,
                         'have_nir': 0,
-                        'consumed_fir': 0,
-                        'consumed_nir': 0,
+                        'id': item['id'],
                         'shortName': item['shortName'],
                         'normalizedName': item['normalizedName'],
-                        'id': item['id'],
-                        'flea': item['flea'],
-                        'vend': item['vend']
+                        'flea': int(item['flea']),
+                        'vend': int(item['vend']),
+                        'trader': item['trader']
                     })
         elif (item['id'] == argument):
             if (item['id'] in database['inventory'].keys()):
@@ -2352,13 +2366,12 @@ def search(tracker_file, argument, ignore_barters):
                     'need_nir': database['inventory'][item['id']]['need_nir'],
                     'have_fir': database['inventory'][item['id']]['have_fir'],
                     'have_nir': database['inventory'][item['id']]['have_nir'],
-                    'consumed_fir': database['inventory'][item['id']]['consumed_fir'],
-                    'consumed_nir': database['inventory'][item['id']]['consumed_nir'],
+                    'id': item['id'],
                     'shortName': item['shortName'],
                     'normalizedName': item['normalizedName'],
-                    'id': item['id'],
-                    'flea': item['flea'],
-                    'vend': item['vend']
+                    'flea': int(item['flea']),
+                    'vend': int(item['vend']),
+                    'trader': item['trader']
                 })
             else:
                 items.append({
@@ -2366,15 +2379,14 @@ def search(tracker_file, argument, ignore_barters):
                     'need_nir': 0,
                     'have_fir': 0,
                     'have_nir': 0,
-                    'consumed_fir': 0,
-                    'consumed_nir': 0,
+                    'id': item['id'],
                     'shortName': item['shortName'],
                     'normalizedName': item['normalizedName'],
-                    'id': item['id'],
                     'flea': item['flea'],
-                    'vend': item['vend']
+                    'vend': item['vend'],
+                    'trader': item['trader']
                 })
-
+    
     for trader in database['traders']:
         if (not guid):
             if (string_compare(argument, trader['normalizedName'])):

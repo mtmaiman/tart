@@ -13,11 +13,10 @@ import requests
 #TODO: Add bullet rankings (need to check API)
 USAGE = '''
 tart.py {debug}\n
+A lightweight python CLI for tracking tasks, hideout stations, barters, and items inventory for Escape From Tarkov. Using "debug" as a positional argument enters debug mode.\n
+usage:\n
 > command [required args] {optional args}\n
-A lightweigth python CLI for tracking task, hideout, and barter progression, including item collection, for Escape From Tarkov. Please read below for usage notes and command details.\n
-NOTE: Command arguments expect names or GUIDs. Please use search functions to find these if you are unsure\n
-DEBUG: Execute the python script with a positional argument of "debug" to enter debug mode
-Commands:
+commands
 \tinv help
 \tls help
 \treset help
@@ -1392,7 +1391,7 @@ def print_inventory(database, items):
                 items_in_this_row = 0
     
     display = display + '\n\n'
-    print(display)
+    logging.info(f'\n{display}')
     return
 
 def print_inventory_owned(database, items):
@@ -1412,7 +1411,7 @@ def print_inventory_owned(database, items):
             items_in_this_row = 0
     
     display = display + '\n\n'
-    print(display)
+    logging.info(f'\n{display}')
     return
 
 def print_inventory_needed(database, items):
@@ -1432,7 +1431,7 @@ def print_inventory_needed(database, items):
             items_in_this_row = 0
     
     display = display + '\n\n'
-    print(display)
+    logging.info(f'\n{display}')
     return
 
 def print_tasks(database, tasks):
@@ -1486,7 +1485,7 @@ def print_tasks(database, tasks):
     
         display = display + '\n\n'
 
-    print(display)
+    logging.info(f'\n{display}')
     return True
 
 def print_hideout_stations(database, stations):
@@ -1504,7 +1503,7 @@ def print_hideout_stations(database, stations):
         
         display = display + '\n\n'
 
-    print(display)
+    logging.info(f'\n{display}')
     return True
 
 def print_barters(database, barters):
@@ -1530,7 +1529,7 @@ def print_barters(database, barters):
 
         display = display + '\n\n'
 
-    print(display)
+    logging.info(f'\n{display}')
     return True
 
 def print_untracked(untracked):
@@ -1542,7 +1541,7 @@ def print_untracked(untracked):
         else:
             display = display + '{:<40} {:<20} {:<20}\n'.format(untracked_object['entity']['normalizedName'], 'hideout station', print_bool(untracked_object['entity']['tracked']))
         
-    print(display)
+    logging.info(f'\n{display}')
     return True
 
 def print_items(items):
@@ -1553,7 +1552,7 @@ def print_items(items):
         display = display + '{:<25} {:<60} {:<30} {:<25} {:<25} {:<25}\n'.format(item['shortName'], item['normalizedName'], item['id'], item_display, item['vend'], item['flea'])
 
     display = display + '\n\n'
-    print(display)
+    logging.info(f'\n{display}')
     return True
 
 def print_maps(maps):
@@ -1563,7 +1562,7 @@ def print_maps(maps):
         display = display + '{:<30} {:<20}\n'.format(map['normalizedName'], map['id'])
 
     display = display + '\n\n'
-    print(display)
+    logging.info(f'\n{display}')
     return True
 
 def print_traders(traders):
@@ -1573,7 +1572,7 @@ def print_traders(traders):
         display = display + '{:<30} {:<20}\n'.format(trader['normalizedName'], trader['id'])
 
     display = display + '\n\n'
-    print(display)
+    logging.info(f'\n{display}')
     return True
 
 def print_search(database, tasks, stations, barters, items, traders, maps):
@@ -2655,12 +2654,12 @@ def level_up(tracker_file):
 
 def main(args):
     if (len(args) > 1 and args[1] == 'debug'):
-        logging.basicConfig(level = logging.DEBUG, format = '[%(asctime)s] [%(levelname)s]: %(message)s')
+        logging.basicConfig(level = logging.DEBUG, format = '[%(levelname)s] %(message)s')
         logging.info('Welcome to the TARkov Tracker (TART)!')
         logging.info('RUNNING IN DEBUG MODE. All changes will affect only the debug database file!')
         tracker_file = 'debug.json'
     else:
-        logging.basicConfig(level = logging.INFO, format = '[%(asctime)s] [%(levelname)s]: %(message)s')
+        logging.basicConfig(level = logging.INFO, format = '[%(levelname)s] %(message)s')
         logging.info('Welcome to the TARkov Tracker (TART)!')
         tracker_file = 'database.json'
 

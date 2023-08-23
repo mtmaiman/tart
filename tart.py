@@ -122,12 +122,12 @@ operations
 \tset : Sets the player level to {level}
 level : The integer value greater than 0 to set the player level at
 '''
-ITEM_HEADER = '{:<25} {:<60} {:<30} {:<25} {:<25} {:<25}\n'.format('Item Short Name', 'Item Normalized Name', 'Item GUID', 'Have (FIR) Need (FIR)', 'Vend', 'Flea')
+ITEM_HEADER = '{:<25} {:<60} {:<30} {:<25} {:<15} {:<25}\n'.format('Item Short Name', 'Item Normalized Name', 'Item GUID', 'Inv (FIR)', 'Vend', 'Flea')
 MAP_HEADER = '{:<30} {:<20}\n'.format('Map Normalized Name', 'Map GUID')
 TRADER_HEADER = '{:<30} {:<20}\n'.format('Trader Normalized Name', 'Trader GUID')
-INVENTORY_HEADER = '{:<20} {:<25} {:<20} {:<25} {:<20} {:<25} \n'.format('Item', 'Have (FIR) Need (FIR)', 'Item', 'Have (FIR) Need (FIR)', 'Item', 'Have (FIR) Need (FIR)')
-INVENTORY_OWNED_HEADER = '{:<20} {:<25} {:<20} {:<25} {:<20} {:<25} \n'.format('Item', 'Have (FIR)', 'Item', 'Have (FIR)', 'Item', 'Have (FIR)')
-INVENTORY_NEEDED_HEADER = '{:<20} {:<25} {:<20} {:<25} {:<20} {:<25} \n'.format('Item', 'Need (FIR)', 'Item', 'Need (FIR)', 'Item', 'Need (FIR)')
+INVENTORY_HEADER = '{:<20} {:<15} {:<20} {:<15} {:<20} {:<15} \n'.format('Item', 'Inv (FIR)', 'Item', 'Inv (FIR)', 'Item', 'Inv (FIR)')
+INVENTORY_HAVE_HEADER = '{:<20} {:<25} {:<20} {:<25} {:<20} {:<25} \n'.format('Item', 'Have (FIR)', 'Item', 'Have (FIR)', 'Item', 'Have (FIR)')
+INVENTORY_NEED_HEADER = '{:<20} {:<25} {:<20} {:<25} {:<20} {:<25} \n'.format('Item', 'Need (FIR)', 'Item', 'Need (FIR)', 'Item', 'Need (FIR)')
 TASK_HEADER = '{:<40} {:<20} {:<20} {:<20} {:<20} {:<40}\n'.format('Task Title', 'Task Giver', 'Task Status', 'Tracked', 'Kappa?', 'Task GUID')
 HIDEOUT_HEADER = '{:<40} {:<20} {:<20} {:<40}\n'.format('Station Name', 'Station Status', 'Tracked', 'Station GUID')
 BARTER_HEADER = '{:<40} {:<20} {:<20} {:<20}\n'.format('Barter GUID', 'Trader', 'Level', 'Tracked')
@@ -1382,8 +1382,8 @@ def print_inventory(database, items):
         short_name = sorted_items[alphabetized_item]['short_name']
 
         if (items[guid]["have_nir"] != 0 or items[guid]["have_fir"] != 0 or items[guid]["need_nir"] != 0 or items[guid]["need_fir"]):
-            item_string = f'{items[guid]["have_nir"]} ({items[guid]["have_fir"]}) {items[guid]["need_nir"]} ({items[guid]["need_fir"]})'
-            display = display + '{:<20} {:<25} '.format(short_name, item_string)
+            item_string = f'{items[guid]["have_nir"]}/{items[guid]["need_nir"]} ({items[guid]["have_fir"]}/{items[guid]["need_fir"]})'
+            display = display + '{:<20} {:<15} '.format(short_name, item_string)
             items_in_this_row = items_in_this_row + 1
             
             if (items_in_this_row == 3):
@@ -1394,8 +1394,8 @@ def print_inventory(database, items):
     logging.info(f'\n{display}')
     return
 
-def print_inventory_owned(database, items):
-    display = INVENTORY_OWNED_HEADER + BUFFER
+def print_inventory_have(database, items):
+    display = INVENTORY_HAVE_HEADER + BUFFER
     items_in_this_row = 0
     sorted_items = alphabetize_items(database, items)
 
@@ -1414,8 +1414,8 @@ def print_inventory_owned(database, items):
     logging.info(f'\n{display}')
     return
 
-def print_inventory_needed(database, items):
-    display = INVENTORY_NEEDED_HEADER + BUFFER
+def print_inventory_need(database, items):
+    display = INVENTORY_NEED_HEADER + BUFFER
     items_in_this_row = 0
     sorted_items = alphabetize_items(database, items)
 
@@ -1548,8 +1548,8 @@ def print_items(items):
     display = ITEM_HEADER + BUFFER
 
     for item in items:
-        item_display = f'{item["have_nir"]} ({item["have_fir"]}) {item["need_nir"]} ({item["need_fir"]})'
-        display = display + '{:<25} {:<60} {:<30} {:<25} {:<25} {:<25}\n'.format(item['shortName'], item['normalizedName'], item['id'], item_display, item['vend'], item['flea'])
+        item_display = f'{item["have_nir"]}/{item["need_nir"]} ({item["have_fir"]}/{item["need_fir"]})'
+        display = display + '{:<25} {:<60} {:<30} {:<25} {:<15} {:<25}\n'.format(item['shortName'], item['normalizedName'], item['id'], item_display, item['vend'], item['flea'])
 
     display = display + '\n\n'
     logging.info(f'\n{display}')
@@ -1660,7 +1660,7 @@ def list_inventory_barters(tracker_file):
 
     return True
 
-def list_inventory_owned(tracker_file):
+def list_inventory_have(tracker_file):
     database = open_database(tracker_file)
 
     if (not database):
@@ -1671,11 +1671,11 @@ def list_inventory_owned(tracker_file):
     if (not bool(owned_items)):
         logging.info('Your inventory is empty!')
     else:
-        print_inventory_owned(database, owned_items)
+        print_inventory_have(database, owned_items)
 
     return
 
-def list_inventory_needed(tracker_file):
+def list_inventory_need(tracker_file):
     database = open_database(tracker_file)
 
     if (not database):
@@ -1686,7 +1686,7 @@ def list_inventory_needed(tracker_file):
     if (not bool(needed_items)):
         logging.info('Congratulations, you have no items remaining to collect!')
     else:
-        print_inventory_needed(database, needed_items)
+        print_inventory_need(database, needed_items)
 
     return
 

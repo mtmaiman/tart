@@ -1,5 +1,6 @@
 # Standard library
 from datetime import datetime, timedelta
+from os import system, name
 import logging
 import json
 import sys
@@ -29,6 +30,7 @@ commands
 \tcomplete help
 \tadd help
 \tlevel help
+\tclear help
 '''
 INV_HELP = '''
 > inv {inventory}\n
@@ -121,6 +123,10 @@ operations
 \tup : Increments the player level by one (1)
 \tset : Sets the player level to {level}
 level : The integer value greater than 0 to set the player level at
+'''
+CLEAR_HELP = '''
+> clear\n
+Clears the terminal
 '''
 ITEM_HEADER = '{:<25} {:<60} {:<30} {:<15} {:<20} {:<20} {:<20}\n'.format('Item Short Name', 'Item Normalized Name', 'Item GUID', 'Inv (FIR)', 'Sell To', 'Vend', 'Flea')
 MAP_HEADER = '{:<30} {:<20}\n'.format('Map Normalized Name', 'Map GUID')
@@ -445,6 +451,18 @@ def parser(tracker_file, command):
     elif (command[0] == 'stop' or command[0] == 's' or command[0] == 'quit' or command[0] == 'q' or command[0] == 'exit'):
         logging.debug(f'Executing command: {command[0]}')
         return False
+    # Clear
+    elif (command[0] == 'clear'):
+        if (len(command) == 1):
+            logging.debug(f'Executing command: {command[0]}')
+            clear()
+        elif (command[1] == 'help' or command[1] == 'h'):
+            logging.debug(f'Executing command: {command[0]} {command[1]}')
+            logging.info(CLEAR_HELP)
+        else:
+            logging.debug(f'Failed to execute command: {command[0]} {command[1]}')
+            logging.error('Unhandled clear argument')
+            logging.info(CLEAR_HELP)
     # Error
     else:
         logging.debug(f'Failed to execute command: {command[0]}')
@@ -1521,7 +1539,12 @@ def print_barters(database, barters):
 
         for item in barter['requiredItems']:
             guid = item['item']['id']
-            have_available_nir = database['inventory'][guid]['have_nir'] - database['inventory'][guid]['consumed_nir']
+
+            if (guid in database['inventory'].keys()):
+                have_available_nir = database['inventory'][guid]['have_nir'] - database['inventory'][guid]['consumed_nir']
+            else:
+                have_available_nir = 0
+                
             short_name = guid_to_item(database, guid)
             count = item['count']
             display = display + f'--> Give {have_available_nir}/{count} {short_name} available\n'
@@ -2650,6 +2673,11 @@ def level_up(tracker_file):
     database['player_level'] = database['player_level'] + 1
     write_database(tracker_file, database)
     logging.info(f'Incremented the player level by 1. Level is now {database["player_level"]}')
+    return True
+
+#Clear
+def clear():
+    system('cls' if name == 'nt' else 'clear')
     return True
 
 

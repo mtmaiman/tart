@@ -10,7 +10,7 @@ import re
 import requests
 
 
-#TODO: Add category to items and key string_compare on it
+#TODO: Add buy price for items
 #TODO: Add bullet rankings (need to check API)
 USAGE = '''
 tart.py {debug}\n
@@ -1504,6 +1504,9 @@ def print_tasks(database, tasks):
                     for item in database['all_items']:
                         if (item['id'] == key_guid):
                             key_string = key_string + f' Acquire {item["shortName"]} key'
+                        
+                            if (database['inventory'][key_guid]['have_nir'] - database['inventory'][key_guid]['consumed_nir'] > 0):
+                                key_string = key_string + ' (have)'
                     
                     key_string = key_string + '\n'
                     display = display + key_string
@@ -2262,6 +2265,21 @@ def refresh(tracker_file):
                     database['inventory'][guid]['need_fir'] = database['inventory'][guid]['need_fir'] + objective['count']
                 else:
                     database['inventory'][guid]['need_nir'] = database['inventory'][guid]['need_nir'] + objective['count']
+        
+        if (task['neededKeys'] is not None and len(task['neededKeys']) > 0):
+            for needed_key_object in task['neededKeys']:
+                for needed_key in needed_key_object['keys']:
+                    guid = needed_key['id']
+
+                    if (guid not in database['inventory'].keys()):
+                        database['inventory'][guid] = {
+                            'need_fir': 0,
+                            'need_nir': 1,
+                            'have_fir': 0,
+                            'have_nir': 0,
+                            'consumed_fir': 0,
+                            'consumed_nir': 0
+                        }
 
     logging.info('Updated all inventory values for task items')
 

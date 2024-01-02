@@ -58,6 +58,8 @@ iterables
 \thideout : Lists all hideout stations
 \tbarters : Lists all tracked barters
 \tuntracked : Lists all untracked tasks and hideout stations
+\t\tfilters
+\t\t\tkappa : Includes non-Kappa required tasks, otherwise ignored
 \tmaps : Lists all maps
 \ttraders : Lists all traders
 '''
@@ -207,8 +209,12 @@ def parser(tracker_file, command):
                 logging.debug(f'Executing command: {command[0]} {command[1]} all')
                 list_barters(tracker_file, 'all')
         elif (command[1] == 'untracked'):
-            logging.debug(f'Executing command: {command[0]} {command[1]}')
-            list_untracked(tracker_file)
+            if (len(command) == 3):
+                logging.debug(f'Executing command: {command[0]} {command[1]} {command[2]}')
+                list_untracked(tracker_file, True)
+            else:
+                logging.debug(f'Executing command: {command[0]} {command[1]}')
+                list_untracked(tracker_file, False)
         elif (command[1] == 'maps'):
             logging.debug(f'Executing command: {command[0]} {command[1]}')
             list_maps(tracker_file)
@@ -992,12 +998,15 @@ def get_barters_by_trader(database, guid):
 
     return barters
 
-def get_untracked(database):
+def get_untracked(database, ignore_kappa):
     untracked = []
     logging.debug('Compiling all untracked tasks and hideout stations')
 
     for task in database['tasks']:
-        if (not task['tracked'] and task['kappaRequired']):
+        if (not task['tracked']):
+            if (not task['kappaRequired'] and not ignore_kappa):
+                continue
+
             untracked.append({
                 'type': 'task',
                 'entity': task
@@ -1813,16 +1822,18 @@ def list_barters(tracker_file, argument):
     
     return True
 
-def list_untracked(tracker_file):
+def list_untracked(tracker_file, ignore_kappa):
     database = open_database(tracker_file)
 
     if (not database):
         return False
     
-    untracked = get_untracked(database)
+    untracked = get_untracked(database, ignore_kappa)
 
-    if (len(untracked) == 0):
-        logging.info('No untracked items')
+    if (len(untracked) == 0 and ignore_kappa):
+        logging.info('No untracked items (including Kappa tasks)')
+    elif (len(untracked) == 0):
+        logging.info('No untracked items (excluding Kappa tasks)')
     else:
         print_untracked(untracked)
 

@@ -7,7 +7,10 @@ import sys
 import re
 
 # Imported libraries
-import requests
+try:
+    import requests
+except ModuleNotFoundError as exception:
+    logging.error('Failed to find the required pip module: requests. Please use "pip install -r requirements.txt" to install required modules.')
 
 
 #TODO: Add buy price for items

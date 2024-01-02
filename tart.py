@@ -895,12 +895,17 @@ def get_items_needed(database):
 
     for guid in database['inventory'].keys():
         if (database['inventory'][guid]['need_fir'] > 0 or database['inventory'][guid]['need_nir'] > 0):
-            items.append({
-                'need_fir': database['inventory'][guid]['need_fir'],
-                'need_nir': database['inventory'][guid]['need_nir'],
+            item = {
+                'need_fir': database['inventory'][guid]['need_fir'] - database['inventory'][guid]['have_fir'],
+                'need_nir': database['inventory'][guid]['need_nir'] - database['inventory'][guid]['have_nir'],
                 'id': guid,
                 'shortName': guid_to_item(database, guid)
-            })
+            }
+
+            if (item['need_fir'] == 0 and item['need_nir'] == 0):
+                continue
+            
+            items.append(item)
 
     return items
 
@@ -1046,8 +1051,8 @@ def refresh_all_items(database, headers):
         exit(1)
     else:
         if ('errors' in response.json().keys()):
-                logging.error(f'Encountered an error while retrieving item data! >> {json.dumps(response.json())}')
-                exit(1)
+                logging.warning(f'Encountered error(s) while retrieving item data! >> {json.dumps(response.json()["errors"])}')
+                logging.warning('This may cause issues with item data!!!')
 
         database['all_items'] = response.json()['data']['items']
 
@@ -1058,7 +1063,11 @@ def refresh_all_items(database, headers):
         
         for vendor in item['sellFor']:
             if (vendor['vendor']['normalizedName'] == 'flea-market'):
-                item['flea'] = int((vendor["priceRUB"] - item["fleaMarketFee"]) / item_area)
+                if (item['fleaMarketFee'] is None):
+                    logging.warning(f'Found an invalid flea market fee value (this usually means the last observed list price for this item was abnormally high). Substituting temporary flea market fee of 1,000,000 roubles): {item}')
+                    item['fleaMarketFee'] = 1000000
+
+                item['flea'] = int((vendor['priceRUB'] - item['fleaMarketFee']) / item_area)
             elif (vendor['priceRUB'] > max_vend):
                 max_vend = vendor['priceRUB']
                 max_vend_trader = vendor['vendor']['normalizedName']
@@ -1451,7 +1460,7 @@ def print_inventory_need(items):
 
     for item in items:
         item_string = f'{item["need_nir"]} ({item["need_fir"]})'
-        display = display + '{:<20} {:<15} '.format(item['shortName'], item_string)
+        display = display + '{:<20} {:<25} '.format(item['shortName'], item_string)
         items_in_this_row = items_in_this_row + 1
         
         if (items_in_this_row == 3):

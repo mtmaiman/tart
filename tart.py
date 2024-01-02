@@ -142,7 +142,7 @@ INVENTORY_NEED_HEADER = '{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20}
 TASK_HEADER = '{:<40} {:<20} {:<20} {:<20} {:<20} {:<40}\n'.format('Task Title', 'Task Giver', 'Task Status', 'Tracked', 'Kappa?', 'Task GUID')
 HIDEOUT_HEADER = '{:<40} {:<20} {:<20} {:<40}\n'.format('Station Name', 'Station Status', 'Tracked', 'Station GUID')
 BARTER_HEADER = '{:<40} {:<20} {:<20} {:<20}\n'.format('Barter GUID', 'Trader', 'Level', 'Tracked')
-UNTRACKED_HEADER = '{:<40} {:<20} {:<20}\n'.format('Entity Name', 'Type', 'Tracked')
+UNTRACKED_HEADER = '{:<40} {:<20} {:<20} {:<20}\n'.format('Entity Name', 'Type', 'Tracked', 'Kappa?')
 BUFFER = '-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n'
 
 
@@ -1603,7 +1603,7 @@ def print_untracked(untracked):
 
     for untracked_object in untracked:
         if (untracked_object['type'] == 'task'):
-            display = display + '{:<40} {:<20} {:<20}\n'.format(untracked_object['entity']['name'], 'task', print_bool(untracked_object['entity']['tracked']))
+            display = display + '{:<40} {:<20} {:<20} {:<20}\n'.format(untracked_object['entity']['name'], 'task', print_bool(untracked_object['entity']['tracked']), print_bool(untracked_object['entity']['kappaRequired']))
         else:
             display = display + '{:<40} {:<20} {:<20}\n'.format(untracked_object['entity']['normalizedName'], 'hideout station', print_bool(untracked_object['entity']['tracked']))
         

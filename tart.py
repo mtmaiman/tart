@@ -672,11 +672,19 @@ def get_nir_count_by_guid(database, guid):
 
 # String functions
 def is_guid(text):
+    if (type(text) is list):
+        text = text.join(' ')
+
     if (len(text) == 24 and text[0].isdigit()):
         logging.debug(f'{text} matches 24 character guid')
         return True
+    
     if (len(text) > 24 and text[0].isdigit() and text[24] == '-'):
         logging.debug(f'{text} matches over 24 character guid')
+        return True
+    
+    if (len(text) > 24 and text[0].isdigit() and text[0:2] == '65'):
+        logging.debug(f'{text} matches barter GUID')
         return True
     
     logging.debug(f'{text} is not a guid')
@@ -1170,6 +1178,9 @@ def track_barter(database, guid):
 
             barter['tracked'] = True
             logging.info(f'Tracked barter {barter["id"]}')
+            break
+    else:
+        logging.error(f'Failed to find a barter matching the provided GUID: {guid}')
                 
     return database
 
@@ -1231,6 +1242,10 @@ def untrack_barter(database, guid):
 
             barter['tracked'] = False
             logging.info(f'Untracked barter {barter["id"]}')
+            break
+    
+    else:
+        logging.error(f'Failed to find a tracked barter matching the provided GUID: {guid}')
                 
     return database
 
@@ -2609,7 +2624,7 @@ def complete(tracker_file, argument, force, recurse):
     
     if (is_guid(argument)):
         guid = argument
-        database = complete_barter(database, guid)
+        database = complete_barter(database, guid, force)
     else:
         guid = task_to_guid(database, argument)
 

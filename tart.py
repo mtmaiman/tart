@@ -134,9 +134,9 @@ Clears the terminal
 ITEM_HEADER = '{:<25} {:<60} {:<30} {:<15} {:<20} {:<20} {:<20}\n'.format('Item Short Name', 'Item Normalized Name', 'Item GUID', 'Inv (FIR)', 'Sell To', 'Vend', 'Flea')
 MAP_HEADER = '{:<30} {:<20}\n'.format('Map Normalized Name', 'Map GUID')
 TRADER_HEADER = '{:<30} {:<20}\n'.format('Trader Normalized Name', 'Trader GUID')
-INVENTORY_HEADER = '{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} \n'.format('Item', 'Inv (FIR)', 'Item', 'Inv (FIR)', 'Item', 'Inv (FIR)')
-INVENTORY_HAVE_HEADER = '{:<20} {:<25} {:<20} {:<25} {:<20} {:<25} \n'.format('Item', 'Have (FIR)', 'Item', 'Have (FIR)', 'Item', 'Have (FIR)')
-INVENTORY_NEED_HEADER = '{:<20} {:<25} {:<20} {:<25} {:<20} {:<25} \n'.format('Item', 'Need (FIR)', 'Item', 'Need (FIR)', 'Item', 'Need (FIR)')
+INVENTORY_HEADER = '{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} \n'.format('Item', 'Inv (FIR)', 'Item', 'Inv (FIR)', 'Item', 'Inv (FIR)', 'Item', 'Inv (FIR)')
+INVENTORY_HAVE_HEADER = '{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} \n'.format('Item', 'Have (FIR)', 'Item', 'Have (FIR)', 'Item', 'Have (FIR)', 'Item', 'Have (FIR)')
+INVENTORY_NEED_HEADER = '{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} \n'.format('Item', 'Need (FIR)', 'Item', 'Need (FIR)', 'Item', 'Need (FIR)', 'Item', 'Need (FIR)')
 TASK_HEADER = '{:<40} {:<20} {:<20} {:<20} {:<20} {:<40}\n'.format('Task Title', 'Task Giver', 'Task Status', 'Tracked', 'Kappa?', 'Task GUID')
 HIDEOUT_HEADER = '{:<40} {:<20} {:<20} {:<40}\n'.format('Station Name', 'Station Status', 'Tracked', 'Station GUID')
 BARTER_HEADER = '{:<40} {:<20} {:<20} {:<20}\n'.format('Barter GUID', 'Trader', 'Level', 'Tracked')
@@ -160,22 +160,22 @@ def parser(tracker_file, command):
     if (command[0] == 'inv'):
         if (len(command) == 1):
             logging.debug(f'Executing command: {command[0]}')
-            list_inventory(tracker_file)
+            inventory(tracker_file)
         elif (command[1] == 'tasks'):
             logging.debug(f'Executing command: {command[0]} {command[1]}')
-            list_inventory_tasks(tracker_file)
+            inventory_tasks(tracker_file)
         elif (command[1] == 'stations' or command[1] == 'hideout'):
             logging.debug(f'Executing command: {command[0]} {command[1]}')
-            list_inventory_stations(tracker_file)
+            inventory_stations(tracker_file)
         elif (command[1] == 'barters'):
             logging.debug(f'Executing command: {command[0]} {command[1]}')
-            list_inventory_barters(tracker_file)
+            inventory_barters(tracker_file)
         elif (command[1] == 'have'):
             logging.debug(f'Executing command: {command[0]} {command[1]}')
-            list_inventory_have(tracker_file)
+            inventory_have(tracker_file)
         elif (command[1] == 'need'):
             logging.debug(f'Executing command: {command[0]} {command[1]}')
-            list_inventory_need(tracker_file)
+            inventory_need(tracker_file)
         elif (command[1] == 'help' or command[1] == 'h'):
             logging.debug(f'Executing command: {command[0]} {command[1]}')
             logging.info(INV_HELP)
@@ -1417,55 +1417,67 @@ def print_bool(bool_value):
     else:
         return 'false'
 
-def print_inventory(items):
-    display = INVENTORY_HEADER + BUFFER
-    items_in_this_row = 0
+def print_inventory_generic(items, inv):
     items = alphabetize_items(items)
 
-    for item in items:
-        item_string = f'{item["have_nir"]}/{item["need_nir"]} ({item["have_fir"]}/{item["need_fir"]})'
-        display = display + '{:<20} {:<20} '.format(item['shortName'], item_string)
-        items_in_this_row = items_in_this_row + 1
-        
-        if (items_in_this_row == 3):
-            display = display.strip(' ') + '\n'
-            items_in_this_row = 0
+    if (inv == 'inv'):
+        display = INVENTORY_HEADER + BUFFER
+    elif (inv == 'have'):
+        display = INVENTORY_HAVE_HEADER + BUFFER
+    else:
+        display = INVENTORY_NEED_HEADER + BUFFER
     
-    display = display + '\n\n'
-    logging.info(f'\n{display}')
-    return
-
-def print_inventory_have(items):
-    display = INVENTORY_HAVE_HEADER + BUFFER
-    items_in_this_row = 0
-    items = alphabetize_items(items)
-
-    for item in items:
-        item_string = f'{item["have_nir"]} ({item["have_fir"]})'
-        display = display + '{:<20} {:<15} '.format(item['shortName'], item_string)
-        items_in_this_row = items_in_this_row + 1
-        
-        if (items_in_this_row == 3):
-            display = display.strip(' ') + '\n'
-            items_in_this_row = 0
+    _row_ = 1
     
-    display = display + '\n\n'
-    logging.info(f'\n{display}')
-    return
-
-def print_inventory_need(items):
-    display = INVENTORY_NEED_HEADER + BUFFER
-    items_in_this_row = 0
-    items = alphabetize_items(items)
-
     for item in items:
-        item_string = f'{item["need_nir"]} ({item["need_fir"]})'
-        display = display + '{:<20} {:<25} '.format(item['shortName'], item_string)
-        items_in_this_row = items_in_this_row + 1
+        nir, fir = None, None
+        _done_ = False
+
+        if (inv == 'have' or item['need_nir'] > 0):
+            if (inv == 'need'):
+                nir = item['need_nir']
+            elif (inv == 'have'):
+                nir = item['have_nir']
+            else:
+                if (item['have_nir'] >= item['need_nir']):
+                    _done_ = True
+
+                nir = f'{item["have_nir"]}/{item["need_nir"]}'
         
-        if (items_in_this_row == 3):
+        if (inv == 'have' or item['need_fir'] > 0):
+            if (inv == 'need'):
+                fir = item['need_fir']
+            elif (inv == 'have'):
+                fir = item['have_fir']
+            else:
+                if (item['have_fir'] >= item['need_fir']):
+                    _done_ = True
+
+                fir = f'{item["have_fir"]}/{item["need_fir"]}'
+
+        if (nir and fir):
+            if (_done_):
+                display = display + '{:<20} {:<20} '.format(f'* {item["shortName"]}', f'{nir} ({fir})')
+            else:
+                display = display + '{:<20} {:<20} '.format(item['shortName'], f'{nir} ({fir})')
+        elif (nir):
+            if (_done_):
+                display = display + '{:<20} {:<20} '.format(f'* {item["shortName"]}', nir)
+            else:
+                display = display + '{:<20} {:<20} '.format(item['shortName'], nir)
+        elif (fir):
+            if (_done_):
+                display = display + '{:<20} {:<20} '.format(f'* {item["shortName"]}', f'({fir})')
+            else:
+                display = display + '{:<20} {:<20} '.format(item['shortName'], f'({fir})')
+        else:
+            continue
+        
+        if (_row_ == 4):
             display = display.strip(' ') + '\n'
-            items_in_this_row = 0
+            _row_ = 0
+
+        _row_ = _row_ + 1
     
     display = display + '\n\n'
     logging.info(f'\n{display}')
@@ -1655,17 +1667,17 @@ def print_search(database, tasks, stations, barters, items, traders, maps):
 
 
 # Inventory
-def list_inventory(tracker_file):
+def inventory(tracker_file):
     database = open_database(tracker_file)
 
     if (not database):
         return False
 
     inventory = get_items(database)
-    print_inventory(inventory)
+    print_inventory_generic(inventory, 'inv')
     return True
 
-def list_inventory_tasks(tracker_file):
+def inventory_tasks(tracker_file):
     database = open_database(tracker_file)
 
     if (not database):
@@ -1676,11 +1688,11 @@ def list_inventory_tasks(tracker_file):
     if (not bool(task_items)):
         logging.info('Could not find any items needed for tasks')
     else:
-        print_inventory(task_items)
+        print_inventory_generic(task_items, 'inv')
 
     return True
 
-def list_inventory_stations(tracker_file):
+def inventory_stations(tracker_file):
     database = open_database(tracker_file)
 
     if (not database):
@@ -1691,11 +1703,11 @@ def list_inventory_stations(tracker_file):
     if (not bool(station_items)):
         logging.info('Could not find any items needed for hideout stations')
     else:
-        print_inventory(station_items)
+        print_inventory_generic(station_items, 'inv')
 
     return True
 
-def list_inventory_barters(tracker_file):
+def inventory_barters(tracker_file):
     database = open_database(tracker_file)
 
     if (not database):
@@ -1706,11 +1718,11 @@ def list_inventory_barters(tracker_file):
     if (not bool(barter_items)):
         logging.info('Could not find any items needed for barters')
     else:
-        print_inventory(barter_items)
+        print_inventory_generic(barter_items, 'inv')
 
     return True
 
-def list_inventory_have(tracker_file):
+def inventory_have(tracker_file):
     database = open_database(tracker_file)
 
     if (not database):
@@ -1721,11 +1733,11 @@ def list_inventory_have(tracker_file):
     if (not bool(owned_items)):
         logging.info('Your inventory is empty!')
     else:
-        print_inventory_have(owned_items)
+        print_inventory_generic(owned_items, 'have')
 
     return
 
-def list_inventory_need(tracker_file):
+def inventory_need(tracker_file):
     database = open_database(tracker_file)
 
     if (not database):
@@ -1736,7 +1748,7 @@ def list_inventory_need(tracker_file):
     if (not bool(needed_items)):
         logging.info('Congratulations, you have no items remaining to collect!')
     else:
-        print_inventory_need(needed_items)
+        print_inventory_generic(needed_items, 'need')
 
     return
 

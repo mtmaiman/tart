@@ -731,7 +731,12 @@ def verify_task(database, task, task_table):
         return False
     
     for prereq in task['taskRequirements']:
-        if (task_table[prereq['id']] == 'incomplete'):
+        if ('id' in prereq):
+            id = prereq['id']
+        else:
+            id = prereq['task']['id']
+
+        if (task_table[id] == 'incomplete'):
             logging.debug(f'Task {task["name"]} has incomplete prereq')
             return False
     
@@ -2641,7 +2646,7 @@ def complete(tracker_file, argument, force, recurse):
             guid = station_to_guid(database, argument)
 
             if (guid):
-                database = complete_station(database, guid)
+                database = complete_station(database, guid, force)
             else:
                 logging.error('Invalid argument')
                 return False

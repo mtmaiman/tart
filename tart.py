@@ -2296,10 +2296,15 @@ def refresh(tracker_file):
         logging.info('Retrieved latest trader data from the api.tarkov.dev server')
         database['traders'] = response.json()['data']['traders']
     
-    for task in database['tasks']:
-        for objective in task['objectives']:
+    for index, task in enumerate(database['tasks']):
+        for inner_index, objective in enumerate(task['objectives']):
             if (objective['type'] == 'giveItem'):
                 guid = objective['item']['id']
+
+                if (objective['id'] == '5d24bb4886f77439c92d6bad'):
+                    database['tasks'][index]['objectives'][inner_index]['item']['id'] = '656df4fec921ad01000481a2'
+                    guid = '656df4fec921ad01000481a2'
+                    logging.info('Corrected invalid GUID for pack-of-noodles in task objectives for Acquaintance')
 
                 if (guid not in database['inventory'].keys()):
                     database['inventory'][guid] = {

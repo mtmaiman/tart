@@ -949,6 +949,9 @@ def get_tasks_by_map(database, guid):
                 if (map['id'] == guid):
                     tasks.append(task)
                     break
+            else:
+                continue
+            break
 
     return tasks
 

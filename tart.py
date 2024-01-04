@@ -1,16 +1,17 @@
 # Standard library
-from datetime import datetime, timedelta
-from os import system, name
-import logging
-import json
-import sys
-import re
-
-# Imported libraries
 try:
+    from datetime import datetime, timedelta
+    from os import system, name
+    import logging
+    import json
+    import sys
+    import re
+
+    # Imported libraries
     import requests
 except ModuleNotFoundError as exception:
-    logging.error('Failed to find the required pip module: requests. Please use "pip install -r requirements.txt" to install required modules.')
+    print('Failed to find a required module. Please use "pip install -r requirements.txt" to install required modules and verify your version of Python.')
+    exit(1)
 
 
 #TODO: Add buy price for items

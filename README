@@ -1,0 +1,25 @@
+Installation instructions
+
+First, ensure that at least Python v3.11.0 is installed on your system. You can download the latest version here: https://www.python.org/downloads/. While installing Python, verify that the pip optional feature is included and that "Add Python to environment variables" is checked. I also recommend precompiling the standard library.
+
+After installation, open a terminal and navigate to the directory of this file. You can use the "cd" command to change directories, i.e., if this is saved in C:\Users\Me\Downloads, you can use "cd" to switch to that directory by typing:
+
+cd C:\Users\Me\Downloads
+
+Next, install the required dependencies. A requirements file has been included with this application and can be used to install all dependencies. Use pip to do this from the terminal while in the current directory.
+
+pip install -r requirements.txt
+
+Finally, you're ready to run the program. From the same terminal in the current directory, use Python to interpret and execute the .py application.
+
+python .\tart.py
+
+If you have done everything correctly, the application should launch and welcome you. You will be presented with a cursor to begin typing commands:
+
+>
+
+If you receive an error regarding "The term 'python' is not recognized as a name of a cmdlet, function, script file, or executable program," then you likely did not check to "Add Python to environment variables" during installation. The location of the python executable must be on your PATH environment variable. Add this manually or reinstall Python.
+
+If you receive a message from the application that a required module is not installed, then either you did not install the modules found in requirements.txt, or your version of Python is not compatible and is missing a module from the standard library.
+
+You can use 'q', 'quit', 's', or 'stop', or 'exit' to leave the application at any time. Use 'clear' to refresh the screen.

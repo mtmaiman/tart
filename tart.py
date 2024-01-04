@@ -14,8 +14,6 @@ except ModuleNotFoundError as exception:
     exit(1)
 
 
-#TODO: Add buy price for items
-#TODO: Add bullet rankings (need to check API)
 USAGE = '''
 tart.py {debug}\n
 A lightweight python CLI for tracking tasks, hideout stations, barters, and items inventory for Escape From Tarkov. Using "debug" as a positional argument enters debug mode.\n
@@ -84,6 +82,7 @@ REFRESH_HELP = '''
 > refresh {prices}\n
 Pulls latest Escape From Tarkov game data from api.tarkov.dev and overwrites all application files (WARNING: This will reset all progress!)\n
 prices : Manually refreshes only item price data (Does not reset any progress)
+delta : Performs a refresh but attempts to save all current data, including task, hideout, and barter progress (WARNING: This may corrupt some data!)
 '''
 SEARCH_HELP = '''
 > search [pattern] {barters}\n
@@ -286,7 +285,7 @@ def parser(tracker_file, command):
     # Refresh
     elif (command[0] == 'refresh'):
         if (len(command) < 2):
-            logging.warning('You are about to reset progress! Are you sure you wish to proceed? (Y/N)')
+            logging.warning('You are about to refresh and reset all data! Are you sure you wish to proceed? (Y/N)')
             confirmation = input('> ').lower()
 
             if (confirmation == 'y'):
@@ -305,6 +304,15 @@ def parser(tracker_file, command):
             })
             logging.info('Manually refreshed all item price data')
             write_database(tracker_file, database)
+        elif (command[1] == 'delta'):
+            logging.warning('You are about to refresh all data, attempting to save current progress! Are you sure you wish to proceed? (Y/N)')
+            confirmation = input('> ').lower()
+
+            if (confirmation == 'y'):
+                refresh_delta(tracker_file)
+            else:
+                logging.debug(f'Aborted command execution for {command[0]} due to confirmation response of {confirmation}')
+                logging.info('Refresh aborted')
         else:
             logging.debug(f'Failed to execute command: {command[0]} {command[1]}')
             logging.error('Invalid refresh argument')
@@ -2379,6 +2387,126 @@ def refresh(tracker_file):
     logging.info(f'Generated a new database file {tracker_file}')
     return True
 
+def refresh_delta(tracker_file):
+    memory = open_database(tracker_file)
+    refresh_database = refresh(tracker_file)
+
+    if (not refresh_database):
+        logging.error('Encountered an error while refreshing the database. Restoring previous database...')
+        write_database(tracker_file, memory)
+        return False
+
+    # Tasks
+    database = open_database(tracker_file)
+    changes = 0
+    task_table = {}
+
+    for index, task in enumerate(database['tasks']):
+        task_table[task['id']] = index
+    
+    for task in memory['tasks']:
+        if (task['id'] not in task_table):
+            logging.warning(f'Task {task["name"]} cannot be found in the new dataset. All data for this task will be lost!')
+            continue
+
+        new_task = database['tasks'][task_table[task['id']]]
+
+        if (new_task['status'] != task['status']):
+            database['tasks'][task_table[task['id']]]['status'] = task['status']
+            changes = changes + 1
+        
+        if (new_task['tracked'] != task['tracked']):
+            database['tasks'][task_table[task['id']]]['tracked'] = task['tracked']
+            changes = changes + 1
+    
+    task_changes = changes
+    logging.info(f'Completed task delta import with {task_changes} restores')
+    
+    # Hideout stations
+    station_table = {}
+
+    for index, station in enumerate(database['hideout']):
+        for sub_index, level in enumerate(station['levels']):
+            station_table[level['id']] = (index, sub_index)
+    
+    for station in memory['hideout']:
+        for level in station['levels']:
+            if (level['id'] not in station_table):
+                logging.warning(f'Hideout station {level["normalizedName"]} cannot be found in the new dataset. All data for this hideout station will be lost!')
+                continue
+
+            new_station = database['hideout'][station_table[level['id']][0]]['levels'][station_table[level['id']][1]]
+
+            if (new_station['status'] != level['status']):
+                database['hideout'][station_table[level['id']][0]]['levels'][station_table[level['id']][1]]['status'] = level['status']
+                changes = changes + 1
+            
+            if (new_station['tracked'] != level['tracked']):
+                database['hideout'][station_table[level['id']][0]]['levels'][station_table[level['id']][1]]['tracked'] = level['tracked']
+                changes = changes + 1
+
+    hideout_changes = changes - task_changes
+    logging.info(f'Completed hideout station delta import with {hideout_changes} restores')
+
+    # Barters   
+    barter_table = {}
+
+    for index, barter in enumerate(database['barters']):
+        barter_table[barter['id']] = index
+    
+    for barter in memory['barters']:
+        if (barter['id'] not in barter_table):
+            logging.warning(f'Barter {barter["name"]} cannot be found in the new dataset. All data for this barter will be lost!')
+            continue
+
+        new_barter = database['barters'][barter_table[barter['id']]]
+
+        if (new_barter['status'] != barter['status']):
+            database['barters'][barter_table[barter['id']]]['status'] = barter['status']
+            changes = changes + 1
+        
+        if (new_barter['tracked'] != barter['tracked']):
+            database['barters'][barter_table[barter['id']]]['tracked'] = barter['tracked']
+            changes = changes + 1
+    
+    barter_changes = changes - task_changes - hideout_changes
+    logging.info(f'Completed barter delta import with {barter_changes} restores')
+
+    # Inventory
+    for item in database['inventory'].keys():
+        if (item not in memory['inventory'].keys()):
+            logging.warning(f'Inventory item {guid_to_item(item)} cannot be found in the new inventory. All data for this item will be lost!')
+            continue
+        
+        if (database['inventory'][item]['have_nir'] != memory['inventory'][item]['have_nir']):
+            database['inventory'][item]['have_nir'] = memory['inventory'][item]['have_nir']
+            changes = changes + 1
+
+        if (database['inventory'][item]['have_fir'] != memory['inventory'][item]['have_fir']):
+            database['inventory'][item]['have_fir'] = memory['inventory'][item]['have_fir']
+            changes = changes + 1
+
+        if (database['inventory'][item]['consumed_nir'] != memory['inventory'][item]['consumed_nir']):
+            database['inventory'][item]['consumed_nir'] = memory['inventory'][item]['consumed_nir']
+            changes = changes + 1
+        
+        if (database['inventory'][item]['consumed_fir'] != memory['inventory'][item]['consumed_fir']):
+            database['inventory'][item]['consumed_fir'] = memory['inventory'][item]['consumed_fir']
+            changes = changes + 1
+    
+    inventory_changes = changes - task_changes - hideout_changes - barter_changes
+    logging.info(f'Completed inventory delta import with {inventory_changes} restores')
+
+    database['player_level'] = memory['player_level']
+    database['last_item_refresh'] = memory['last_item_refresh']
+    database['last_price_refresh'] = memory['last_price_refresh']
+    logging.info('Restored player level, item refresh data, and price refresh data')
+
+    write_database(tracker_file, database)
+    logging.info(f'Completed database refresh and delta import with {changes} total restores')
+    logging.info(f'Refreshed database with delta changes and restored memory of tasks, hideout stations, barters, and inventory')
+    return True
+
 # Search
 def search(tracker_file, argument, ignore_barters):
     database = open_database(tracker_file)
@@ -2783,11 +2911,11 @@ def main(args):
 
     while(True):
         command = input('> ')
-        exited = parser(tracker_file, command)
+        running = parser(tracker_file, command)
         
-        if (not exited):
+        if (not running):
             logging.info('Gracefully quit!')
-            break
+            return True
 
 if (__name__ == '__main__'):
     main(sys.argv)

@@ -732,7 +732,12 @@ def verify_task(database, task, task_table):
         return False
     
     for prereq in task['taskRequirements']:
-        if (task_table[prereq['id']] == 'incomplete'):
+        if ('id' in prereq):
+            id = prereq['id']
+        else:
+            id = prereq['task']['id']
+
+        if (task_table[id] == 'incomplete'):
             logging.debug(f'Task {task["name"]} has incomplete prereq')
             return False
     
@@ -945,6 +950,9 @@ def get_tasks_by_map(database, guid):
                 if (map['id'] == guid):
                     tasks.append(task)
                     break
+            else:
+                continue
+            break
 
     return tasks
 
@@ -2297,10 +2305,15 @@ def refresh(tracker_file):
         logging.info('Retrieved latest trader data from the api.tarkov.dev server')
         database['traders'] = response.json()['data']['traders']
     
-    for task in database['tasks']:
-        for objective in task['objectives']:
+    for index, task in enumerate(database['tasks']):
+        for inner_index, objective in enumerate(task['objectives']):
             if (objective['type'] == 'giveItem'):
                 guid = objective['item']['id']
+
+                if (objective['id'] == '5d24bb4886f77439c92d6bad'):
+                    database['tasks'][index]['objectives'][inner_index]['item']['id'] = '656df4fec921ad01000481a2'
+                    guid = '656df4fec921ad01000481a2'
+                    logging.info('Corrected invalid GUID for pack-of-noodles in task objectives for Acquaintance')
 
                 if (guid not in database['inventory'].keys()):
                     database['inventory'][guid] = {
@@ -2637,7 +2650,7 @@ def complete(tracker_file, argument, force, recurse):
             guid = station_to_guid(database, argument)
 
             if (guid):
-                database = complete_station(database, guid)
+                database = complete_station(database, guid, force)
             else:
                 logging.error('Invalid argument')
                 return False

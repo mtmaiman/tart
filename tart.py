@@ -56,6 +56,9 @@ iterables
 \tstations : Lists all hideout stations
 \thideout : Lists all hideout stations
 \tbarters : Lists all tracked barters
+\t\tfilters
+\t\t\ttrader : The name of a trarder to list barters for
+\tcrafts : Lists all tracked crafts
 \tuntracked : Lists all untracked tasks and hideout stations
 \t\tfilters
 \t\t\tkappa : Includes non-Kappa required tasks, otherwise ignored
@@ -149,6 +152,7 @@ INVENTORY_NEED_HEADER = '{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20}
 TASK_HEADER = '{:<40} {:<20} {:<20} {:<20} {:<20} {:<40}\n'.format('Task Title', 'Task Giver', 'Task Status', 'Tracked', 'Kappa?', 'Task GUID')
 HIDEOUT_HEADER = '{:<40} {:<20} {:<20} {:<40}\n'.format('Station Name', 'Station Status', 'Tracked', 'Station GUID')
 BARTER_HEADER = '{:<40} {:<20} {:<20} {:<20}\n'.format('Barter GUID', 'Trader', 'Level', 'Tracked')
+CRAFT_HEADER = '{:<40} {:<20} {:<30} {:<20}\n'.format('Craft Recipe GUID', 'Station', 'Level', 'Tracked')
 UNTRACKED_HEADER = '{:<40} {:<20} {:<20} {:<20}\n'.format('Entity Name', 'Type', 'Tracked', 'Kappa?')
 BUFFER = '-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n'
 
@@ -216,6 +220,9 @@ def parser(tracker_file, command):
             else:
                 logging.debug(f'Executing command: {command[0]} {command[1]} all')
                 list_barters(tracker_file, 'all')
+        elif (command[1] == 'crafts'):
+            logging.debug(f'Executing command: {command[0]} {command[1]}')
+            list_crafts(tracker_file)
         elif (command[1] == 'untracked'):
             if (len(command) == 3):
                 logging.debug(f'Executing command: {command[0]} {command[1]} {command[2]}')
@@ -580,6 +587,16 @@ def guid_to_trader(database, guid):
     
     return False
 
+def guid_to_station(database, guid):
+    logging.debug(f'Searching for hideout station matching guid {guid}')
+
+    for station in database['hideout']:
+        if (station['id'] == guid):
+            logging.debug(f'Found hideout station matching guid {guid}')
+            return station['normalizedName']
+    
+    return False
+
 # Name to GUID
 def item_to_guid(database, item_name):
     logging.debug(f'Searching for item matching name {item_name}')
@@ -809,6 +826,13 @@ def verify_hideout_level(station, level):
 def verify_barter(barter):
     if (barter['status'] == 'complete' or not barter['tracked']):
         logging.debug(f'Barter {barter["id"]} is complete or not tracked')
+        return False
+    
+    return True
+
+def verify_craft(craft):
+    if (craft['status'] == 'complete' or not craft['tracked']):
+        logging.debug(f'Craft recipe {craft["id"]} is complete or not tracked')
         return False
     
     return True
@@ -1054,6 +1078,16 @@ def get_barters_by_trader(database, guid):
             barters.append(barter)
 
     return barters
+
+def get_crafts(database):
+    crafts = []
+    logging.debug('Compiling all tracked craft recipes')
+
+    for craft in database['crafts']:
+        if (verify_craft(craft)):
+            crafts.append(craft)
+
+    return crafts
 
 def get_untracked(database, ignore_kappa):
     untracked = []
@@ -1717,6 +1751,38 @@ def print_barters(database, barters):
     logging.info(f'\n{display}')
     return True
 
+def print_crafts(database, crafts):
+    display = CRAFT_HEADER + BUFFER
+
+    for craft in crafts:
+        display = display + '{:<40} {:<20} {:<30} {:<20}\n'.format(craft['id'], guid_to_station(database, craft['station']['id']), craft['level'], print_bool(craft['tracked']))
+
+        for item in craft['requiredItems']:
+            guid = item['item']['id']
+
+            if (guid in database['inventory'].keys()):
+                have_available_nir = database['inventory'][guid]['have_nir'] - database['inventory'][guid]['consumed_nir']
+            else:
+                have_available_nir = 0
+                
+            short_name = guid_to_item(database, guid)
+            count = item['count']
+            display = display + f'--> Give {have_available_nir}/{count} {short_name} available\n'
+
+        for item in craft['rewardItems']:
+            short_name = guid_to_item(database, item['item']['id'])
+            count = item['count']
+            display = display + f'--> Receive {count} {short_name}\n'
+
+        if (craft['taskUnlock'] is not None):
+            display = display + f'--> Requires task {guid_to_task(database, craft["taskUnlock"]["id"])}\n'
+
+        display = display + f'--> Takes {str(timedelta(seconds = craft["duration"]))} to complete\n'
+        display = display + '\n\n'
+
+    logging.info(f'\n{display}')
+    return True
+
 def print_untracked(untracked):
     display = UNTRACKED_HEADER + BUFFER
 
@@ -1938,6 +2004,21 @@ def list_barters(tracker_file, argument):
         logging.info('No available or tracked barters')
     else:
         print_barters(database, barters)
+    
+    return True
+
+def list_crafts(tracker_file):
+    database = open_database(tracker_file)
+
+    if (not database):
+        return False
+    
+    crafts = get_crafts(database)
+
+    if (len(crafts) == 0):
+        logging.info('No available or tracked craft recipes')
+    else:
+        print_crafts(database, crafts)
     
     return True
 

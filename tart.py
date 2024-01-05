@@ -3186,7 +3186,11 @@ def complete(tracker_file, argument, force, recurse):
     
     if (is_guid(argument)):
         guid = argument
+        _copy_ = database
         database = complete_barter(database, guid, force)
+
+        if (not database):
+            database = complete_craft(_copy_, guid, force)
     else:
         guid = task_to_guid(database, argument)
 

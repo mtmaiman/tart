@@ -1637,10 +1637,58 @@ def complete_barter(database, guid, force):
                 database['inventory'][item_guid]['consumed_nir'] = database['inventory'][item_guid]['consumed_nir'] + need_nir
             
             barter['status'] = 'complete'
-            logging.info(f'Set status of {barter["id"]} to complete')
+            logging.info(f'Set status of barter {barter["id"]} to complete')
             break
     else:
-        logging.error(f'Failed to find a matching barter with GUID {guid}')
+        return None
+
+    return database
+
+def complete_craft(database, guid, force):
+    for craft in database['crafts']:
+        if (craft['id'] == guid):
+            if (craft['status'] == 'complete'):
+                logging.info(f'Craft recipe {craft["id"]} is already complete. Skipping')
+                return False
+            
+            if (not craft['tracked']):
+                logging.error(f'Please start tracking craft recipe {craft["id"]} to complete it')
+                return False
+
+            if (not force):
+                if (not verify_craft(craft)):
+                    logging.error(f'Craft recipe {craft["id"]} cannot be completed due to a verification error')
+                    return False
+
+                for requirement in craft['requiredItems']:
+                    item_guid = requirement['item']['id']
+                    have_nir = get_nir_count_by_guid(database, item_guid)
+                    need_nir = requirement['count']
+                    diff_nir = need_nir - have_nir
+
+                    if (diff_nir > 0):
+                        logging.error(f'{diff_nir} more {guid_to_item(database, item_guid)} required to complete this craft recipe. Override with the force optional argument')
+                        return False
+                    else:
+                        continue
+
+            for requirement in craft['requiredItems']:
+                item_guid = requirement['item']['id']
+                have_nir = get_nir_count_by_guid(database, item_guid)
+                need_nir = requirement['count']
+                diff_nir = need_nir - have_nir
+
+                if (diff_nir > 0):
+                    database['inventory'][item_guid]['have_nir'] = database['inventory'][item_guid]['have_nir'] + diff_nir
+                    logging.info(f'Added {diff_nir} {guid_to_item(database, item_guid)} to the inventory to complete {craft["id"]}')
+                
+                database['inventory'][item_guid]['consumed_nir'] = database['inventory'][item_guid]['consumed_nir'] + need_nir
+            
+            craft['status'] = 'complete'
+            logging.info(f'Set status of craft recipe {craft["id"]} to complete')
+            break
+    else:
+        return None
 
     return database
 
@@ -3189,8 +3237,11 @@ def complete(tracker_file, argument, force, recurse):
         _copy_ = database
         database = complete_barter(database, guid, force)
 
-        if (not database):
+        if (database is None):
             database = complete_craft(_copy_, guid, force)
+
+            if (database is None):
+                logging.error(f'Failed to find a barter or craft recipe matching GUID {argument}')
     else:
         guid = task_to_guid(database, argument)
 

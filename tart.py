@@ -42,6 +42,7 @@ inventories
 \tstations : Lists all items in the inventory required for hideout stations
 \thideout : Lists all items in the inventory required for hideout stations
 \tbarters : Lists all items in the inventory required for tracked barters
+\tcrafts : Lists all items in the inventory required for tracked craft recipes
 \thave : Lists all items you have in the inventory
 \tneed : Lists all items you still need
 '''
@@ -184,6 +185,9 @@ def parser(tracker_file, command):
         elif (command[1] == 'barters'):
             logging.debug(f'Executing command: {command[0]} {command[1]}')
             inventory_barters(tracker_file)
+        elif (command[1] == 'crafts'):
+            logging.debug(f'Executing command: {command[0]} {command[1]}')
+            inventory_crafts(tracker_file)
         elif (command[1] == 'have'):
             logging.debug(f'Executing command: {command[0]} {command[1]}')
             inventory_have(tracker_file)
@@ -934,6 +938,37 @@ def get_items_needed_for_barters(database):
     for barter in database['barters']:
         if (barter['tracked']):
             for requirement in barter['requiredItems']:
+                guid = requirement['item']['id']
+                item = {
+                    'need_fir': 0,
+                    'need_nir': 0,
+                    'have_fir': 0,
+                    'have_nir': 0,
+                    'id': guid,
+                    'shortName': guid_to_item(database, guid)
+                }
+                item['need_nir'] = requirement['count']
+
+                if (guid in database['inventory'].keys()):
+                    item['have_fir'] = database['inventory'][guid]['have_fir']
+                    item['have_nir'] = database['inventory'][guid]['have_nir']
+
+                for seen_item in items:
+                    if (seen_item['id'] == guid):
+                        seen_item['need_nir'] = seen_item['need_nir'] + requirement['count']
+                        break
+                else:
+                    items.append(item)
+
+    return items
+
+def get_items_needed_for_crafts(database):
+    items = []
+    logging.debug('Compiling all items required for tracked craft recipes')
+
+    for craft in database['crafts']:
+        if (craft['tracked']):
+            for requirement in craft['requiredItems']:
                 guid = requirement['item']['id']
                 item = {
                     'need_fir': 0,
@@ -1913,6 +1948,21 @@ def inventory_barters(tracker_file):
         logging.info('Could not find any items needed for barters')
     else:
         print_inventory_generic(barter_items, 'inv')
+
+    return True
+
+def inventory_crafts(tracker_file):
+    database = open_database(tracker_file)
+
+    if (not database):
+        return False
+    
+    craft_items = get_items_needed_for_crafts(database)
+
+    if (not bool(craft_items)):
+        logging.info('Could not find any items needed for craft recipes')
+    else:
+        print_inventory_generic(craft_items, 'inv')
 
     return True
 

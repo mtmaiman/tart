@@ -89,16 +89,22 @@ prices : Manually refreshes only item price data (Does not reset any progress)
 delta : Performs a refresh but attempts to save all current data, including task, hideout, and barter progress (WARNING: This may corrupt some data!)
 '''
 SEARCH_HELP = '''
-> search [pattern] {barters}\n
+> search [pattern] {filter}\n
 Searches the database on the specified pattern\n
 pattern : The name or guid of an object to search for
-barters : Will also search all available barters (May cause excessive results)
+filters : Will include extra filters in the search parameters (may cause excessive results)
+\tbarters : Also searches barters for required items, reward items, and GUIDs
+\tcrafts : Also searches craft recipes for required items, reward items, and GUIDs
+\tall : Also searches both barters and craft recipes for required items, reward items, and GUIDs
 '''
 REQUIRES_HELP = '''
 > requires [item] {barters}\n
 Searches the database for objects which require the specified item name or guid\n
 item : The name or guid of an item to search for
-barters : Will also search all available barters (May cause excessive results)
+filters : Will include extra filters in the search parameters (may cause excessive results)
+\tbarters : Also searches barters for required items, reward items, and GUIDs
+\tcrafts : Also searches craft recipes for required items, reward items, and GUIDs
+\tall : Also searches both barters and craft recipes for required items, reward items, and GUIDs
 '''
 TRACK_HELP = '''
 > track [pattern]\n
@@ -353,13 +359,27 @@ def parser(tracker_file, command):
             elif (command[-1] == 'barters'):
                 logging.debug(f'Executing command: {command[0]} {command[1:-1]} {command[-1]}')
                 ignore_barters = False
+                ignore_crafts = True
                 pattern = ' '.join(command[1:-1])
-                search(tracker_file, pattern, ignore_barters)
+                search(tracker_file, pattern, ignore_barters, ignore_crafts)
+            elif (command[-1] == 'crafts'):
+                logging.debug(f'Executing command: {command[0]} {command[1:-1]} {command[-1]}')
+                ignore_barters = True
+                ignore_crafts = False
+                pattern = ' '.join(command[1:-1])
+                search(tracker_file, pattern, ignore_barters, ignore_crafts)
+            elif (command[-1] == 'all'):
+                logging.debug(f'Executing command: {command[0]} {command[1:-1]} {command[-1]}')
+                ignore_barters = False
+                ignore_crafts = False
+                pattern = ' '.join(command[1:-1])
+                search(tracker_file, pattern, ignore_barters, ignore_crafts)
             else:
                 logging.debug(f'Executing command: {command[0]} {command[1:]}')
                 ignore_barters = True
+                ignore_crafts = True
                 pattern = ' '.join(command[1:])
-                search(tracker_file, pattern, ignore_barters)
+                search(tracker_file, pattern, ignore_barters, ignore_crafts)
     # Requires
     elif (command[0] == 'requires'):
         if (len(command) < 2):
@@ -373,13 +393,26 @@ def parser(tracker_file, command):
             elif (command[-1] == 'barters'):
                 logging.debug(f'Executing command: {command[0]} {command[1:-1]} {command[-1]}')
                 ignore_barters = False
+                ignore_crafts = True
                 pattern = ' '.join(command[1:-1])
-                required_search(tracker_file, pattern, ignore_barters)
+                required_search(tracker_file, pattern, ignore_barters, ignore_crafts)
+            elif (command[-1] == 'crafts'):
+                logging.debug(f'Executing command: {command[0]} {command[1:-1]} {command[-1]}')
+                ignore_barters = True
+                ignore_crafts = False
+                pattern = ' '.join(command[1:-1])
+                required_search(tracker_file, pattern, ignore_barters, ignore_crafts)
+            elif (command[-1] == 'all'):
+                logging.debug(f'Executing command: {command[0]} {command[1:-1]} {command[-1]}')
+                ignore_barters = False
+                ignore_crafts = False
+                pattern = ' '.join(command[1:-1])
+                required_search(tracker_file, pattern, ignore_barters, ignore_crafts)
             else:
                 logging.debug(f'Executing command: {command[0]} {command[1:]}')
                 ignore_barters = True
                 pattern = ' '.join(command[1:])
-                required_search(tracker_file, pattern, ignore_barters)
+                required_search(tracker_file, pattern, ignore_barters, ignore_crafts)
     # Track
     elif (command[0] == 'track'):
         if (len(command) < 2):
@@ -1870,7 +1903,7 @@ def print_traders(traders):
     logging.info(f'\n{display}')
     return True
 
-def print_search(database, tasks, stations, barters, items, traders, maps):
+def print_search(database, tasks, stations, barters, crafts, items, traders, maps):
     if (len(tasks) > 0):
         print_tasks(database, tasks)
     
@@ -1879,6 +1912,9 @@ def print_search(database, tasks, stations, barters, items, traders, maps):
 
     if (len(barters) > 0):
         print_barters(database, barters)
+
+    if (len(crafts) > 0):
+        print_crafts(database, crafts)
 
     if (len(items) > 0):
         print_items(items)
@@ -2840,12 +2876,13 @@ def refresh_delta(tracker_file):
     return True
 
 # Search
-def search(tracker_file, argument, ignore_barters):
+def search(tracker_file, argument, ignore_barters, ignore_crafts):
     database = open_database(tracker_file)
     guid = False
     tasks = []
     stations = []
     barters = []
+    crafts = []
     items = []
     traders = []
     maps = []
@@ -2894,6 +2931,30 @@ def search(tracker_file, argument, ignore_barters):
                 barters.append(barter)
 
         logging.warning(f'Skipped {unknowns} unknown items in barter trades')
+
+    if (not ignore_crafts):
+        unknowns = 0
+
+        for craft in database['crafts']:
+            if (not guid):
+                for requirement in craft['requiredItems']:
+                    item = guid_to_item_object(database, requirement['item']['id'])
+
+                    if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
+                        crafts.append(craft)
+                for reward in craft['rewardItems']:
+                    item = guid_to_item_object(database, reward['item']['id'])
+
+                    if (not item):
+                        unknowns = unknowns + 1
+                        continue
+
+                    if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
+                        crafts.append(craft)
+            elif (craft['id'] == argument):
+                crafts.append(craft)
+
+        logging.warning(f'Skipped {unknowns} unknown items in craft recipes')
 
     for item in database['all_items']:
         if (datetime.fromisoformat(database['last_price_refresh']) < (datetime.now() - timedelta(hours = 24))):
@@ -2974,15 +3035,16 @@ def search(tracker_file, argument, ignore_barters):
         elif (map['id'] == argument):
             maps.append(map)
 
-    print_search(database, tasks, stations, barters, items, traders, maps)
+    print_search(database, tasks, stations, barters, crafts, items, traders, maps)
     return True
 
-def required_search(tracker_file, argument, ignore_barters):
+def required_search(tracker_file, argument, ignore_barters, ignore_crafts):
     database = open_database(tracker_file)
     guid = False
     tasks = []
     stations = []
     barters = []
+    crafts = []
     items, traders, maps = [], [], []
 
     if (not database):
@@ -3035,7 +3097,18 @@ def required_search(tracker_file, argument, ignore_barters):
                 elif (requirement['item']['id'] == argument):
                     barters.append(barter)
 
-    print_search(database, tasks, stations, barters, items, traders, maps)
+    if (not ignore_crafts):
+        for craft in database['crafts']:
+            for requirement in craft['requiredItems']:
+                if (not guid):
+                    item = guid_to_item_object(database, requirement['item']['id'])
+
+                    if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
+                        crafts.append(craft)
+                elif (requirement['item']['id'] == argument):
+                    crafts.append(craft)
+
+    print_search(database, tasks, stations, barters, crafts, items, traders, maps)
     return True
 
 # Track

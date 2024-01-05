@@ -160,7 +160,6 @@ BUFFER = '----------------------------------------------------------------------
 ###################################################
 
 
-#TODO: Noodles added when not needed
 #TODO: Add crafts
 # Command parsing
 def parser(tracker_file, command):
@@ -2888,9 +2887,17 @@ def add_item_nir(tracker_file, argument, count):
         logging.error(f'Item {guid_to_item(database, guid)} is not needed in the inventory. Skipping')
         return False
 
-    database['inventory'][guid]['have_nir'] = database['inventory'][guid]['have_nir'] + count
-    logging.info(f'Added {count} {argument} to Not found In Raid (NIR) inventory')
+    if (database['inventory'][guid]['need_nir'] - database['inventory'][guid]['have_nir'] < count):
+        count = database['inventory'][guid]['need_nir'] - database['inventory'][guid]['have_nir']
+        database['inventory'][guid]['have_nir'] = database['inventory'][guid]['need_nir']
 
+        if (count == 0):
+            logging.error(f'Item {guid_to_item(database, guid)} is not needed in the inventory as Not found In Raid (NIR). Skipping')
+            return False
+    else:
+        database['inventory'][guid]['have_nir'] = database['inventory'][guid]['have_nir'] + count
+    
+    logging.info(f'Added {count} {argument} to Not found In Raid (NIR) inventory')
     write_database(tracker_file, database)
     return True
 

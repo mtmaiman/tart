@@ -16,7 +16,7 @@ except ModuleNotFoundError as exception:
 
 USAGE = '''
 tart.py {debug}\n
-A lightweight python CLI for tracking tasks, hideout stations, barters, and items inventory for Escape From Tarkov. Using "debug" as a positional argument enters debug mode.\n
+A lightweight python CLI for tracking tasks, hideout stations, barters, and items inventory for Escape From Tarkov. Use the "refresh" command if this is your first time! Using "debug" as a positional argument enters debug mode.\n
 usage:\n
 > command [required args] {optional args}\n
 commands
@@ -116,10 +116,17 @@ modifiers
 '''
 ADD_HELP = '''
 > add [count] [item] {fir}\n
-Adds the specified item by name or guid to the inventory\n
+Adds [count] of the specified item by name or guid to the inventory\n
 count : A positive integer of items to add to the inventory
 item : The name or guid of an item to add
 fir : Adds the item as Found In Raid (FIR), otherwise adds as Not found In Raid (NIR)
+'''
+DELETE_HELP = '''
+> del [count] [item] {fir}\n
+Removes [count] of the specified item by name or guid from the inventory\n
+count : A positive integer of items to remove from the inventory
+item : The name or guid of an item to remove
+fir : Removes the item from the Found In Raid (FIR) inventory, otherwise removes from the Not found In Raid (NIR) inventory
 '''
 LEVEL_HELP = '''
 > level {operation} {level}\n
@@ -153,6 +160,8 @@ BUFFER = '----------------------------------------------------------------------
 ###################################################
 
 
+#TODO: Noodles added when not needed
+#TODO: Add crafts
 # Command parsing
 def parser(tracker_file, command):
     command = command.lower().split(' ')
@@ -432,6 +441,30 @@ def parser(tracker_file, command):
                 count = int(command[1])
                 argument = ' '.join(command[2:])
                 add_item_nir(tracker_file, argument, count)
+    # Delete
+    elif (command[0] == 'del'):
+        if (len(command) < 3):
+            logging.debug(f'Failed to execute command: {command[0]}')
+            logging.error('Missing item name or item count')
+            logging.info(DELETE_HELP)
+        else:
+            if (command[1] == 'help' or command[1] == 'h'):
+                logging.debug(f'Executing command: {command[0]} {command[1]}')
+                logging.info(DELETE_HELP)
+            elif (not command[1].isdigit() or int(command[1]) < 1):
+                logging.debug(f'Failed to execute command: {command[0]} {command[1]} {command[2:]}')
+                logging.error('Invalid integer entered for count')
+                logging.info(DELETE_HELP)
+            elif (command[-1] == 'fir'):
+                logging.debug(f'Executing command: {command[0]} {command[1]} {command[2:-1]} {command[-1]}')
+                count = int(command[1])
+                argument = ' '.join(command[2:-1])
+                delete_item_fir(tracker_file, argument, count)
+            else:
+                logging.debug(f'Executing command: {command[0]} {command[1]} {command[2:]}')
+                count = int(command[1])
+                argument = ' '.join(command[2:])
+                delete_item_nir(tracker_file, argument, count)
     # Level
     elif (command[0] == 'level'):
         if (len(command) > 1):
@@ -1546,7 +1579,7 @@ def print_tasks(database, tasks):
                 if ('foundInRaid' in objective and objective['foundInRaid']):
                     objective_string = objective_string + f' ({have_available_fir}/{objective["count"]} FIR available)'
                 else:
-                    objective_string = objective_string + f' ({have_available_nir}/{objective["count"]} available)'
+                    objective_string = objective_string + f' ({have_available_nir}/{objective["count"]} available or {have_available_fir}/{objective["count"]} FIR)'
 
             elif ('count' in objective):
                 objective_string = objective_string + f' ({objective["count"]})'
@@ -2861,6 +2894,69 @@ def add_item_nir(tracker_file, argument, count):
     write_database(tracker_file, database)
     return True
 
+# Delete
+def delete_item_fir(tracker_file, argument, count):
+    database = open_database(tracker_file)
+
+    if (not database):
+        return False
+    
+    guid = item_to_guid(database, argument)
+
+    if (not guid):
+        logging.error(f'Could not find any item that matches {argument}')
+        return False
+    
+    if (not count or count < 1):
+        logging.error(f'Invalid or missing count argument. Accepts an integer greater than 0')
+        return False
+    
+    if (guid not in database['inventory'].keys()):
+        logging.error(f'Item {guid_to_item(database, guid)} was not found in the inventory. Skipping')
+        return False
+
+    if (database['inventory'][guid]['have_fir'] - count < 0):
+        count = database['inventory'][guid]['have_fir']
+        database['inventory'][guid]['have_fir'] = 0
+    else:
+        database['inventory'][guid]['have_fir'] = database['inventory'][guid]['have_fir'] - count
+
+    remaining = database['inventory'][guid]['have_fir']
+    logging.info(f'Removed {count} of {argument} from the Found In Raid (FIR) inventory [{remaining} remaining]')
+    write_database(tracker_file, database)
+    return True
+
+def delete_item_nir(tracker_file, argument, count):
+    database = open_database(tracker_file)
+
+    if (not database):
+        return False
+    
+    guid = item_to_guid(database, argument)
+
+    if (not guid):
+        logging.error(f'Could not find any item that matches {argument}')
+        return False
+    
+    if (not count or count < 1):
+        logging.error(f'Invalid or missing count argument. Accepts an integer greater than 0')
+        return False
+    
+    if (guid not in database['inventory'].keys()):
+        logging.error(f'Item {guid_to_item(database, guid)} was not found in the inventory. Skipping')
+        return False
+
+    if (database['inventory'][guid]['have_nir'] - count < 0):
+        count = database['inventory'][guid]['have_nir']
+        database['inventory'][guid]['have_nir'] = 0
+    else:
+        database['inventory'][guid]['have_nir'] = database['inventory'][guid]['have_nir'] - count
+
+    remaining = database['inventory'][guid]['have_nir']
+    logging.info(f'Removed {count} of {argument} from the Not found In Raid (NIR) inventory [{remaining} remaining]')
+    write_database(tracker_file, database)
+    return True
+
 # Level
 def check_level(tracker_file):
     database = open_database(tracker_file)
@@ -2914,7 +3010,7 @@ def main(args):
         tracker_file = 'debug.json'
     else:
         logging.basicConfig(level = logging.INFO, format = '[%(levelname)s] %(message)s')
-        logging.info('Welcome to the TARkov Tracker (TART)!')
+        logging.info('Welcome to the TARkov Tracker (TART)! Type help for help!')
         tracker_file = 'database.json'
 
     while(True):

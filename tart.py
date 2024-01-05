@@ -16,23 +16,24 @@ except ModuleNotFoundError as exception:
 
 USAGE = '''
 tart.py {debug}\n
-A lightweight python CLI for tracking tasks, hideout stations, barters, and items inventory for Escape From Tarkov. Use the "refresh" command if this is your first time! Using "debug" as a positional argument enters debug mode.\n
+A lightweight python CLI for tracking tasks, hideout stations, barters, and items inventory for Escape From Tarkov. Use the "import" command if this is your first time! Using "debug" as a positional argument enters debug mode.\n
 usage:\n
 > command [required args] {optional args}\n
 commands
 \tinv help
 \tls help
-\treset help
-\trestart help
-\trefresh help
 \tsearch help
 \trequires help
 \ttrack help
 \tuntrack help
 \tcomplete help
+\trestart help
 \tadd help
+\tdel help
 \tlevel help
 \tclear help
+\treset help
+\timport help
 '''
 INV_HELP = '''
 > inv {inventory}\n
@@ -65,28 +66,6 @@ iterables
 \t\t\tkappa : Includes non-Kappa required tasks, otherwise ignored
 \tmaps : Lists all maps
 \ttraders : Lists all traders
-'''
-RESET_HELP = '''
-> reset [object]\n
-Resets all progression on a or all data structure(s)\n
-objects
-\ttasks : Resets all progress on tasks
-\tstations : Resets all progress on hideout stations
-\thideout : Resets all progress on hideout stations
-\tbarters : Resets all progress on barters
-\tinv : Clears the inventory of all items
-\tall : Resets progress for all data structures and clears the inventory of all items
-'''
-RESTART_HELP = '''
-> restart [guid]\n
-Restarts the barter at the specified guid. Required items for the barter are added to the needed inventory\n
-guid : A guid belonging to a barter
-'''
-REFRESH_HELP = '''
-> refresh {prices}\n
-Pulls latest Escape From Tarkov game data from api.tarkov.dev and overwrites all application files (WARNING: This will reset all progress!)\n
-prices : Manually refreshes only item price data (Does not reset any progress)
-delta : Performs a refresh but attempts to save all current data, including task, hideout, and barter progress (WARNING: This may corrupt some data!)
 '''
 SEARCH_HELP = '''
 > search [pattern] {filter}\n
@@ -124,6 +103,11 @@ modifiers
 \tforce : Forcefully completes the object whether the requirements are satisfied or not (adds missing items to the inventory)
 \trecurse: Recursively and forcefully completes all prerequisite objects whether the requirements are satisfied or not (adds missing items to the inventory)
 '''
+RESTART_HELP = '''
+> restart [guid]\n
+Restarts the barter at the specified guid. Required items for the barter are added to the needed inventory\n
+guid : A guid belonging to a barter
+'''
 ADD_HELP = '''
 > add [count] [item] {fir}\n
 Adds [count] of the specified item by name or guid to the inventory\n
@@ -149,6 +133,23 @@ level : The integer value greater than 0 to set the player level at
 CLEAR_HELP = '''
 > clear\n
 Clears the terminal
+'''
+RESET_HELP = '''
+> reset [object]\n
+Resets all progression on a or all data structure(s)\n
+objects
+\ttasks : Resets all progress on tasks
+\tstations : Resets all progress on hideout stations
+\thideout : Resets all progress on hideout stations
+\tbarters : Resets all progress on barters
+\tinv : Clears the inventory of all items
+\tall : Resets progress for all data structures and clears the inventory of all items
+'''
+IMPORT_HELP = '''
+> import {prices}\n
+Pulls latest Escape From Tarkov game data from api.tarkov.dev and overwrites all application files (WARNING: This will reset all progress!)\n
+prices : Manually imports only item price data (Does not reset any progress)
+delta : Performs a delta import, attempting to save all current data, including task, hideout, barter, and craft progress while importing updated game data (WARNING: This may corrupt some data!)
 '''
 ITEM_HEADER = '{:<25} {:<60} {:<30} {:<15} {:<20} {:<20} {:<20}\n'.format('Item Short Name', 'Item Normalized Name', 'Item GUID', 'Inv (FIR)', 'Sell To', 'Vend', 'Flea')
 MAP_HEADER = '{:<30} {:<20}\n'.format('Map Normalized Name', 'Map GUID')
@@ -310,41 +311,41 @@ def parser(tracker_file, command):
             logging.debug(f'Failed to execute command: {command[0]} {command[1]}')
             logging.error('Invalid GUID argument')
             logging.info(RESTART_HELP)
-    # Refresh
-    elif (command[0] == 'refresh'):
+    # Import
+    elif (command[0] == 'import'):
         if (len(command) < 2):
-            logging.warning('You are about to refresh and reset all data! Are you sure you wish to proceed? (Y/N)')
+            logging.warning('You are about to import a fresh data file! All progress will be lost, are you sure you wish to proceed? (Y/N)')
             confirmation = input('> ').lower()
 
             if (confirmation == 'y'):
-                refresh(tracker_file)
+                import_data(tracker_file)
             else:
                 logging.debug(f'Aborted command execution for {command[0]} due to confirmation response of {confirmation}')
-                logging.info('Refresh aborted')
+                logging.info('Import aborted')
         elif (command[1] == 'help' or command[1] == 'h'):
             logging.debug(f'Executing command: {command[0]} {command[1]}')
-            logging.info(REFRESH_HELP)
+            logging.info(IMPORT_HELP)
         elif (command[1] == 'prices'):
             logging.debug(f'Executing command: {command[0]} {command[1]}')
             database = open_database(tracker_file)
-            database = refresh_all_items(database, {
+            database = import_all_items(database, {
                 'Content-Tyoe': 'application/json'
             })
             logging.info('Manually refreshed all item price data')
             write_database(tracker_file, database)
         elif (command[1] == 'delta'):
-            logging.warning('You are about to refresh all data, attempting to save current progress! Are you sure you wish to proceed? (Y/N)')
+            logging.warning('You are about to import new game data! Are you sure you wish to proceed? (Y/N)')
             confirmation = input('> ').lower()
 
             if (confirmation == 'y'):
-                refresh_delta(tracker_file)
+                delta_import(tracker_file)
             else:
                 logging.debug(f'Aborted command execution for {command[0]} due to confirmation response of {confirmation}')
-                logging.info('Refresh aborted')
+                logging.info('Delta import aborted')
         else:
             logging.debug(f'Failed to execute command: {command[0]} {command[1]}')
-            logging.error('Invalid refresh argument')
-            logging.info(REFRESH_HELP)
+            logging.error('Invalid import argument')
+            logging.info(IMPORT_HELP)
     # Search
     elif (command[0] == 'search'):
         if (len(command) < 2):
@@ -576,7 +577,7 @@ def open_database(file_path):
             logging.debug(f'Opened file at {file_path}')
             file = json.load(open_file)
     except FileNotFoundError:
-        logging.error('Database file not found. Please perform a refresh')
+        logging.error('Database file not found. Please perform an import')
         return False
     
     return file
@@ -1193,75 +1194,6 @@ def get_untracked(database, ignore_kappa):
 ###################################################
 
 
-# Refresh functions
-def refresh_all_items(database, headers):
-    data = {
-        'query': """
-            {
-                items {
-                    id
-                    normalizedName
-                    shortName
-                    width
-                    height
-                    sellFor {
-                        vendor {
-                            normalizedName
-                        }
-                        priceRUB
-                    }
-                    fleaMarketFee
-                }
-            }
-        """
-    }
-
-    response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
-
-    if (response.status_code < 200 or response.status_code > 299):
-        logging.error(f'Failed to retrieve item data! >> [{response.status_code}] {response.json()}')
-        exit(1)
-    else:
-        if ('errors' in response.json().keys()):
-                logging.warning(f'Encountered error(s) while retrieving item data! >> {json.dumps(response.json()["errors"])}')
-                logging.warning('This may cause issues with item data!!!')
-
-        database['all_items'] = response.json()['data']['items']
-
-    for item in database['all_items']:
-        item_area = item['width'] * item['height']
-        max_vend = 0
-        max_vend_trader = ''
-        
-        for vendor in item['sellFor']:
-            if (vendor['vendor']['normalizedName'] == 'flea-market'):
-                if (item['fleaMarketFee'] is None):
-                    logging.warning(f'Found an invalid flea market fee value (this usually means the last observed list price for this item was abnormally high). Substituting temporary flea market fee of 1,000,000 roubles): {item}')
-                    item['fleaMarketFee'] = 1000000
-
-                item['flea'] = int((vendor['priceRUB'] - item['fleaMarketFee']) / item_area)
-            elif (vendor['priceRUB'] > max_vend):
-                max_vend = vendor['priceRUB']
-                max_vend_trader = vendor['vendor']['normalizedName']
-
-        if ('flea' not in item.keys()):
-            item['flea'] = int(0)
-
-        if (max_vend == 0 or max_vend_trader == ''):
-            item['trader'] = ''
-            item['vend'] = int(0)
-        else:
-            item['trader'] = max_vend_trader
-            item['vend'] = int(max_vend / item_area)
-
-        del item['sellFor']
-        del item['width']
-        del item['height']
-        del item['fleaMarketFee']
-
-    database['last_price_refresh'] = datetime.now().isoformat()
-    return database
-
 # Track functions
 def track_task(database, guid):
     for task in database['tasks']:
@@ -1690,6 +1622,75 @@ def complete_craft(database, guid, force):
     else:
         return None
 
+    return database
+
+# Import functions
+def import_all_items(database, headers):
+    data = {
+        'query': """
+            {
+                items {
+                    id
+                    normalizedName
+                    shortName
+                    width
+                    height
+                    sellFor {
+                        vendor {
+                            normalizedName
+                        }
+                        priceRUB
+                    }
+                    fleaMarketFee
+                }
+            }
+        """
+    }
+
+    response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+
+    if (response.status_code < 200 or response.status_code > 299):
+        logging.error(f'Failed to retrieve item data! >> [{response.status_code}] {response.json()}')
+        exit(1)
+    else:
+        if ('errors' in response.json().keys()):
+                logging.warning(f'Encountered error(s) while retrieving item data! >> {json.dumps(response.json()["errors"])}')
+                logging.warning('This may cause issues with item data!!!')
+
+        database['all_items'] = response.json()['data']['items']
+
+    for item in database['all_items']:
+        item_area = item['width'] * item['height']
+        max_vend = 0
+        max_vend_trader = ''
+        
+        for vendor in item['sellFor']:
+            if (vendor['vendor']['normalizedName'] == 'flea-market'):
+                if (item['fleaMarketFee'] is None):
+                    logging.warning(f'Found an invalid flea market fee value (this usually means the last observed list price for this item was abnormally high). Substituting temporary flea market fee of 1,000,000 roubles): {item}')
+                    item['fleaMarketFee'] = 1000000
+
+                item['flea'] = int((vendor['priceRUB'] - item['fleaMarketFee']) / item_area)
+            elif (vendor['priceRUB'] > max_vend):
+                max_vend = vendor['priceRUB']
+                max_vend_trader = vendor['vendor']['normalizedName']
+
+        if ('flea' not in item.keys()):
+            item['flea'] = int(0)
+
+        if (max_vend == 0 or max_vend_trader == ''):
+            item['trader'] = ''
+            item['vend'] = int(0)
+        else:
+            item['trader'] = max_vend_trader
+            item['vend'] = int(max_vend / item_area)
+
+        del item['sellFor']
+        del item['width']
+        del item['height']
+        del item['fleaMarketFee']
+
+    database['last_price_refresh'] = datetime.now().isoformat()
     return database
 
 # Print functions
@@ -2195,6 +2196,573 @@ def list_traders(tracker_file):
     traders = ', '.join(trader['normalizedName'] for trader in database['traders']).strip(', ')
     logging.info(f'Accepted trader names are: {traders}')
 
+# Search
+def search(tracker_file, argument, ignore_barters, ignore_crafts):
+    database = open_database(tracker_file)
+    guid = False
+    tasks = []
+    stations = []
+    barters = []
+    crafts = []
+    items = []
+    traders = []
+    maps = []
+
+    if (not database):
+        return False
+    
+    if (is_guid(argument)):
+        guid = True
+
+    for task in database['tasks']:
+        if (not guid):
+            if (string_compare(argument, task['name']) or string_compare(argument, task['normalizedName'])):
+                tasks.append(task)
+        elif (task['id'] == argument):
+            tasks.append(task)
+
+    for station in database['hideout']:
+        for level in station['levels']:
+            if (not guid):
+                if (string_compare(argument, level['normalizedName'])):
+                    stations.append(level)
+            elif (level['id'] == argument):
+                stations.append(level)
+
+    if (not ignore_barters):
+        unknowns = 0
+
+        for barter in database['barters']:
+            if (not guid):
+                for requirement in barter['requiredItems']:
+                    item = guid_to_item_object(database, requirement['item']['id'])
+
+                    if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
+                        barters.append(barter)
+                for reward in barter['rewardItems']:
+                    item = guid_to_item_object(database, reward['item']['id'])
+
+                    if (not item):
+                        unknowns = unknowns + 1
+                        continue
+
+                    if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
+                        barters.append(barter)
+            elif (barter['id'] == argument):
+                barters.append(barter)
+
+        if (unknowns > 0):
+            logging.warning(f'Skipped {unknowns} unknown items in barter trades')
+
+    if (not ignore_crafts):
+        unknowns = 0
+
+        for craft in database['crafts']:
+            if (not guid):
+                for requirement in craft['requiredItems']:
+                    item = guid_to_item_object(database, requirement['item']['id'])
+
+                    if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
+                        crafts.append(craft)
+                for reward in craft['rewardItems']:
+                    item = guid_to_item_object(database, reward['item']['id'])
+
+                    if (not item):
+                        unknowns = unknowns + 1
+                        continue
+
+                    if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
+                        crafts.append(craft)
+            elif (craft['id'] == argument):
+                crafts.append(craft)
+
+        if (unknowns > 0):
+            logging.warning(f'Skipped {unknowns} unknown items in craft recipes')
+
+    for item in database['all_items']:
+        if (datetime.fromisoformat(database['last_price_refresh']) < (datetime.now() - timedelta(hours = 24))):
+            logging.info('Item price data is over 24 hours old. Refreshing...')
+            database = import_all_items(database, {
+                'Content-Type': 'application/json'
+            })
+            write_database(tracker_file, database)
+            logging.info('Item price data has been refreshed')
+        
+        if (not guid):
+            if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
+                if (item['id'] in database['inventory'].keys()):
+                    items.append({
+                        'need_fir': database['inventory'][item['id']]['need_fir'],
+                        'need_nir': database['inventory'][item['id']]['need_nir'],
+                        'have_fir': database['inventory'][item['id']]['have_fir'],
+                        'have_nir': database['inventory'][item['id']]['have_nir'],
+                        'id': item['id'],
+                        'shortName': item['shortName'],
+                        'normalizedName': item['normalizedName'],
+                        'flea': int(item['flea']),
+                        'vend': int(item['vend']),
+                        'trader': item['trader']
+                    })
+                else:
+                    items.append({
+                        'need_fir': 0,
+                        'need_nir': 0,
+                        'have_fir': 0,
+                        'have_nir': 0,
+                        'id': item['id'],
+                        'shortName': item['shortName'],
+                        'normalizedName': item['normalizedName'],
+                        'flea': int(item['flea']),
+                        'vend': int(item['vend']),
+                        'trader': item['trader']
+                    })
+        elif (item['id'] == argument):
+            if (item['id'] in database['inventory'].keys()):
+                items.append({
+                    'need_fir': database['inventory'][item['id']]['need_fir'],
+                    'need_nir': database['inventory'][item['id']]['need_nir'],
+                    'have_fir': database['inventory'][item['id']]['have_fir'],
+                    'have_nir': database['inventory'][item['id']]['have_nir'],
+                    'id': item['id'],
+                    'shortName': item['shortName'],
+                    'normalizedName': item['normalizedName'],
+                    'flea': int(item['flea']),
+                    'vend': int(item['vend']),
+                    'trader': item['trader']
+                })
+            else:
+                items.append({
+                    'need_fir': 0,
+                    'need_nir': 0,
+                    'have_fir': 0,
+                    'have_nir': 0,
+                    'id': item['id'],
+                    'shortName': item['shortName'],
+                    'normalizedName': item['normalizedName'],
+                    'flea': item['flea'],
+                    'vend': item['vend'],
+                    'trader': item['trader']
+                })
+    
+    for trader in database['traders']:
+        if (not guid):
+            if (string_compare(argument, trader['normalizedName'])):
+                traders.append(trader)
+        elif (trader['id'] == argument):
+            traders.append(trader)
+
+    for map in database['maps']:
+        if (not guid):
+            if (string_compare(argument, map['normalizedName'])):
+                maps.append(map)
+        elif (map['id'] == argument):
+            maps.append(map)
+
+    print_search(database, tasks, stations, barters, crafts, items, traders, maps)
+    return True
+
+def required_search(tracker_file, argument, ignore_barters, ignore_crafts):
+    database = open_database(tracker_file)
+    guid = False
+    tasks = []
+    stations = []
+    barters = []
+    crafts = []
+    items, traders, maps = [], [], []
+
+    if (not database):
+        return False
+    
+    if (is_guid(argument)):
+        guid = True
+
+    for task in database['tasks']:
+        for objective in task['objectives']:
+            if (objective['type'] == 'giveItem'):
+                if (not guid):
+                    item = guid_to_item_object(database, objective['item']['id'])
+
+                    if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
+                        tasks.append(task)
+                elif (objective['item']['id'] == argument):
+                    tasks.append(task)
+        
+        if (task['neededKeys'] is not None):
+            for needed_key in task['neededKeys']:
+                for key in needed_key['keys']:
+                    if (not guid):
+                        key = guid_to_item_object(database, key['id'])
+
+                        if (string_compare(argument, key['shortName']) or string_compare(argument, key['normalizedName'])):
+                            tasks.append(task)
+                    elif (key['id'] == argument):
+                        tasks.append(task)
+
+    for station in database['hideout']:
+        for level in station['levels']:
+            for requirement in level['itemRequirements']:
+                if (not guid):
+                    item = guid_to_item_object(database, requirement['item']['id'])
+
+                    if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
+                        stations.append(level)
+                elif (requirement['item']['id'] == argument):
+                    stations.append(level)
+
+    if (not ignore_barters):
+        for barter in database['barters']:
+            for requirement in barter['requiredItems']:
+                if (not guid):
+                    item = guid_to_item_object(database, requirement['item']['id'])
+
+                    if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
+                        barters.append(barter)
+                elif (requirement['item']['id'] == argument):
+                    barters.append(barter)
+
+    if (not ignore_crafts):
+        for craft in database['crafts']:
+            for requirement in craft['requiredItems']:
+                if (not guid):
+                    item = guid_to_item_object(database, requirement['item']['id'])
+
+                    if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
+                        crafts.append(craft)
+                elif (requirement['item']['id'] == argument):
+                    crafts.append(craft)
+
+    print_search(database, tasks, stations, barters, crafts, items, traders, maps)
+    return True
+
+# Track
+def track(tracker_file, argument):
+    database = open_database(tracker_file)
+
+    if (not database):
+        return False
+
+    if (is_guid(argument)):
+        guid = argument
+        _database_copy_ = database
+        database = track_barter(database, guid)
+        
+        if (database is None):
+            database = track_craft(_database_copy_, guid)
+        
+            if (database is None):
+                logging.error(f'Failed to find a barter or craft recipe matching guid {argument}')
+    else:
+        guid = task_to_guid(database, argument)
+
+        if (guid):
+            database = track_task(database, guid)
+        else:
+            guid = station_to_guid(database, argument)
+
+            if (guid):
+                database = track_station(database, guid)
+            else:
+                logging.error('Invalid argument')
+                return False
+    
+    if (database):
+        write_database(tracker_file, database)
+        return True
+
+    return False
+
+def untrack(tracker_file, argument):
+    database = open_database(tracker_file)
+
+    if (not database):
+        return False
+
+    if (is_guid(argument)):
+        guid = argument
+        database = untrack_barter(database, guid)
+    else:
+        guid = task_to_guid(database, argument)
+
+        if (guid):
+            database = untrack_task(database, guid)
+        else:
+            guid = station_to_guid(database, argument)
+
+            if (guid):
+                database = untrack_station(database, guid)
+            else:
+                logging.error('Invalid argument')
+                return False
+    
+    if (database):
+        write_database(tracker_file, database)
+        return True
+
+    return False
+
+# Complete
+def complete(tracker_file, argument, force, recurse):
+    database = open_database(tracker_file)
+
+    if (not database):
+        return False
+    
+    if (is_guid(argument)):
+        guid = argument
+        _copy_ = database
+        database = complete_barter(database, guid, force)
+
+        if (database is None):
+            database = complete_craft(_copy_, guid, force)
+
+            if (database is None):
+                logging.error(f'Failed to find a barter or craft recipe matching GUID {argument}')
+    else:
+        guid = task_to_guid(database, argument)
+
+        if (guid and not recurse):
+            database = complete_task(database, guid, force)
+        elif (guid and recurse):
+            database = complete_recursive_task(database, guid, True)
+        else:
+            guid = station_to_guid(database, argument)
+
+            if (guid):
+                database = complete_station(database, guid, force)
+            else:
+                logging.error('Invalid argument')
+                return False
+    
+    if (database):
+        write_database(tracker_file, database)
+        return True
+
+    return False
+
+# Restart
+def restart_barter_or_craft(tracker_file, argument):
+    database = open_database(tracker_file)
+
+    if (not database):
+        return False
+
+    for barter in database['barters']:
+        if (barter['id'] == argument):
+            if (not barter['tracked']):
+                logging.error(f'Barter {argument} is not currently tracked and therefore cannot be restarted')
+                return False
+            
+            if (barter['status'] == 'complete'):
+                barter['status'] = 'incomplete'
+                logging.info(f'Set barter {argument} to incomplete')
+            else:
+                logging.error(f'Barter {argument} is not yet completed and therefore cannot be restarted')
+                return False
+            
+            for requirement in barter['requiredItems']:
+                guid = requirement['item']['id']
+                count = requirement['count']
+                database['inventory'][guid]['need_nir'] = database['inventory'][guid]['need_nir'] + count
+                logging.info(f'Added {count} of {guid_to_item(database, guid)} to the needed inventory')
+            
+            return True
+        
+    for craft in database['crafts']:
+        if (craft['id'] == argument):
+            if (not craft['tracked']):
+                logging.error(f'Craft recipe {argument} is not currently tracked and therefore cannot be restarted')
+                return False
+            
+            if (craft['status'] == 'complete'):
+                craft['status'] = 'incomplete'
+                logging.info(f'Set craft recipe {argument} to incomplete')
+            else:
+                logging.error(f'Craft recipe {argument} is not yet completed and therefore cannot be restarted')
+                return False
+            
+            for requirement in craft['requiredItems']:
+                guid = requirement['item']['id']
+                count = requirement['count']
+                database['inventory'][guid]['need_nir'] = database['inventory'][guid]['need_nir'] + count
+                logging.info(f'Added {count} of {guid_to_item(database, guid)} to the needed inventory')
+            
+            return True
+    
+    logging.error(f'Encountered an unhandled error when restarting craft or barter {argument}')
+    return False
+
+# Add
+def add_item_fir(tracker_file, argument, count):
+    database = open_database(tracker_file)
+
+    if (not database):
+        return False
+    
+    guid = item_to_guid(database, argument)
+
+    if (not guid):
+        logging.error(f'Could not find any item that matches {argument}')
+        return False
+    
+    if (not count or count < 1):
+        logging.error(f'Invalid or missing count argument. Accepts an integer greater than 0')
+        return False
+    
+    if (guid not in database['inventory'].keys()):
+        logging.error(f'Item {guid_to_item(database, guid)} is not needed in the inventory. Skipping')
+        return False
+
+    if (database['inventory'][guid]['have_fir'] + count > database['inventory'][guid]['need_fir']):
+        if (database['inventory'][guid]['need_fir'] > 0):
+            diff = database['inventory'][guid]['have_fir'] + count - database['inventory'][guid]['need_fir']
+            database['inventory'][guid]['have_fir'] = database['inventory'][guid]['need_fir']
+            logging.info(f'Added {count - diff} {argument} to Found In Raid (FIR) inventory')
+        else:
+            diff = count
+        
+        database['inventory'][guid]['have_nir'] = database['inventory'][guid]['have_nir'] + diff
+        logging.info(f'Added {diff} {argument} to Not found In Raid (NIR) inventory')
+    else:
+        database['inventory'][guid]['have_fir'] = database['inventory'][guid]['have_fir'] + count
+        logging.info(f'Added {count} {argument} to needed (FIR) inventory')
+
+    write_database(tracker_file, database)
+    return True
+
+def add_item_nir(tracker_file, argument, count):
+    database = open_database(tracker_file)
+
+    if (not database):
+        return False
+    
+    guid = item_to_guid(database, argument)
+
+    if (not guid):
+        logging.error(f'Could not find any item that matches {argument}')
+        return False
+    
+    if (not count or count < 1):
+        logging.error(f'Invalid or missing count argument. Accepts an integer greater than 0')
+        return False
+    
+    if (guid not in database['inventory'].keys()):
+        logging.error(f'Item {guid_to_item(database, guid)} is not needed in the inventory. Skipping')
+        return False
+
+    if (database['inventory'][guid]['need_nir'] - database['inventory'][guid]['have_nir'] < count):
+        count = database['inventory'][guid]['need_nir'] - database['inventory'][guid]['have_nir']
+        database['inventory'][guid]['have_nir'] = database['inventory'][guid]['need_nir']
+
+        if (count == 0):
+            logging.error(f'Item {guid_to_item(database, guid)} is not needed in the inventory as Not found In Raid (NIR). Skipping')
+            return False
+    else:
+        database['inventory'][guid]['have_nir'] = database['inventory'][guid]['have_nir'] + count
+    
+    logging.info(f'Added {count} {argument} to Not found In Raid (NIR) inventory')
+    write_database(tracker_file, database)
+    return True
+
+# Delete
+def delete_item_fir(tracker_file, argument, count):
+    database = open_database(tracker_file)
+
+    if (not database):
+        return False
+    
+    guid = item_to_guid(database, argument)
+
+    if (not guid):
+        logging.error(f'Could not find any item that matches {argument}')
+        return False
+    
+    if (not count or count < 1):
+        logging.error(f'Invalid or missing count argument. Accepts an integer greater than 0')
+        return False
+    
+    if (guid not in database['inventory'].keys()):
+        logging.error(f'Item {guid_to_item(database, guid)} was not found in the inventory. Skipping')
+        return False
+
+    if (database['inventory'][guid]['have_fir'] - count < 0):
+        count = database['inventory'][guid]['have_fir']
+        database['inventory'][guid]['have_fir'] = 0
+    else:
+        database['inventory'][guid]['have_fir'] = database['inventory'][guid]['have_fir'] - count
+
+    remaining = database['inventory'][guid]['have_fir']
+    logging.info(f'Removed {count} of {argument} from the Found In Raid (FIR) inventory [{remaining} remaining]')
+    write_database(tracker_file, database)
+    return True
+
+def delete_item_nir(tracker_file, argument, count):
+    database = open_database(tracker_file)
+
+    if (not database):
+        return False
+    
+    guid = item_to_guid(database, argument)
+
+    if (not guid):
+        logging.error(f'Could not find any item that matches {argument}')
+        return False
+    
+    if (not count or count < 1):
+        logging.error(f'Invalid or missing count argument. Accepts an integer greater than 0')
+        return False
+    
+    if (guid not in database['inventory'].keys()):
+        logging.error(f'Item {guid_to_item(database, guid)} was not found in the inventory. Skipping')
+        return False
+
+    if (database['inventory'][guid]['have_nir'] - count < 0):
+        count = database['inventory'][guid]['have_nir']
+        database['inventory'][guid]['have_nir'] = 0
+    else:
+        database['inventory'][guid]['have_nir'] = database['inventory'][guid]['have_nir'] - count
+
+    remaining = database['inventory'][guid]['have_nir']
+    logging.info(f'Removed {count} of {argument} from the Not found In Raid (NIR) inventory [{remaining} remaining]')
+    write_database(tracker_file, database)
+    return True
+
+# Level
+def check_level(tracker_file):
+    database = open_database(tracker_file)
+
+    if (not database):
+        return False
+    
+    logging.info(f'Player level is {database["player_level"]}')
+    return True
+
+def set_level(tracker_file, level):
+    database = open_database(tracker_file)
+
+    if (not database):
+        return False
+    
+    database['player_level'] = level
+    write_database(tracker_file, database)
+    logging.info(f'Updated player level to {level}')
+    return True
+
+def level_up(tracker_file):
+    database = open_database(tracker_file)
+
+    if (not database):
+        return False
+    
+    database['player_level'] = database['player_level'] + 1
+    write_database(tracker_file, database)
+    logging.info(f'Incremented the player level by 1. Level is now {database["player_level"]}')
+    return True
+
+#Clear
+def clear():
+    system('cls' if name == 'nt' else 'clear')
+    return True
+
 # Reset
 def reset_tasks(tracker_file):
     database = open_database(tracker_file)
@@ -2271,60 +2839,8 @@ def reset_inventory(tracker_file):
     logging.info('The inventory has been cleared')
     return True
 
-# Restart
-def restart_barter_or_craft(tracker_file, argument):
-    database = open_database(tracker_file)
-
-    if (not database):
-        return False
-
-    for barter in database['barters']:
-        if (barter['id'] == argument):
-            if (not barter['tracked']):
-                logging.error(f'Barter {argument} is not currently tracked and therefore cannot be restarted')
-                return False
-            
-            if (barter['status'] == 'complete'):
-                barter['status'] = 'incomplete'
-                logging.info(f'Set barter {argument} to incomplete')
-            else:
-                logging.error(f'Barter {argument} is not yet completed and therefore cannot be restarted')
-                return False
-            
-            for requirement in barter['requiredItems']:
-                guid = requirement['item']['id']
-                count = requirement['count']
-                database['inventory'][guid]['need_nir'] = database['inventory'][guid]['need_nir'] + count
-                logging.info(f'Added {count} of {guid_to_item(database, guid)} to the needed inventory')
-            
-            return True
-        
-    for craft in database['crafts']:
-        if (craft['id'] == argument):
-            if (not craft['tracked']):
-                logging.error(f'Craft recipe {argument} is not currently tracked and therefore cannot be restarted')
-                return False
-            
-            if (craft['status'] == 'complete'):
-                craft['status'] = 'incomplete'
-                logging.info(f'Set craft recipe {argument} to incomplete')
-            else:
-                logging.error(f'Craft recipe {argument} is not yet completed and therefore cannot be restarted')
-                return False
-            
-            for requirement in craft['requiredItems']:
-                guid = requirement['item']['id']
-                count = requirement['count']
-                database['inventory'][guid]['need_nir'] = database['inventory'][guid]['need_nir'] + count
-                logging.info(f'Added {count} of {guid_to_item(database, guid)} to the needed inventory')
-            
-            return True
-    
-    logging.error(f'Encountered an unhandled error when restarting craft or barter {argument}')
-    return False
-
-# Refresh
-def refresh(tracker_file):
+# Import
+def import_data(tracker_file):
     database = {
         'tasks': [],
         'hideout': [],
@@ -2773,18 +3289,18 @@ def refresh(tracker_file):
             map['normalizedName'] = 'labs'
     
     logging.info('Overwrote normalized name for "Streets of Tarkov" to "streets" and for "The Lab" to "labs"')
-    database = refresh_all_items(database, headers)
+    database = import_all_items(database, headers)
     logging.info('Retrieved latest item data from the api.tarkov.dev server')
     write_database(tracker_file, database)
     logging.info(f'Generated a new database file {tracker_file}')
     return True
 
-def refresh_delta(tracker_file):
+def delta_import(tracker_file):
     memory = open_database(tracker_file)
-    refresh_database = refresh(tracker_file)
+    updated = import_data(tracker_file)
 
-    if (not refresh_database):
-        logging.error('Encountered an error while refreshing the database. Restoring previous database...')
+    if (not updated):
+        logging.error('Encountered an error while importing the database. Restoring previous database...')
         write_database(tracker_file, memory)
         return False
 
@@ -2920,523 +3436,7 @@ def refresh_delta(tracker_file):
     logging.info('Restored player level, item refresh data, and price refresh data')
 
     write_database(tracker_file, database)
-    logging.info(f'Completed database refresh and delta import with {changes} total restores')
-    logging.info(f'Refreshed database with delta changes and restored memory of tasks, hideout stations, barters, and inventory')
-    return True
-
-# Search
-def search(tracker_file, argument, ignore_barters, ignore_crafts):
-    database = open_database(tracker_file)
-    guid = False
-    tasks = []
-    stations = []
-    barters = []
-    crafts = []
-    items = []
-    traders = []
-    maps = []
-
-    if (not database):
-        return False
-    
-    if (is_guid(argument)):
-        guid = True
-
-    for task in database['tasks']:
-        if (not guid):
-            if (string_compare(argument, task['name']) or string_compare(argument, task['normalizedName'])):
-                tasks.append(task)
-        elif (task['id'] == argument):
-            tasks.append(task)
-
-    for station in database['hideout']:
-        for level in station['levels']:
-            if (not guid):
-                if (string_compare(argument, level['normalizedName'])):
-                    stations.append(level)
-            elif (level['id'] == argument):
-                stations.append(level)
-
-    if (not ignore_barters):
-        unknowns = 0
-
-        for barter in database['barters']:
-            if (not guid):
-                for requirement in barter['requiredItems']:
-                    item = guid_to_item_object(database, requirement['item']['id'])
-
-                    if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
-                        barters.append(barter)
-                for reward in barter['rewardItems']:
-                    item = guid_to_item_object(database, reward['item']['id'])
-
-                    if (not item):
-                        unknowns = unknowns + 1
-                        continue
-
-                    if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
-                        barters.append(barter)
-            elif (barter['id'] == argument):
-                barters.append(barter)
-
-        if (unknowns > 0):
-            logging.warning(f'Skipped {unknowns} unknown items in barter trades')
-
-    if (not ignore_crafts):
-        unknowns = 0
-
-        for craft in database['crafts']:
-            if (not guid):
-                for requirement in craft['requiredItems']:
-                    item = guid_to_item_object(database, requirement['item']['id'])
-
-                    if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
-                        crafts.append(craft)
-                for reward in craft['rewardItems']:
-                    item = guid_to_item_object(database, reward['item']['id'])
-
-                    if (not item):
-                        unknowns = unknowns + 1
-                        continue
-
-                    if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
-                        crafts.append(craft)
-            elif (craft['id'] == argument):
-                crafts.append(craft)
-
-        if (unknowns > 0):
-            logging.warning(f'Skipped {unknowns} unknown items in craft recipes')
-
-    for item in database['all_items']:
-        if (datetime.fromisoformat(database['last_price_refresh']) < (datetime.now() - timedelta(hours = 24))):
-            logging.info('Item price data is over 24 hours old. Refreshing...')
-            database = refresh_all_items(database, {
-                'Content-Type': 'application/json'
-            })
-            write_database(tracker_file, database)
-            logging.info('Item price data has been refreshed')
-        
-        if (not guid):
-            if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
-                if (item['id'] in database['inventory'].keys()):
-                    items.append({
-                        'need_fir': database['inventory'][item['id']]['need_fir'],
-                        'need_nir': database['inventory'][item['id']]['need_nir'],
-                        'have_fir': database['inventory'][item['id']]['have_fir'],
-                        'have_nir': database['inventory'][item['id']]['have_nir'],
-                        'id': item['id'],
-                        'shortName': item['shortName'],
-                        'normalizedName': item['normalizedName'],
-                        'flea': int(item['flea']),
-                        'vend': int(item['vend']),
-                        'trader': item['trader']
-                    })
-                else:
-                    items.append({
-                        'need_fir': 0,
-                        'need_nir': 0,
-                        'have_fir': 0,
-                        'have_nir': 0,
-                        'id': item['id'],
-                        'shortName': item['shortName'],
-                        'normalizedName': item['normalizedName'],
-                        'flea': int(item['flea']),
-                        'vend': int(item['vend']),
-                        'trader': item['trader']
-                    })
-        elif (item['id'] == argument):
-            if (item['id'] in database['inventory'].keys()):
-                items.append({
-                    'need_fir': database['inventory'][item['id']]['need_fir'],
-                    'need_nir': database['inventory'][item['id']]['need_nir'],
-                    'have_fir': database['inventory'][item['id']]['have_fir'],
-                    'have_nir': database['inventory'][item['id']]['have_nir'],
-                    'id': item['id'],
-                    'shortName': item['shortName'],
-                    'normalizedName': item['normalizedName'],
-                    'flea': int(item['flea']),
-                    'vend': int(item['vend']),
-                    'trader': item['trader']
-                })
-            else:
-                items.append({
-                    'need_fir': 0,
-                    'need_nir': 0,
-                    'have_fir': 0,
-                    'have_nir': 0,
-                    'id': item['id'],
-                    'shortName': item['shortName'],
-                    'normalizedName': item['normalizedName'],
-                    'flea': item['flea'],
-                    'vend': item['vend'],
-                    'trader': item['trader']
-                })
-    
-    for trader in database['traders']:
-        if (not guid):
-            if (string_compare(argument, trader['normalizedName'])):
-                traders.append(trader)
-        elif (trader['id'] == argument):
-            traders.append(trader)
-
-    for map in database['maps']:
-        if (not guid):
-            if (string_compare(argument, map['normalizedName'])):
-                maps.append(map)
-        elif (map['id'] == argument):
-            maps.append(map)
-
-    print_search(database, tasks, stations, barters, crafts, items, traders, maps)
-    return True
-
-def required_search(tracker_file, argument, ignore_barters, ignore_crafts):
-    database = open_database(tracker_file)
-    guid = False
-    tasks = []
-    stations = []
-    barters = []
-    crafts = []
-    items, traders, maps = [], [], []
-
-    if (not database):
-        return False
-    
-    if (is_guid(argument)):
-        guid = True
-
-    for task in database['tasks']:
-        for objective in task['objectives']:
-            if (objective['type'] == 'giveItem'):
-                if (not guid):
-                    item = guid_to_item_object(database, objective['item']['id'])
-
-                    if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
-                        tasks.append(task)
-                elif (objective['item']['id'] == argument):
-                    tasks.append(task)
-        
-        if (task['neededKeys'] is not None):
-            for needed_key in task['neededKeys']:
-                for key in needed_key['keys']:
-                    if (not guid):
-                        key = guid_to_item_object(database, key['id'])
-
-                        if (string_compare(argument, key['shortName']) or string_compare(argument, key['normalizedName'])):
-                            tasks.append(task)
-                    elif (key['id'] == argument):
-                        tasks.append(task)
-
-    for station in database['hideout']:
-        for level in station['levels']:
-            for requirement in level['itemRequirements']:
-                if (not guid):
-                    item = guid_to_item_object(database, requirement['item']['id'])
-
-                    if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
-                        stations.append(level)
-                elif (requirement['item']['id'] == argument):
-                    stations.append(level)
-
-    if (not ignore_barters):
-        for barter in database['barters']:
-            for requirement in barter['requiredItems']:
-                if (not guid):
-                    item = guid_to_item_object(database, requirement['item']['id'])
-
-                    if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
-                        barters.append(barter)
-                elif (requirement['item']['id'] == argument):
-                    barters.append(barter)
-
-    if (not ignore_crafts):
-        for craft in database['crafts']:
-            for requirement in craft['requiredItems']:
-                if (not guid):
-                    item = guid_to_item_object(database, requirement['item']['id'])
-
-                    if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
-                        crafts.append(craft)
-                elif (requirement['item']['id'] == argument):
-                    crafts.append(craft)
-
-    print_search(database, tasks, stations, barters, crafts, items, traders, maps)
-    return True
-
-# Track
-def track(tracker_file, argument):
-    database = open_database(tracker_file)
-
-    if (not database):
-        return False
-
-    if (is_guid(argument)):
-        guid = argument
-        _database_copy_ = database
-        database = track_barter(database, guid)
-        
-        if (database is None):
-            database = track_craft(_database_copy_, guid)
-        
-            if (database is None):
-                logging.error(f'Failed to find a barter or craft recipe matching guid {argument}')
-    else:
-        guid = task_to_guid(database, argument)
-
-        if (guid):
-            database = track_task(database, guid)
-        else:
-            guid = station_to_guid(database, argument)
-
-            if (guid):
-                database = track_station(database, guid)
-            else:
-                logging.error('Invalid argument')
-                return False
-    
-    if (database):
-        write_database(tracker_file, database)
-        return True
-
-    return False
-
-def untrack(tracker_file, argument):
-    database = open_database(tracker_file)
-
-    if (not database):
-        return False
-
-    if (is_guid(argument)):
-        guid = argument
-        database = untrack_barter(database, guid)
-    else:
-        guid = task_to_guid(database, argument)
-
-        if (guid):
-            database = untrack_task(database, guid)
-        else:
-            guid = station_to_guid(database, argument)
-
-            if (guid):
-                database = untrack_station(database, guid)
-            else:
-                logging.error('Invalid argument')
-                return False
-    
-    if (database):
-        write_database(tracker_file, database)
-        return True
-
-    return False
-
-# Complete
-def complete(tracker_file, argument, force, recurse):
-    database = open_database(tracker_file)
-
-    if (not database):
-        return False
-    
-    if (is_guid(argument)):
-        guid = argument
-        _copy_ = database
-        database = complete_barter(database, guid, force)
-
-        if (database is None):
-            database = complete_craft(_copy_, guid, force)
-
-            if (database is None):
-                logging.error(f'Failed to find a barter or craft recipe matching GUID {argument}')
-    else:
-        guid = task_to_guid(database, argument)
-
-        if (guid and not recurse):
-            database = complete_task(database, guid, force)
-        elif (guid and recurse):
-            database = complete_recursive_task(database, guid, True)
-        else:
-            guid = station_to_guid(database, argument)
-
-            if (guid):
-                database = complete_station(database, guid, force)
-            else:
-                logging.error('Invalid argument')
-                return False
-    
-    if (database):
-        write_database(tracker_file, database)
-        return True
-
-    return False
-
-# Add
-def add_item_fir(tracker_file, argument, count):
-    database = open_database(tracker_file)
-
-    if (not database):
-        return False
-    
-    guid = item_to_guid(database, argument)
-
-    if (not guid):
-        logging.error(f'Could not find any item that matches {argument}')
-        return False
-    
-    if (not count or count < 1):
-        logging.error(f'Invalid or missing count argument. Accepts an integer greater than 0')
-        return False
-    
-    if (guid not in database['inventory'].keys()):
-        logging.error(f'Item {guid_to_item(database, guid)} is not needed in the inventory. Skipping')
-        return False
-
-    if (database['inventory'][guid]['have_fir'] + count > database['inventory'][guid]['need_fir']):
-        if (database['inventory'][guid]['need_fir'] > 0):
-            diff = database['inventory'][guid]['have_fir'] + count - database['inventory'][guid]['need_fir']
-            database['inventory'][guid]['have_fir'] = database['inventory'][guid]['need_fir']
-            logging.info(f'Added {count - diff} {argument} to Found In Raid (FIR) inventory')
-        else:
-            diff = count
-        
-        database['inventory'][guid]['have_nir'] = database['inventory'][guid]['have_nir'] + diff
-        logging.info(f'Added {diff} {argument} to Not found In Raid (NIR) inventory')
-    else:
-        database['inventory'][guid]['have_fir'] = database['inventory'][guid]['have_fir'] + count
-        logging.info(f'Added {count} {argument} to needed (FIR) inventory')
-
-    write_database(tracker_file, database)
-    return True
-
-def add_item_nir(tracker_file, argument, count):
-    database = open_database(tracker_file)
-
-    if (not database):
-        return False
-    
-    guid = item_to_guid(database, argument)
-
-    if (not guid):
-        logging.error(f'Could not find any item that matches {argument}')
-        return False
-    
-    if (not count or count < 1):
-        logging.error(f'Invalid or missing count argument. Accepts an integer greater than 0')
-        return False
-    
-    if (guid not in database['inventory'].keys()):
-        logging.error(f'Item {guid_to_item(database, guid)} is not needed in the inventory. Skipping')
-        return False
-
-    if (database['inventory'][guid]['need_nir'] - database['inventory'][guid]['have_nir'] < count):
-        count = database['inventory'][guid]['need_nir'] - database['inventory'][guid]['have_nir']
-        database['inventory'][guid]['have_nir'] = database['inventory'][guid]['need_nir']
-
-        if (count == 0):
-            logging.error(f'Item {guid_to_item(database, guid)} is not needed in the inventory as Not found In Raid (NIR). Skipping')
-            return False
-    else:
-        database['inventory'][guid]['have_nir'] = database['inventory'][guid]['have_nir'] + count
-    
-    logging.info(f'Added {count} {argument} to Not found In Raid (NIR) inventory')
-    write_database(tracker_file, database)
-    return True
-
-# Delete
-def delete_item_fir(tracker_file, argument, count):
-    database = open_database(tracker_file)
-
-    if (not database):
-        return False
-    
-    guid = item_to_guid(database, argument)
-
-    if (not guid):
-        logging.error(f'Could not find any item that matches {argument}')
-        return False
-    
-    if (not count or count < 1):
-        logging.error(f'Invalid or missing count argument. Accepts an integer greater than 0')
-        return False
-    
-    if (guid not in database['inventory'].keys()):
-        logging.error(f'Item {guid_to_item(database, guid)} was not found in the inventory. Skipping')
-        return False
-
-    if (database['inventory'][guid]['have_fir'] - count < 0):
-        count = database['inventory'][guid]['have_fir']
-        database['inventory'][guid]['have_fir'] = 0
-    else:
-        database['inventory'][guid]['have_fir'] = database['inventory'][guid]['have_fir'] - count
-
-    remaining = database['inventory'][guid]['have_fir']
-    logging.info(f'Removed {count} of {argument} from the Found In Raid (FIR) inventory [{remaining} remaining]')
-    write_database(tracker_file, database)
-    return True
-
-def delete_item_nir(tracker_file, argument, count):
-    database = open_database(tracker_file)
-
-    if (not database):
-        return False
-    
-    guid = item_to_guid(database, argument)
-
-    if (not guid):
-        logging.error(f'Could not find any item that matches {argument}')
-        return False
-    
-    if (not count or count < 1):
-        logging.error(f'Invalid or missing count argument. Accepts an integer greater than 0')
-        return False
-    
-    if (guid not in database['inventory'].keys()):
-        logging.error(f'Item {guid_to_item(database, guid)} was not found in the inventory. Skipping')
-        return False
-
-    if (database['inventory'][guid]['have_nir'] - count < 0):
-        count = database['inventory'][guid]['have_nir']
-        database['inventory'][guid]['have_nir'] = 0
-    else:
-        database['inventory'][guid]['have_nir'] = database['inventory'][guid]['have_nir'] - count
-
-    remaining = database['inventory'][guid]['have_nir']
-    logging.info(f'Removed {count} of {argument} from the Not found In Raid (NIR) inventory [{remaining} remaining]')
-    write_database(tracker_file, database)
-    return True
-
-# Level
-def check_level(tracker_file):
-    database = open_database(tracker_file)
-
-    if (not database):
-        return False
-    
-    logging.info(f'Player level is {database["player_level"]}')
-    return True
-
-def set_level(tracker_file, level):
-    database = open_database(tracker_file)
-
-    if (not database):
-        return False
-    
-    database['player_level'] = level
-    write_database(tracker_file, database)
-    logging.info(f'Updated player level to {level}')
-    return True
-
-def level_up(tracker_file):
-    database = open_database(tracker_file)
-
-    if (not database):
-        return False
-    
-    database['player_level'] = database['player_level'] + 1
-    write_database(tracker_file, database)
-    logging.info(f'Incremented the player level by 1. Level is now {database["player_level"]}')
-    return True
-
-#Clear
-def clear():
-    system('cls' if name == 'nt' else 'clear')
+    logging.info(f'Completed database delta import with {changes} total restores')
     return True
 
 

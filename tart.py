@@ -2411,6 +2411,8 @@ def search(tracker_file, argument, ignore_barters):
                 stations.append(level)
 
     if (not ignore_barters):
+        unknowns = 0
+
         for barter in database['barters']:
             if (not guid):
                 for requirement in barter['requiredItems']:
@@ -2421,10 +2423,16 @@ def search(tracker_file, argument, ignore_barters):
                 for reward in barter['rewardItems']:
                     item = guid_to_item_object(database, reward['item']['id'])
 
+                    if (not item):
+                        unknowns = unknowns + 1
+                        continue
+
                     if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
                         barters.append(barter)
             elif (barter['id'] == argument):
                 barters.append(barter)
+
+        logging.warning(f'Skipped {unknowns} unknown items in barter trades')
 
     for item in database['all_items']:
         if (datetime.fromisoformat(database['last_price_refresh']) < (datetime.now() - timedelta(hours = 24))):

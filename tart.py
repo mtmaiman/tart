@@ -171,7 +171,6 @@ BUFFER = '----------------------------------------------------------------------
 ###################################################
 
 
-#TODO: Add crafts
 # Command parsing
 def parser(tracker_file, command):
     command = command.lower().split(' ')
@@ -411,6 +410,7 @@ def parser(tracker_file, command):
             else:
                 logging.debug(f'Executing command: {command[0]} {command[1:]}')
                 ignore_barters = True
+                ignore_crafts = True
                 pattern = ' '.join(command[1:])
                 required_search(tracker_file, pattern, ignore_barters, ignore_crafts)
     # Track
@@ -1335,7 +1335,7 @@ def track_barter(database, guid):
             logging.info(f'Tracked barter {barter["id"]}')
             break
     else:
-        return False
+        return None
                 
     return database
 
@@ -1368,7 +1368,7 @@ def track_craft(database, guid):
             logging.info(f'Tracked craft recipe {craft["id"]}')
             break
     else:
-        return False
+        return None
                 
     return database
 
@@ -2870,20 +2870,21 @@ def refresh_delta(tracker_file):
     for index, craft in enumerate(database['crafts']):
         craft_table[craft['id']] = index
     
-    for craft in memory['crafts']:
-        if (craft['id'] not in craft_table):
-            logging.warning(f'Craft recipe {craft["id"]} cannot be found in the new dataset. All data for this craft recipe will be lost!')
-            continue
+    if ('crafts' in memory.keys()):
+        for craft in memory['crafts']:
+            if (craft['id'] not in craft_table):
+                logging.warning(f'Craft recipe {craft["id"]} cannot be found in the new dataset. All data for this craft recipe will be lost!')
+                continue
 
-        new_craft = database['crafts'][craft_table[craft['id']]]
+            new_craft = database['crafts'][craft_table[craft['id']]]
 
-        if (new_craft['status'] != craft['status']):
-            database['crafts'][craft_table[barter['id']]]['status'] = craft['status']
-            changes = changes + 1
-        
-        if (new_craft['tracked'] != craft['tracked']):
-            database['crafts'][craft_table[barter['id']]]['tracked'] = craft['tracked']
-            changes = changes + 1
+            if (new_craft['status'] != craft['status']):
+                database['crafts'][craft_table[barter['id']]]['status'] = craft['status']
+                changes = changes + 1
+            
+            if (new_craft['tracked'] != craft['tracked']):
+                database['crafts'][craft_table[barter['id']]]['tracked'] = craft['tracked']
+                changes = changes + 1
     
     craft_changes = changes - task_changes - hideout_changes - barter_changes
     logging.info(f'Completed craft recipes delta import with {craft_changes} restores')
@@ -2978,7 +2979,8 @@ def search(tracker_file, argument, ignore_barters, ignore_crafts):
             elif (barter['id'] == argument):
                 barters.append(barter)
 
-        logging.warning(f'Skipped {unknowns} unknown items in barter trades')
+        if (unknowns > 0):
+            logging.warning(f'Skipped {unknowns} unknown items in barter trades')
 
     if (not ignore_crafts):
         unknowns = 0
@@ -3002,7 +3004,8 @@ def search(tracker_file, argument, ignore_barters, ignore_crafts):
             elif (craft['id'] == argument):
                 crafts.append(craft)
 
-        logging.warning(f'Skipped {unknowns} unknown items in craft recipes')
+        if (unknowns > 0):
+            logging.warning(f'Skipped {unknowns} unknown items in craft recipes')
 
     for item in database['all_items']:
         if (datetime.fromisoformat(database['last_price_refresh']) < (datetime.now() - timedelta(hours = 24))):
@@ -3171,11 +3174,11 @@ def track(tracker_file, argument):
         _database_copy_ = database
         database = track_barter(database, guid)
         
-        if (not database):
+        if (database is None):
             database = track_craft(_database_copy_, guid)
         
-        if (not database):
-            logging.error(f'Failed to find a barter or craft recipe matching guid {argument}')
+            if (database is None):
+                logging.error(f'Failed to find a barter or craft recipe matching guid {argument}')
     else:
         guid = task_to_guid(database, argument)
 

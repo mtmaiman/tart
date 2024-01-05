@@ -297,7 +297,7 @@ def parser(tracker_file, command):
             logging.info(RESTART_HELP)
         elif (is_guid(command[1])):
             logging.debug(f'Executing command: {command[0]} {command[1]}')
-            restart_barter(tracker_file, command[1])
+            restart_barter_or_craft(tracker_file, command[1])
         elif (command[1] == 'help' or command[1] == 'h'):
             logging.debug(f'Executing command: {command[0]} {command[1]}')
             logging.info(RESTART_HELP)
@@ -2188,7 +2188,7 @@ def reset_inventory(tracker_file):
     return True
 
 # Restart
-def restart_barter(tracker_file, argument):
+def restart_barter_or_craft(tracker_file, argument):
     database = open_database(tracker_file)
 
     if (not database):
@@ -2214,8 +2214,29 @@ def restart_barter(tracker_file, argument):
                 logging.info(f'Added {count} of {guid_to_item(database, guid)} to the needed inventory')
             
             return True
+        
+    for craft in database['crafts']:
+        if (craft['id'] == argument):
+            if (not craft['tracked']):
+                logging.error(f'Craft recipe {argument} is not currently tracked and therefore cannot be restarted')
+                return False
+            
+            if (craft['status'] == 'complete'):
+                craft['status'] = 'incomplete'
+                logging.info(f'Set craft recipe {argument} to incomplete')
+            else:
+                logging.error(f'Craft recipe {argument} is not yet completed and therefore cannot be restarted')
+                return False
+            
+            for requirement in craft['requiredItems']:
+                guid = requirement['item']['id']
+                count = requirement['count']
+                database['inventory'][guid]['need_nir'] = database['inventory'][guid]['need_nir'] + count
+                logging.info(f'Added {count} of {guid_to_item(database, guid)} to the needed inventory')
+            
+            return True
     
-    logging.error(f'Encountered an unhandled error when restarting barter {argument}')
+    logging.error(f'Encountered an unhandled error when restarting craft or barter {argument}')
     return False
 
 # Refresh
@@ -2743,7 +2764,7 @@ def refresh_delta(tracker_file):
     
     for barter in memory['barters']:
         if (barter['id'] not in barter_table):
-            logging.warning(f'Barter {barter["name"]} cannot be found in the new dataset. All data for this barter will be lost!')
+            logging.warning(f'Barter {barter["id"]} cannot be found in the new dataset. All data for this barter will be lost!')
             continue
 
         new_barter = database['barters'][barter_table[barter['id']]]
@@ -2758,6 +2779,30 @@ def refresh_delta(tracker_file):
     
     barter_changes = changes - task_changes - hideout_changes
     logging.info(f'Completed barter delta import with {barter_changes} restores')
+
+    # Crafts
+    craft_table = {}
+
+    for index, craft in enumerate(database['crafts']):
+        craft_table[craft['id']] = index
+    
+    for craft in memory['crafts']:
+        if (craft['id'] not in craft_table):
+            logging.warning(f'Craft recipe {craft["id"]} cannot be found in the new dataset. All data for this craft recipe will be lost!')
+            continue
+
+        new_craft = database['crafts'][craft_table[craft['id']]]
+
+        if (new_craft['status'] != craft['status']):
+            database['crafts'][craft_table[barter['id']]]['status'] = craft['status']
+            changes = changes + 1
+        
+        if (new_craft['tracked'] != craft['tracked']):
+            database['crafts'][craft_table[barter['id']]]['tracked'] = craft['tracked']
+            changes = changes + 1
+    
+    craft_changes = changes - task_changes - hideout_changes - barter_changes
+    logging.info(f'Completed craft recipes delta import with {craft_changes} restores')
 
     # Inventory
     for item in database['inventory'].keys():
@@ -2781,7 +2826,7 @@ def refresh_delta(tracker_file):
             database['inventory'][item]['consumed_fir'] = memory['inventory'][item]['consumed_fir']
             changes = changes + 1
     
-    inventory_changes = changes - task_changes - hideout_changes - barter_changes
+    inventory_changes = changes - task_changes - hideout_changes - barter_changes - craft_changes
     logging.info(f'Completed inventory delta import with {inventory_changes} restores')
 
     database['player_level'] = memory['player_level']

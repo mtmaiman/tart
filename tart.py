@@ -467,14 +467,18 @@ def parser(tracker_file, command):
             complete(tracker_file, argument, force, recurse)
     # Add
     elif (command[0] == 'add'):
-        if (len(command) < 3):
+        if (len(command) < 2):
             logging.debug(f'Failed to execute command: {command[0]}')
-            logging.error('Missing item name or item count')
+            logging.error('Missing some arguments!')
             logging.info(ADD_HELP)
         else:
             if (command[1] == 'help' or command[1] == 'h'):
                 logging.debug(f'Executing command: {command[0]} {command[1]}')
                 logging.info(ADD_HELP)
+            elif (len(command) < 3):
+                logging.debug(f'Failed to execute command: {command[0]}')
+                logging.error('Missing some arguments')
+                logging.info(DELETE_HELP)
             elif (not command[1].isdigit() or int(command[1]) < 1):
                 logging.debug(f'Failed to execute command: {command[0]} {command[1]} {command[2:]}')
                 logging.error('Invalid integer entered for count')
@@ -491,13 +495,17 @@ def parser(tracker_file, command):
                 add_item_nir(tracker_file, argument, count)
     # Delete
     elif (command[0] == 'del'):
-        if (len(command) < 3):
+        if (len(command) < 2):
             logging.debug(f'Failed to execute command: {command[0]}')
-            logging.error('Missing item name or item count')
+            logging.error('Missing some arguments')
             logging.info(DELETE_HELP)
         else:
             if (command[1] == 'help' or command[1] == 'h'):
                 logging.debug(f'Executing command: {command[0]} {command[1]}')
+                logging.info(DELETE_HELP)
+            elif (len(command) < 3):
+                logging.debug(f'Failed to execute command: {command[0]}')
+                logging.error('Missing some arguments')
                 logging.info(DELETE_HELP)
             elif (not command[1].isdigit() or int(command[1]) < 1):
                 logging.debug(f'Failed to execute command: {command[0]} {command[1]} {command[2:]}')

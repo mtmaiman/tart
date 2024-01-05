@@ -269,6 +269,9 @@ def parser(tracker_file, command):
                 elif (command[1] == 'barters'):
                     logging.debug(f'Executing command: {command[0]} {command[1]}')
                     reset_barters(tracker_file)
+                elif (command[1] == 'crafts'):
+                    logging.debug(f'Executing command: {command[0]} {command[1]}')
+                    reset_crafts(tracker_file)
                 elif (command[1] == 'inv'):
                     logging.debug(f'Executing command: {command[0]} {command[1]}')
                     reset_inventory(tracker_file)
@@ -277,6 +280,7 @@ def parser(tracker_file, command):
                     reset_tasks(tracker_file)
                     reset_stations(tracker_file)
                     reset_barters(tracker_file)
+                    reset_crafts(tracker_file)
                     reset_inventory(tracker_file)
                 else:
                     logging.debug(f'Failed to execute command: {command[0]} {command[1]}')
@@ -2153,6 +2157,20 @@ def reset_barters(tracker_file):
     
     write_database(tracker_file, database)
     logging.info('All barter progress has been reset')
+    return True
+
+def reset_crafts(tracker_file):
+    database = open_database(tracker_file)
+
+    if (not database):
+        return False
+    
+    for craft in database['crafts']:
+        craft['status'] = 'incomplete'
+        craft['tracked'] = False
+    
+    write_database(tracker_file, database)
+    logging.info('All craft recipe progress has been reset')
     return True
 
 def reset_inventory(tracker_file):

@@ -1229,7 +1229,40 @@ def track_barter(database, guid):
             logging.info(f'Tracked barter {barter["id"]}')
             break
     else:
-        logging.error(f'Failed to find a barter matching the provided GUID: {guid}')
+        return False
+                
+    return database
+
+def track_craft(database, guid):
+    for craft in database['crafts']:
+        if (craft['id'] == guid):
+            if (craft['tracked']):
+                logging.info(f'Craft recipe {craft["id"]} is already tracked. Skipping')
+                return False
+            
+            for requirement in craft['requiredItems']:
+                item_guid = requirement['item']['id']
+                count = requirement['count']
+                
+                if (item_guid not in database['inventory'].keys()):
+                    database['inventory'][item_guid] = {
+                        'need_fir': 0,
+                        'need_nir': count,
+                        'have_fir': 0,
+                        'have_nir': 0,
+                        'consumed_fir': 0,
+                        'consumed_nir': 0
+                    }
+                else:
+                    database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] + count
+
+                logging.info(f'Added {count} {guid_to_item(database, item_guid)} to needed inventory')
+
+            craft['tracked'] = True
+            logging.info(f'Tracked craft recipe {craft["id"]}')
+            break
+    else:
+        return False
                 
     return database
 
@@ -1294,7 +1327,29 @@ def untrack_barter(database, guid):
             break
     
     else:
-        logging.error(f'Failed to find a tracked barter matching the provided GUID: {guid}')
+        return False
+                
+    return database
+
+def untrack_craft(database, guid):
+    for craft in database['crafts']:
+        if (craft['id'] == guid):
+            if (not craft['tracked']):
+                logging.info(f'Craft recipe {craft["id"]} is already untracked. Skipping')
+                return False
+            
+            for requirement in craft['requiredItems']:
+                item_guid = requirement['item']['id']
+                count = requirement['count']
+                database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] - count
+                logging.info(f'Removed {count} {guid_to_item(database, item_guid)} from needed inventory')
+
+            craft['tracked'] = False
+            logging.info(f'Untracked craft recipe {craft["id"]}')
+            break
+    
+    else:
+        return False
                 
     return database
 
@@ -2022,6 +2077,7 @@ def refresh(tracker_file):
         'maps': [],
         'traders': [],
         'barters': [],
+        'crafts': [],
         'all_items': [],
         'inventory': {},
         'player_level': 1,
@@ -2296,6 +2352,56 @@ def refresh(tracker_file):
         barter['tracked'] = False
     
     database['barters'] = barters
+
+    data = {
+        'query': """
+            {
+                crafts {
+                    id
+                    duration
+                    station {
+                    id
+                    }
+                    level
+                    taskUnlock {
+                    id
+                    }
+                    requiredItems {
+                    item {
+                        id
+                    }
+                    count
+                    }
+                    rewardItems {
+                    item {
+                        id
+                    }
+                    count
+                    }
+                }
+            }
+        """
+    }
+
+    response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+
+    if (response.status_code < 200 or response.status_code > 299):
+        logging.error(f'Failed to retrieve crafts data! >> [{response.status_code}] {response.json()}')
+        exit(1)
+    else:
+        if ('errors' in response.json().keys()):
+                logging.error(f'Encountered an error while retrieving craft data! >> {json.dumps(response.json())}')
+                exit(1)
+
+        logging.info('Retrieved latest craft data from the api.tarkov.dev server')
+        crafts = response.json()['data']['crafts']
+
+    for craft in crafts:
+        craft['status'] = 'incomplete'
+        craft['tracked'] = False
+    
+    database['crafts'] = crafts
+
 
     data = {
         'query': """
@@ -2747,7 +2853,14 @@ def track(tracker_file, argument):
 
     if (is_guid(argument)):
         guid = argument
+        _database_copy_ = database
         database = track_barter(database, guid)
+        
+        if (not database):
+            database = track_craft(_database_copy_, guid)
+        
+        if (not database):
+            logging.error(f'Failed to find a barter or craft recipe matching guid {argument}')
     else:
         guid = task_to_guid(database, argument)
 

@@ -159,8 +159,8 @@ INVENTORY_HAVE_HEADER = '{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20}
 INVENTORY_NEED_HEADER = '{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} \n'.format('Item', 'Need (FIR)', 'Item', 'Need (FIR)', 'Item', 'Need (FIR)', 'Item', 'Need (FIR)')
 TASK_HEADER = '{:<40} {:<20} {:<20} {:<20} {:<20} {:<40}\n'.format('Task Title', 'Task Giver', 'Task Status', 'Tracked', 'Kappa?', 'Task GUID')
 HIDEOUT_HEADER = '{:<40} {:<20} {:<20} {:<40}\n'.format('Station Name', 'Station Status', 'Tracked', 'Station GUID')
-BARTER_HEADER = '{:<40} {:<20} {:<20} {:<20}\n'.format('Barter GUID', 'Trader', 'Level', 'Tracked')
-CRAFT_HEADER = '{:<40} {:<20} {:<30} {:<20}\n'.format('Craft Recipe GUID', 'Station', 'Level', 'Tracked')
+BARTER_HEADER = '{:<40} {:<20} {:<20} {:<20}\n'.format('Barter GUID', 'Trader', 'Loyalty Level', 'Tracked')
+CRAFT_HEADER = '{:<40} {:<20} {:<30} {:<20}\n'.format('Craft Recipe GUID', 'Station', 'Station Level', 'Tracked')
 UNTRACKED_HEADER = '{:<40} {:<20} {:<20} {:<20}\n'.format('Entity Name', 'Type', 'Tracked', 'Kappa?')
 BUFFER = '-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n'
 
@@ -172,6 +172,8 @@ BUFFER = '----------------------------------------------------------------------
 ###################################################
 
 
+#TODO: Items showing as complete in inv when not complete
+#TODO: Items adding to inventory that aren't needed (when going from FIR to NIR)
 # Command parsing
 def parser(tracker_file, command):
     command = command.lower().split(' ')
@@ -1315,7 +1317,7 @@ def track_craft(database, guid):
 def untrack_task(database, guid):
     for task in database['tasks']:
         if (task['id'] == guid):
-            if (not task['tracked']):
+            if (not task['tracked'] and task['id'] != '5c51aac186f77432ea65c552' and task['id'] != '5edac020218d181e29451446'):
                 logging.info(f'Task {task["name"]} is already untracked. Skipping')
                 return False
             
@@ -2501,7 +2503,7 @@ def untrack(tracker_file, argument):
             else:
                 logging.error('Invalid argument')
                 return False
-    
+
     if (database):
         write_database(tracker_file, database)
         return True
@@ -3234,11 +3236,6 @@ def import_data(tracker_file):
             if (objective['type'] == 'giveItem'):
                 guid = objective['item']['id']
 
-                if (objective['id'] == '5d24bb4886f77439c92d6bad'):
-                    database['tasks'][index]['objectives'][inner_index]['item']['id'] = '656df4fec921ad01000481a2'
-                    guid = '656df4fec921ad01000481a2'
-                    logging.info('Corrected invalid GUID for pack-of-noodles in task objectives for Acquaintance')
-
                 if (guid not in database['inventory'].keys()):
                     database['inventory'][guid] = {
                         'need_fir': 0,
@@ -3268,6 +3265,8 @@ def import_data(tracker_file):
                             'consumed_fir': 0,
                             'consumed_nir': 0
                         }
+                    else:
+                        database['inventory'][guid]['need_nir'] = database['inventory'][guid]['need_nir'] + 1
 
     logging.info('Updated all inventory values for task items')
 
@@ -3332,7 +3331,22 @@ def delta_import(tracker_file):
             changes = changes + 1
         
         if (new_task['tracked'] != task['tracked']):
-            database['tasks'][task_table[task['id']]]['tracked'] = task['tracked']
+            if (task['kappaRequired'] and task['tracked'] and not new_task['kappaRequired']):
+                logging.warning(f'You are currently tracking {task["name"]} which is no longer Kappa required and will be untracked')
+                untrack_task(database, new_task['id'])
+            elif (not task['kappaRequired'] and not task['tracked'] and new_task['kappaRequired']):
+                logging.warning(f'Task {task["name"]} is now Kappa required and has been tracked')
+            elif (task['kappaRequired'] and not task['tracked']):
+                logging.warning(f'You had previously untracked a Kappa required task {task["name"]} which will continue to be untracked')
+                untrack_task(database, new_task['id'])
+            elif (not new_task['tracked']):
+                logging.warning(f'You had previously tracked task {task["name"]} which will remain tracked')
+                database = track_task(database, new_task['id'])
+            else:
+                logging.error('Unhandled error with (un)tracked tasks. Restoring previous database...')
+                write_database(tracker_file, memory)
+                return False
+                        
             changes = changes + 1
     
     task_changes = changes
@@ -3358,7 +3372,12 @@ def delta_import(tracker_file):
                 changes = changes + 1
             
             if (new_station['tracked'] != level['tracked']):
-                database['hideout'][station_table[level['id']][0]]['levels'][station_table[level['id']][1]]['tracked'] = level['tracked']
+                if (level['tracked']):
+                    database = track_station(database, new_station['id'])
+                else:
+                    logging.warning(f'You had previously untracked hideout station {level["normalizedName"]} which will continue to be untracked')
+                    database = untrack_station(database, new_station['id'])
+
                 changes = changes + 1
 
     hideout_changes = changes - task_changes
@@ -3382,8 +3401,13 @@ def delta_import(tracker_file):
             changes = changes + 1
         
         if (new_barter['tracked'] != barter['tracked']):
-            database['barters'][barter_table[barter['id']]]['tracked'] = barter['tracked']
-            changes = changes + 1
+                if (barter['tracked']):
+                    logging.warning(f'You had previously tracked barter {barter["id"]} which will continue to be tracked')
+                    database = track_barter(database, new_barter['id'])
+                else:
+                    database = untrack_barter(database, new_barter['id'])
+                    
+                changes = changes + 1
     
     barter_changes = changes - task_changes - hideout_changes
     logging.info(f'Completed barter delta import with {barter_changes} restores')
@@ -3402,12 +3426,13 @@ def delta_import(tracker_file):
 
             new_craft = database['crafts'][craft_table[craft['id']]]
 
-            if (new_craft['status'] != craft['status']):
-                database['crafts'][craft_table[barter['id']]]['status'] = craft['status']
-                changes = changes + 1
-            
             if (new_craft['tracked'] != craft['tracked']):
-                database['crafts'][craft_table[barter['id']]]['tracked'] = craft['tracked']
+                if (craft['tracked']):
+                    logging.warning(f'You had previously tracked craft recipe {craft["id"]} which will continue to be tracked')
+                    database = track_craft(database, new_craft['id'])
+                else:
+                    database = untrack_craft(database, new_craft['id'])
+                    
                 changes = changes + 1
     
     craft_changes = changes - task_changes - hideout_changes - barter_changes
@@ -3416,7 +3441,7 @@ def delta_import(tracker_file):
     # Inventory
     for item in database['inventory'].keys():
         if (item not in memory['inventory'].keys()):
-            logging.warning(f'Inventory item {guid_to_item(item)} cannot be found in the new inventory. All data for this item will be lost!')
+            logging.warning(f'Inventory item {guid_to_item(database, item)} cannot be found in the new inventory. All data for this item will be lost!')
             continue
         
         if (database['inventory'][item]['have_nir'] != memory['inventory'][item]['have_nir']):

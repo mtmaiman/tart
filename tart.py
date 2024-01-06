@@ -172,7 +172,6 @@ BUFFER = '----------------------------------------------------------------------
 ###################################################
 
 
-#TODO: Items showing as complete in inv when not complete
 #TODO: Items adding to inventory that aren't needed (when going from FIR to NIR)
 # Command parsing
 def parser(tracker_file, command):
@@ -2631,14 +2630,20 @@ def add_item_fir(tracker_file, argument, count):
 
     if (database['inventory'][guid]['have_fir'] + count > database['inventory'][guid]['need_fir']):
         if (database['inventory'][guid]['need_fir'] > 0):
-            diff = database['inventory'][guid]['have_fir'] + count - database['inventory'][guid]['need_fir']
+            _diff_ = database['inventory'][guid]['have_fir'] + count - database['inventory'][guid]['need_fir']
             database['inventory'][guid]['have_fir'] = database['inventory'][guid]['need_fir']
-            logging.info(f'Added {count - diff} {argument} to Found In Raid (FIR) inventory')
+            logging.info(f'Added {count - _diff_} {argument} to Found In Raid (FIR) inventory')
         else:
-            diff = count
+            _diff_ = count
         
-        database['inventory'][guid]['have_nir'] = database['inventory'][guid]['have_nir'] + diff
-        logging.info(f'Added {diff} {argument} to Not found In Raid (NIR) inventory')
+        if (_diff_ + database['inventory'][guid]['have_nir'] > database['inventory'][guid]['need_nir']):
+            logging.info(f'Added {database["inventory"][guid]["have_nir"] - database["inventory"][guid]["need_nir"]} to Not found In Raid (NIR) inventory')
+            database['inventory'][guid]['have_nir'] = database['inventory'][guid]['need_nir']
+            _diff_ = _diff_ + database['inventory'][guid]['have_nir'] - database['inventory'][guid]['need_nir']
+            logging.warning(f'Skipped {_diff_} of {argument} as they are not needed in the inventory')
+        else:
+            database['inventory'][guid]['have_nir'] = database['inventory'][guid]['have_nir'] + _diff_
+            logging.info(f'Added {_diff_} {argument} to Not found In Raid (NIR) inventory')
     else:
         database['inventory'][guid]['have_fir'] = database['inventory'][guid]['have_fir'] + count
         logging.info(f'Added {count} {argument} to needed (FIR) inventory')

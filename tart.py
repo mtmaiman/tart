@@ -1724,7 +1724,9 @@ def print_inventory_generic(items, inv):
     
     for item in items:
         nir, fir = None, None
-        _done_ = False
+        _done_ = 0
+        _over_ = False
+        prefix = ''
 
         if (inv == 'have' or item['need_nir'] > 0):
             if (inv == 'need'):
@@ -1733,7 +1735,10 @@ def print_inventory_generic(items, inv):
                 nir = item['have_nir']
             else:
                 if (item['have_nir'] >= item['need_nir']):
-                    _done_ = True
+                    _done_ = 1
+
+                    if (item['have_nir'] > item['need_nir']):
+                        _over_ = True
 
                 nir = f'{item["have_nir"]}/{item["need_nir"]}'
         
@@ -1744,25 +1749,27 @@ def print_inventory_generic(items, inv):
                 fir = item['have_fir']
             else:
                 if (item['have_fir'] >= item['need_fir']):
-                    _done_ = True
+                    _done_ = _done_ + 2
+                    
+                    if (item['have_fir'] > item['need_fir']):
+                        _over_ = True
 
                 fir = f'{item["have_fir"]}/{item["need_fir"]}'
 
+        if ((_done_ == 1 and item['need_fir'] == 0) or (_done_ == 2 and item['need_nir'] == 0) or _done_ == 3):
+            if (_over_):
+                prefix = '[!][*] '
+            else:
+                prefix = '[*] '
+        elif (_over_):
+            prefix = '[!] '
+
         if (nir and fir):
-            if (_done_):
-                display = display + '{:<20} {:<20} '.format(f'* {item["shortName"]}', f'{nir} ({fir})')
-            else:
-                display = display + '{:<20} {:<20} '.format(item['shortName'], f'{nir} ({fir})')
+            display = display + '{:<20} {:<20} '.format(f'{prefix}{item["shortName"]}', f'{nir} ({fir})')
         elif (nir):
-            if (_done_):
-                display = display + '{:<20} {:<20} '.format(f'* {item["shortName"]}', nir)
-            else:
-                display = display + '{:<20} {:<20} '.format(item['shortName'], nir)
+            display = display + '{:<20} {:<20} '.format(f'{prefix}{item["shortName"]}', nir)
         elif (fir):
-            if (_done_):
-                display = display + '{:<20} {:<20} '.format(f'* {item["shortName"]}', f'({fir})')
-            else:
-                display = display + '{:<20} {:<20} '.format(item['shortName'], f'({fir})')
+            display = display + '{:<20} {:<20} '.format(f'{prefix}{item["shortName"]}', f'({fir})')
         else:
             continue
         

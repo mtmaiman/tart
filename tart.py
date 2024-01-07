@@ -172,6 +172,7 @@ BUFFER = '----------------------------------------------------------------------
 ###################################################
 
 
+#TODO: Textile Part 2 listed twice for requires duct tape
 # Command parsing
 def parser(tracker_file, command):
     command = command.lower().split(' ')
@@ -557,6 +558,9 @@ def parser(tracker_file, command):
     # Exit
     elif (command[0] == 'stop' or command[0] == 's' or command[0] == 'quit' or command[0] == 'q' or command[0] == 'exit'):
         logging.debug(f'Executing command: {command[0]}')
+        database = open_database(tracker_file)
+        write_database('database.bak', database)
+        logging.info(f'Saved a backup of the current data file to database.bak')
         return False
     # Clear
     elif (command[0] == 'clear'):
@@ -3543,7 +3547,7 @@ def main(args):
         running = parser(tracker_file, command)
         
         if (not running):
-            logging.info('Gracefully quit!')
+            logging.info('Goodbye.')
             return True
 
 if (__name__ == '__main__'):

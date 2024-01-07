@@ -1,3 +1,4 @@
 # Database file #
 database.json
-database.bak
+database.curr.bak
+database.prev.bak

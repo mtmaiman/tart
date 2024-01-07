@@ -1799,8 +1799,13 @@ def print_tasks(database, tasks):
 
             if (objective['type'] == 'giveItem'):
                 guid = objective['item']['id']
-                have_available_fir = database['inventory'][guid]['have_fir'] - database['inventory'][guid]['consumed_fir']
-                have_available_nir = database['inventory'][guid]['have_nir'] - database['inventory'][guid]['consumed_nir']
+
+                if (guid in database['inventory']):
+                    have_available_fir = database['inventory'][guid]['have_fir'] - database['inventory'][guid]['consumed_fir']
+                    have_available_nir = database['inventory'][guid]['have_nir'] - database['inventory'][guid]['consumed_nir']
+                else:
+                    have_available_fir = 0
+                    have_available_nir = 0
 
                 if ('foundInRaid' in objective and objective['foundInRaid']):
                     objective_string = objective_string + f' ({have_available_fir}/{objective["count"]} FIR available)'
@@ -2401,8 +2406,10 @@ def required_search(tracker_file, argument, ignore_barters, ignore_crafts):
 
                     if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
                         tasks.append(task)
+                        break
                 elif (objective['item']['id'] == argument):
                     tasks.append(task)
+                    break
         
         if (task['neededKeys'] is not None):
             for needed_key in task['neededKeys']:
@@ -2412,8 +2419,13 @@ def required_search(tracker_file, argument, ignore_barters, ignore_crafts):
 
                         if (string_compare(argument, key['shortName']) or string_compare(argument, key['normalizedName'])):
                             tasks.append(task)
+                            break
                     elif (key['id'] == argument):
                         tasks.append(task)
+                        break
+                else:
+                    continue
+                break
 
     for station in database['hideout']:
         for level in station['levels']:
@@ -2423,8 +2435,10 @@ def required_search(tracker_file, argument, ignore_barters, ignore_crafts):
 
                     if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
                         stations.append(level)
+                        break
                 elif (requirement['item']['id'] == argument):
                     stations.append(level)
+                    break
 
     if (not ignore_barters):
         for barter in database['barters']:
@@ -2434,8 +2448,10 @@ def required_search(tracker_file, argument, ignore_barters, ignore_crafts):
 
                     if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
                         barters.append(barter)
+                        break
                 elif (requirement['item']['id'] == argument):
                     barters.append(barter)
+                    break
 
     if (not ignore_crafts):
         for craft in database['crafts']:
@@ -2445,8 +2461,10 @@ def required_search(tracker_file, argument, ignore_barters, ignore_crafts):
 
                     if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
                         crafts.append(craft)
+                        break
                 elif (requirement['item']['id'] == argument):
                     crafts.append(craft)
+                    break
 
     print_search(database, tasks, stations, barters, crafts, items, traders, maps)
     return True

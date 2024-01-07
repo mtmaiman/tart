@@ -172,7 +172,8 @@ BUFFER = '----------------------------------------------------------------------
 ###################################################
 
 
-#TODO: Items adding to inventory that aren't needed (when going from FIR to NIR)
+#TODO: Special Equipment is untracked but still counting towards inventory
+#TODO: State verification error
 # Command parsing
 def parser(tracker_file, command):
     command = command.lower().split(' ')
@@ -720,7 +721,7 @@ def station_to_guid(database, station_name):
                 stations.append(level)
 
     if (len(stations) > 1):
-        logging.warning('Found multiple tasks matching the provided name! Please select which to perform the operation on by choosing a number below')
+        logging.warning('Found multiple hideout stations matching the provided name! Please select which to perform the operation on by choosing a number below')
         count = 1
 
         for station in stations:
@@ -828,16 +829,13 @@ def alphabetize_items(items):
 # Verify functions
 def verify_task(database, task, task_table):
     if (task['status'] == 'complete'):
-        logging.debug(f'Task {task["name"]} is complete')
-        return False
+        return f'Task {task["name"]} is complete'
     
     if (not task['tracked']):
-        logging.debug(f'Task {task["name"]} is not tracked')
-        return False
+        return f'Task {task["name"]} is not tracked'
     
     if (database['player_level'] < task['minPlayerLevel']):
-        logging.debug(f'Task {task["name"]} has minPlayerLevel {task["minPlayerLevel"]} above current {database["player_level"]}')
-        return False
+        return f'Task {task["name"]} has minPlayerLevel {task["minPlayerLevel"]} above current {database["player_level"]}'
     
     for prereq in task['taskRequirements']:
         if ('id' in prereq):
@@ -846,46 +844,43 @@ def verify_task(database, task, task_table):
             id = prereq['task']['id']
 
         if (task_table[id] == 'incomplete'):
-            logging.debug(f'Task {task["name"]} has incomplete prereq')
-            return False
+            return f'Task {task["name"]} has incomplete prereq'
     
     logging.debug(f'Task {task["name"]} successfully verified')
     return True
 
-def verify_hideout_level(station, level):
-    max_level = 0
-
+def verify_hideout_level(database, level):
     if (not level['tracked']):
-        logging.debug(f'Hideout station {level["normalizedName"]} is not tracked')
-        return False
+        return f'Hideout station {level["normalizedName"]} is not tracked'
     
     if (level['status'] == 'complete'):
-        logging.debug(f'Hideout station {level["normalizedName"]} is complete')
-        return False
+        return f'Hideout station {level["normalizedName"]} is complete'
+
+    station_table = {}
+
+    for index, _station_ in enumerate(database['hideout']):
+        station_table[_station_['id']] = index
 
     for prereq in level['stationLevelRequirements']:
-        if (prereq['level'] > max_level):
-            max_level = prereq['level']
-
-    for prereq_level in station['levels']:
-        if (prereq_level['level'] <= max_level and prereq_level['status'] == 'incomplete'):
-            logging.debug(f'Hideout station {level["normalizedName"]} requires at least level {max_level}')
-            return False
+        for prereq_level in database['hideout'][station_table[prereq['station']['id']]]['levels']:
+            if (prereq_level['level'] == prereq['level'] and prereq_level['status'] != 'complete'):
+                return f'To complete {level["normalizedName"]} you must first complete {prereq_level["normalizedName"]}'
         
+    logging.debug(f'Hideout station {level["normalizedName"]} successfully verified')
     return True
 
 def verify_barter(barter):
     if (barter['status'] == 'complete' or not barter['tracked']):
-        logging.debug(f'Barter {barter["id"]} is complete or not tracked')
-        return False
+        return f'Barter {barter["id"]} is complete or not tracked'
     
+    logging.debug(f'Barter {barter["id"]} successfully verified')
     return True
 
 def verify_craft(craft):
     if (craft['status'] == 'complete' or not craft['tracked']):
-        logging.debug(f'Craft recipe {craft["id"]} is complete or not tracked')
-        return False
+        return f'Craft recipe {craft["id"]} is complete or not tracked'
     
+    logging.debug(f'Craft recipe {craft["id"]} successfully verified')
     return True
 
 # Get functions
@@ -1084,7 +1079,7 @@ def get_tasks_by_map(database, guid):
         task_table[task['id']] = task['status']
 
     for task in database['tasks']:
-        if (not verify_task(database, task, task_table)):
+        if (verify_task(database, task, task_table) != True):
             continue
 
         for objective in task['objectives']:
@@ -1111,7 +1106,7 @@ def get_tasks_by_trader(database, guid):
         task_table[task['id']] = task['status']
 
     for task in database['tasks']:
-        if (task['trader']['id'] == guid and verify_task(database, task, task_table)):
+        if (task['trader']['id'] == guid and verify_task(database, task, task_table) == True):
             tasks.append(task)
 
     return tasks
@@ -1125,7 +1120,7 @@ def get_available_tasks(database):
         task_table[task['id']] = task['status']
 
     for task in database['tasks']:
-        if (verify_task(database, task, task_table)):
+        if (verify_task(database, task, task_table) == True):
             tasks.append(task)
 
     return tasks
@@ -1136,7 +1131,7 @@ def get_hideout_stations(database):
 
     for station in database['hideout']:
         for level in station['levels']:
-            if (verify_hideout_level(station, level)):
+            if (verify_hideout_level(database, level) == True):
                 hideout_stations.append(level)
     
     return hideout_stations
@@ -1146,7 +1141,7 @@ def get_barters(database):
     logging.debug('Compiling all tracked barters')
 
     for barter in database['barters']:
-        if (verify_barter(barter)):
+        if (verify_barter(barter) == True):
             barters.append(barter)
 
     return barters
@@ -1156,7 +1151,7 @@ def get_barters_by_trader(database, guid):
     logging.debug(f'Compiling all tracked barters for trader with guid {guid}')
 
     for barter in database['barters']:
-        if (verify_barter(barter) and barter['trader']['id'] == guid):
+        if (verify_barter(barter) == True and barter['trader']['id'] == guid):
             barters.append(barter)
 
     return barters
@@ -1166,7 +1161,7 @@ def get_crafts(database):
     logging.debug('Compiling all tracked craft recipes')
 
     for craft in database['crafts']:
-        if (verify_craft(craft)):
+        if (verify_craft(craft) == True):
             crafts.append(craft)
 
     return crafts
@@ -1414,8 +1409,10 @@ def complete_task(database, guid, force):
                 for seen_task in database['tasks']:
                     task_table[seen_task['id']] = seen_task['status']
 
-                if (not verify_task(database, task, task_table)):
-                    logging.error(f'Task {task["name"]} cannot be completed due to a verification error')
+                _return_ = verify_task(database, task, task_table)
+                                       
+                if (type(_return_) is str):
+                    logging.error(_return_)
                     return False
 
                 for objective in task['objectives']:
@@ -1498,8 +1495,10 @@ def complete_station(database, guid, force):
                     return False
 
                 if (not force):
-                    if (not verify_hideout_level(station, level)):
-                        logging.error(f'Hideout station {level["normalizedName"]} cannot be completed due to a verification error')
+                    _return_ = verify_hideout_level(database, level)
+
+                    if (type(_return_) is str):
+                        logging.error(_return_)
                         return False
 
                     for requirement in level['itemRequirements']:
@@ -1549,8 +1548,10 @@ def complete_barter(database, guid, force):
                 return False
 
             if (not force):
-                if (not verify_barter(barter)):
-                    logging.error(f'Barter {barter["id"]} cannot be completed due to a verification error')
+                _return_ = verify_barter(barter)
+                
+                if (type(_return_) is str):
+                    logging.error(_return_)
                     return False
 
                 for requirement in barter['requiredItems']:
@@ -1597,8 +1598,10 @@ def complete_craft(database, guid, force):
                 return False
 
             if (not force):
-                if (not verify_craft(craft)):
-                    logging.error(f'Craft recipe {craft["id"]} cannot be completed due to a verification error')
+                _return_ = verify_craft(craft)
+
+                if (type(_return_) is str):
+                    logging.error(_return_)
                     return False
 
                 for requirement in craft['requiredItems']:
@@ -2610,6 +2613,7 @@ def restart_barter_or_craft(tracker_file, argument):
 # Add
 def add_item_fir(tracker_file, argument, count):
     database = open_database(tracker_file)
+    memory = database
 
     if (not database):
         return False
@@ -2625,39 +2629,40 @@ def add_item_fir(tracker_file, argument, count):
         return False
     
     if (guid not in database['inventory'].keys()):
-        logging.error(f'Item {guid_to_item(database, guid)} is not needed in the inventory. Skipping')
+        logging.error(f'Item {guid_to_item(database, guid)} is not needed in the inventory')
         return False
 
-    if (database['inventory'][guid]['have_fir'] + count > database['inventory'][guid]['need_fir']):
-        if (database['inventory'][guid]['need_fir'] > 0):
-            _diff_ = database['inventory'][guid]['have_fir'] + count - database['inventory'][guid]['need_fir']
-            database['inventory'][guid]['have_fir'] = database['inventory'][guid]['need_fir']
-            logging.info(f'Added {count - _diff_} {argument} to Found In Raid (FIR) inventory')
-        else:
-            _diff_ = count
-        
-        if (_diff_ + database['inventory'][guid]['have_nir'] > database['inventory'][guid]['need_nir']):
-            logging.info(f'Added {database["inventory"][guid]["have_nir"] - database["inventory"][guid]["need_nir"]} to Not found In Raid (NIR) inventory')
-            database['inventory'][guid]['have_nir'] = database['inventory'][guid]['need_nir']
-            _diff_ = _diff_ + database['inventory'][guid]['have_nir'] - database['inventory'][guid]['need_nir']
-            logging.warning(f'Skipped {_diff_} of {argument} as they are not needed in the inventory')
-        else:
-            database['inventory'][guid]['have_nir'] = database['inventory'][guid]['have_nir'] + _diff_
-            logging.info(f'Added {_diff_} {argument} to Not found In Raid (NIR) inventory')
+    if (database['inventory'][guid]['need_fir'] == 0):
+        logging.info(f'No {argument} are needed as Found In Raid (FIR) and therefore will be added as Not found In Raid (NIR)')
+        database = add_item_nir(tracker_file, argument, count, True, guid)
+    elif (database['inventory'][guid]['have_fir'] == database['inventory'][guid]['need_fir']):
+        logging.info(f'Already found all {argument} as Found In Raid (FIR). Therefore, items will be added as Not found In Raid (NIR)')
+        database = add_item_nir(tracker_file, argument, count, True, guid)
+    elif (database['inventory'][guid]['have_fir'] + count > database['inventory'][guid]['need_fir']):
+        _remainder_ = database['inventory'][guid]['have_fir'] + count - database['inventory'][guid]['need_fir']
+        database['inventory'][guid]['have_fir'] = database['inventory'][guid]['need_fir']
+        logging.info(f'Added {count - _remainder_} {argument} to Found In Raid (FIR) inventory (Found all items)')
+        database = add_item_nir(tracker_file, argument, _remainder_, True, guid)
     else:
         database['inventory'][guid]['have_fir'] = database['inventory'][guid]['have_fir'] + count
-        logging.info(f'Added {count} {argument} to needed (FIR) inventory')
+        logging.info(f'Added {count} {argument} to needed Found In Raid (FIR) inventory')
+
+    if (not database):
+        logging.error(f'Database file was corrupted. Restoring from memory')
+        write_database(tracker_file, memory)
 
     write_database(tracker_file, database)
     return True
 
-def add_item_nir(tracker_file, argument, count):
+def add_item_nir(tracker_file, argument, count, return_database = False, guid = ''):
     database = open_database(tracker_file)
+    memory = database
 
     if (not database):
         return False
     
-    guid = item_to_guid(database, argument)
+    if (not guid):
+        guid = item_to_guid(database, argument)
 
     if (not guid):
         logging.error(f'Could not find any item that matches {argument}')
@@ -2668,20 +2673,28 @@ def add_item_nir(tracker_file, argument, count):
         return False
     
     if (guid not in database['inventory'].keys()):
-        logging.error(f'Item {guid_to_item(database, guid)} is not needed in the inventory. Skipping')
+        logging.error(f'Item {guid_to_item(database, guid)} is not needed in the inventory')
         return False
 
-    if (database['inventory'][guid]['need_nir'] - database['inventory'][guid]['have_nir'] < count):
-        count = database['inventory'][guid]['need_nir'] - database['inventory'][guid]['have_nir']
+    if (database['inventory'][guid]['need_nir'] == 0):
+        logging.info(f'No {argument} are needed as Not found In Raid (NIR)')
+    elif (database['inventory'][guid]['have_nir'] == database['inventory'][guid]['need_nir']):
+        logging.info(f'Already found all {argument} as Not found In Raid (NIR)')
+    elif (database['inventory'][guid]['have_nir'] + count > database['inventory'][guid]['need_nir']):
+        _remainder_ = database['inventory'][guid]['have_nir'] + count - database['inventory'][guid]['need_nir']
         database['inventory'][guid]['have_nir'] = database['inventory'][guid]['need_nir']
-
-        if (count == 0):
-            logging.error(f'Item {guid_to_item(database, guid)} is not needed in the inventory as Not found In Raid (NIR). Skipping')
-            return False
+        logging.info(f'Added {count - _remainder_} {argument} to Not found In Raid (NIR) inventory and skipped remaining {_remainder_} (Found all items)')
     else:
         database['inventory'][guid]['have_nir'] = database['inventory'][guid]['have_nir'] + count
+        logging.info(f'Added {count} {argument} to needed Not found In Raid (NIR) inventory')
     
-    logging.info(f'Added {count} {argument} to Not found In Raid (NIR) inventory')
+    if (return_database):
+        return database
+
+    if (not database):
+        logging.error(f'Database file was corrupted. Restoring from memory')
+        write_database(tracker_file, memory)
+
     write_database(tracker_file, database)
     return True
 
@@ -2713,7 +2726,7 @@ def delete_item_fir(tracker_file, argument, count):
         database['inventory'][guid]['have_fir'] = database['inventory'][guid]['have_fir'] - count
 
     remaining = database['inventory'][guid]['have_fir']
-    logging.info(f'Removed {count} of {argument} from the Found In Raid (FIR) inventory [{remaining} remaining]')
+    logging.info(f'Removed {count} of {argument} from the Found In Raid (FIR) inventory [{remaining} remaining FIR]')
     write_database(tracker_file, database)
     return True
 
@@ -2744,7 +2757,7 @@ def delete_item_nir(tracker_file, argument, count):
         database['inventory'][guid]['have_nir'] = database['inventory'][guid]['have_nir'] - count
 
     remaining = database['inventory'][guid]['have_nir']
-    logging.info(f'Removed {count} of {argument} from the Not found In Raid (NIR) inventory [{remaining} remaining]')
+    logging.info(f'Removed {count} of {argument} from the Not found In Raid (NIR) inventory [{remaining} remaining NIR]')
     write_database(tracker_file, database)
     return True
 
@@ -3062,6 +3075,9 @@ def import_data(tracker_file):
                             }
                         }
                         stationLevelRequirements {
+                            station {
+                                id
+                            }
                             level
                         }
                     }

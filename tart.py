@@ -1,7 +1,7 @@
 # Standard library
 try:
     from datetime import datetime, timedelta
-    from os import system, name, rename
+    from os import system, name, rename, remove
     import logging
     import json
     import sys
@@ -173,6 +173,7 @@ BUFFER = '----------------------------------------------------------------------
 
 
 #TODO: Textile Part 2 listed twice for requires duct tape
+#TODO: Change completing things to consume NIR first then FIR if available (change from FIR to NIR then consume)
 # Command parsing
 def parser(tracker_file, command):
     command = command.lower().split(' ')
@@ -559,6 +560,7 @@ def parser(tracker_file, command):
     elif (command[0] == 'stop' or command[0] == 's' or command[0] == 'quit' or command[0] == 'q' or command[0] == 'exit'):
         logging.debug(f'Executing command: {command[0]}')
         database = open_database(tracker_file)
+        remove('database.prev.bak')
         rename('database.curr.bak', 'database.prev.bak')
         write_database('database.curr.bak', database)
         logging.info(f'Saved a backup of the current database file')

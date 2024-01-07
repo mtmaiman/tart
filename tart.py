@@ -1,7 +1,7 @@
 # Standard library
 try:
     from datetime import datetime, timedelta
-    from os import system, name
+    from os import system, name, rename
     import logging
     import json
     import sys
@@ -559,8 +559,9 @@ def parser(tracker_file, command):
     elif (command[0] == 'stop' or command[0] == 's' or command[0] == 'quit' or command[0] == 'q' or command[0] == 'exit'):
         logging.debug(f'Executing command: {command[0]}')
         database = open_database(tracker_file)
-        write_database('database.bak', database)
-        logging.info(f'Saved a backup of the current data file to database.bak')
+        rename('database.curr.bak', 'database.prev.bak')
+        write_database('database.curr.bak', database)
+        logging.info(f'Saved a backup of the current database file')
         return False
     # Clear
     elif (command[0] == 'clear'):

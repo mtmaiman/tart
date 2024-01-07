@@ -3295,7 +3295,7 @@ def import_data(tracker_file):
                             'consumed_nir': 0
                         }
                     else:
-                        database['inventory'][guid]['need_nir'] = database['inventory'][guid]['need_nir'] + 1
+                        database['inventory'][guid]['need_nir'] = 1
 
     logging.info('Updated all inventory values for task items')
 

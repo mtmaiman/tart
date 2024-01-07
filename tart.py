@@ -172,8 +172,6 @@ BUFFER = '----------------------------------------------------------------------
 ###################################################
 
 
-#TODO: Special Equipment is untracked but still counting towards inventory
-#TODO: State verification error
 # Command parsing
 def parser(tracker_file, command):
     command = command.lower().split(' ')
@@ -1549,7 +1547,7 @@ def complete_barter(database, guid, force):
 
             if (not force):
                 _return_ = verify_barter(barter)
-                
+
                 if (type(_return_) is str):
                     logging.error(_return_)
                     return False
@@ -3259,8 +3257,11 @@ def import_data(tracker_file):
         logging.info('Retrieved latest trader data from the api.tarkov.dev server')
         database['traders'] = response.json()['data']['traders']
     
-    for index, task in enumerate(database['tasks']):
-        for inner_index, objective in enumerate(task['objectives']):
+    for task in database['tasks']:
+        if (not task['tracked']):
+            continue
+
+        for objective in task['objectives']:
             if (objective['type'] == 'giveItem'):
                 guid = objective['item']['id']
 

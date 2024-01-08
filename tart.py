@@ -2734,9 +2734,9 @@ def add_item_fir(tracker_file, argument, count):
         database = add_item_nir(tracker_file, argument, count, True, guid)
     elif (database['inventory'][guid]['have_fir'] + count > database['inventory'][guid]['need_fir']):
         _remainder_ = database['inventory'][guid]['have_fir'] + count - database['inventory'][guid]['need_fir']
-        database['inventory'][guid]['have_fir'] = database['inventory'][guid]['need_fir']
         logging.info(f'Added {count - _remainder_} {argument} to Found In Raid (FIR) inventory (Found all items)')
         database = add_item_nir(tracker_file, argument, _remainder_, True, guid)
+        database['inventory'][guid]['have_fir'] = database['inventory'][guid]['need_fir']
     else:
         database['inventory'][guid]['have_fir'] = database['inventory'][guid]['have_fir'] + count
         logging.info(f'Added {count} {argument} to needed Found In Raid (FIR) inventory')

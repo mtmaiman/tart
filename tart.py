@@ -1202,20 +1202,28 @@ def get_tasks_by_map(database, guid):
         if (verify_task(database, task, task_table) != True):
             continue
 
+        invalid_map = False
+        potential = False
+
         for objective in task['objectives']:
             if (len(objective['maps']) == 0):
                 print_debug(f'Found task >> {task["name"]} << for map >> {guid} <<')
-                tasks.append(task)
-                break
+                potential = True
 
             for map in objective['maps']:
                 if (map['id'] == guid):
                     print_debug(f'Found task >> {task["name"]} << for map >> {guid} <<')
                     tasks.append(task)
                     break
+                else:
+                    invalid_map = True
             else:
                 continue
             break
+        else:
+            if (potential and not invalid_map):
+                tasks.append(task)
+        continue
 
     return tasks
 

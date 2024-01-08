@@ -824,7 +824,7 @@ def verify_task(database, task, task_table):
             id = prereq['task']['id']
 
         if (task_table[id] == 'incomplete'):
-            return f'{guid_to_task(prereq)["name"]} must be completed first'
+            return f'{guid_to_task(database, prereq)["name"]} must be completed first'
     
     print_debug(f'Verified task >> {task["name"]} <<')
     return True

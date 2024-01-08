@@ -1547,7 +1547,7 @@ def untrack_craft(database, guid):
     return database
 
 # Complete functions
-def complete_task(tracker_file, database, guid, force):
+def complete_task(database, guid, force):
     for task in database['tasks']:
         if (task['id'] == guid):
             if (task['status'] == 'complete'):
@@ -1626,16 +1626,16 @@ def complete_task(tracker_file, database, guid, force):
 
     return database
 
-def complete_recursive_task(tracker_file, database, guid, tasks = []):
+def complete_recursive_task(database, guid, tasks = []):
     for task in database['tasks']:
         if (task['id'] == guid):
             for prereq in task['taskRequirements']:
                 tasks.append(prereq['task']['id'])
-                tasks =  complete_recursive_task(tracker_file, database, prereq['task']['id'], tasks)
+                tasks =  complete_recursive_task(database, prereq['task']['id'], tasks)
     
     return tasks
 
-def complete_station(tracker_file, database, guid, force):
+def complete_station(database, guid, force):
     for station in database['hideout']:
         for level in station['levels']:
             if (level['id'] == guid):
@@ -1690,7 +1690,7 @@ def complete_station(tracker_file, database, guid, force):
 
     return database
 
-def complete_barter(tracker_file, database, guid, force):
+def complete_barter(database, guid, force):
     for barter in database['barters']:
         if (barter['id'] == guid):
             if (barter['status'] == 'complete'):
@@ -1745,7 +1745,7 @@ def complete_barter(tracker_file, database, guid, force):
 
     return database
 
-def complete_craft(tracker_file, database, guid, force):
+def complete_craft(database, guid, force):
     for craft in database['crafts']:
         if (craft['id'] == guid):
             if (craft['status'] == 'complete'):
@@ -2718,7 +2718,7 @@ def complete(tracker_file, argument, force, recurse):
     if (is_guid(argument)):
         guid = argument
         _copy_ = database
-        database = complete_barter(tracker_file, database, guid, force)
+        database = complete_barter(database, guid, force)
 
         if (database is None):
             database = complete_craft(_copy_, guid, force)
@@ -2729,18 +2729,18 @@ def complete(tracker_file, argument, force, recurse):
         guid = task_to_guid(database, argument)
 
         if (guid and not recurse):
-            database = complete_task(tracker_file, database, guid, force)
+            database = complete_task(database, guid, force)
         elif (guid and recurse):
-            tasks = complete_recursive_task(tracker_file, database, guid)
+            tasks = complete_recursive_task(database, guid)
             tasks.insert(0, guid)
 
             for task in tasks:
-                database = complete_task(tracker_file, database, task, True)
+                database = complete_task(database, task, True)
         else:
             guid = station_to_guid(database, argument)
 
             if (guid):
-                database = complete_station(tracker_file, database, guid, force)
+                database = complete_station(database, guid, force)
             else:
                 logging.error('Invalid argument')
                 return False
@@ -2893,8 +2893,7 @@ def import_data(tracker_file):
         'crafts': [],
         'all_items': [],
         'inventory': {},
-        'player_level': 1,
-        'last_item_refresh': ''
+        'player_level': 1
     }
 
     headers = {
@@ -3503,7 +3502,6 @@ def delta_import(tracker_file):
     logging.info(f'Completed inventory delta import with {inventory_changes} restores')
 
     database['player_level'] = memory['player_level']
-    database['last_item_refresh'] = memory['last_item_refresh']
     database['last_price_refresh'] = memory['last_price_refresh']
     logging.info('Restored player level, item refresh data, and price refresh data')
 

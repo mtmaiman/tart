@@ -171,6 +171,7 @@ BUFFER = '----------------------------------------------------------------------
 
 
 #TODO: Add more debug messages (starting with untrack workers)
+#TODO: If have == need, items are not showing up in print
 # Command parsing
 def parser(tracker_file, command):
     command = command.lower().split(' ')
@@ -824,7 +825,7 @@ def verify_task(database, task, task_table):
             id = prereq['task']['id']
 
         if (task_table[id] == 'incomplete'):
-            return f'{guid_to_task(database, prereq)["name"]} must be completed first'
+            return f'{guid_to_task(database, id)} must be completed first'
     
     print_debug(f'Verified task >> {task["name"]} <<')
     return True

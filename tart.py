@@ -1597,7 +1597,7 @@ def complete_station(tracker_file, database, guid, force):
                                 logging.error(f'Hideout station not completed')
                                 return False
                                 
-                        consumer_table[item_guid] = need_nir
+                    consumer_table[item_guid] = need_nir
                 
                 for item_guid in consumer_table.keys():
                     database['inventory'][item_guid]['consumed_nir'] = database['inventory'][item_guid]['consumed_nir'] + consumer_table[item_guid]
@@ -1655,7 +1655,7 @@ def complete_barter(tracker_file, database, guid, force):
                             logging.error(f'Barter not completed')
                             return False
                             
-                    consumer_table[item_guid] = need_nir
+                consumer_table[item_guid] = need_nir
             
             for item_guid in consumer_table.keys():
                 database['inventory'][item_guid]['consumed_nir'] = database['inventory'][item_guid]['consumed_nir'] + consumer_table[item_guid]
@@ -1710,7 +1710,7 @@ def complete_craft(tracker_file, database, guid, force):
                             logging.error(f'Craft not completed')
                             return False
                             
-                    consumer_table[item_guid] = need_nir
+                consumer_table[item_guid] = need_nir
             
             for item_guid in consumer_table.keys():
                 database['inventory'][item_guid]['consumed_nir'] = database['inventory'][item_guid]['consumed_nir'] + consumer_table[item_guid]

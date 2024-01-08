@@ -2,3 +2,6 @@
 database.json
 database.curr.bak
 database.prev.bak
+debug.json
+debug.curr.bak
+debug.prev.bak

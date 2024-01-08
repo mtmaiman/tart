@@ -560,9 +560,15 @@ def parser(tracker_file, command):
     elif (command[0] == 'stop' or command[0] == 's' or command[0] == 'quit' or command[0] == 'q' or command[0] == 'exit'):
         logging.debug(f'Executing command: {command[0]}')
         database = open_database(tracker_file)
-        remove('database.prev.bak')
-        rename('database.curr.bak', 'database.prev.bak')
-        write_database('database.curr.bak', database)
+
+        if (tracker_file == 'debug.json'):
+            file = 'debug'
+        else:
+            file = 'database'
+
+        remove(f'{file}.prev.bak')
+        rename(f'{file}.curr.bak', f'{file}.prev.bak')
+        write_database(f'{file}.curr.bak', database)
         logging.info(f'Saved a backup of the current database file')
         return False
     # Clear

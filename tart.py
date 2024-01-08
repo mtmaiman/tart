@@ -1431,7 +1431,7 @@ def track_barter(database, guid):
                 else:
                     database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] + count
                 
-                print_debug(f'Adding >> {count} << of >> {item_guid} << for requirement >> {requirement["id"]} <<')
+                print_debug(f'Adding >> {count} << of >> {item_guid} << for requirement')
                 print_message(f'{count} more {guid_to_item(database, item_guid)} (NIR) now needed')
 
             barter['tracked'] = True
@@ -1467,7 +1467,7 @@ def track_craft(database, guid):
                 else:
                     database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] + count
                 
-                print_debug(f'Adding >> {count} << of >> {item_guid} << for requirement >> {requirement["id"]} <<')
+                print_debug(f'Adding >> {count} << of >> {item_guid} << for requirement')
                 print_message(f'{count} more {guid_to_item(database, item_guid)} (NIR) now needed')
 
             craft['tracked'] = True

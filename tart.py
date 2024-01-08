@@ -2746,19 +2746,19 @@ def add_item_fir(tracker_file, argument, count, return_database = False, guid = 
         return False
 
     if (database['inventory'][guid]['need_fir'] == 0):
-        logging.info(f'No {guid_to_item(argument)} are needed as Found In Raid (FIR) and therefore will be added as Not found In Raid (NIR)')
+        logging.info(f'No {guid_to_item(database, guid)} are needed as Found In Raid (FIR) and therefore will be added as Not found In Raid (NIR)')
         database = add_item_nir(tracker_file, argument, count, True, guid)
     elif (database['inventory'][guid]['have_fir'] == database['inventory'][guid]['need_fir']):
-        logging.info(f'Already found all {guid_to_item(argument)} as Found In Raid (FIR). Therefore, items will be added as Not found In Raid (NIR)')
+        logging.info(f'Already found all {guid_to_item(database, guid)} as Found In Raid (FIR). Therefore, items will be added as Not found In Raid (NIR)')
         database = add_item_nir(tracker_file, argument, count, True, guid)
     elif (database['inventory'][guid]['have_fir'] + count > database['inventory'][guid]['need_fir']):
         _remainder_ = database['inventory'][guid]['have_fir'] + count - database['inventory'][guid]['need_fir']
-        logging.info(f'Added {count - _remainder_} {guid_to_item(argument)} to Found In Raid (FIR) inventory (Found all items)')
+        logging.info(f'Added {count - _remainder_} {guid_to_item(database, guid)} to Found In Raid (FIR) inventory (Found all items)')
         database = add_item_nir(tracker_file, argument, _remainder_, True, guid)
         database['inventory'][guid]['have_fir'] = database['inventory'][guid]['need_fir']
     else:
         database['inventory'][guid]['have_fir'] = database['inventory'][guid]['have_fir'] + count
-        logging.info(f'Added {count} {guid_to_item(argument)} to needed Found In Raid (FIR) inventory')
+        logging.info(f'Added {count} {guid_to_item(database, guid)} to needed Found In Raid (FIR) inventory')
 
     if (return_database):
         return database
@@ -2793,16 +2793,16 @@ def add_item_nir(tracker_file, argument, count, return_database = False, guid = 
         return False
 
     if (database['inventory'][guid]['need_nir'] == 0):
-        logging.info(f'No {guid_to_item(argument)} are needed as Not found In Raid (NIR)')
+        logging.info(f'No {guid_to_item(database, guid)} are needed as Not found In Raid (NIR)')
     elif (database['inventory'][guid]['have_nir'] == database['inventory'][guid]['need_nir']):
-        logging.info(f'Already found all {guid_to_item(argument)} as Not found In Raid (NIR)')
+        logging.info(f'Already found all {guid_to_item(database, guid)} as Not found In Raid (NIR)')
     elif (database['inventory'][guid]['have_nir'] + count > database['inventory'][guid]['need_nir']):
         _remainder_ = database['inventory'][guid]['have_nir'] + count - database['inventory'][guid]['need_nir']
         database['inventory'][guid]['have_nir'] = database['inventory'][guid]['need_nir']
-        logging.info(f'Added {count - _remainder_} {guid_to_item(argument)} to Not found In Raid (NIR) inventory and skipped remaining {_remainder_} (Found all items)')
+        logging.info(f'Added {count - _remainder_} {guid_to_item(database, guid)} to Not found In Raid (NIR) inventory and skipped remaining {_remainder_} (Found all items)')
     else:
         database['inventory'][guid]['have_nir'] = database['inventory'][guid]['have_nir'] + count
-        logging.info(f'Added {count} {guid_to_item(argument)} to needed Not found In Raid (NIR) inventory')
+        logging.info(f'Added {count} {guid_to_item(database, guid)} to needed Not found In Raid (NIR) inventory')
     
     if (return_database):
         return database
@@ -2846,7 +2846,7 @@ def delete_item_fir(tracker_file, argument, count, return_database = False, guid
         return database
 
     remaining = database['inventory'][guid]['have_fir']
-    logging.info(f'Removed {count} of {guid_to_item(argument)} from the Found In Raid (FIR) inventory [{remaining} remaining FIR]')
+    logging.info(f'Removed {count} of {guid_to_item(database, guid)} from the Found In Raid (FIR) inventory [{remaining} remaining FIR]')
     write_database(tracker_file, database)
     return True
 
@@ -2881,7 +2881,7 @@ def delete_item_nir(tracker_file, argument, count, return_database = False, guid
         return database
 
     remaining = database['inventory'][guid]['have_nir']
-    logging.info(f'Removed {count} of {guid_to_item(argument)} from the Not found In Raid (NIR) inventory [{remaining} remaining NIR]')
+    logging.info(f'Removed {count} of {guid_to_item(database, guid)} from the Not found In Raid (NIR) inventory [{remaining} remaining NIR]')
     write_database(tracker_file, database)
     return True
 
@@ -3649,7 +3649,7 @@ def backup(tracker_file):
                 else:
                     _save_ = 'Previous autosave (2 exits ago)'
 
-                _display_ = _display_ + f'[{index}] {save} (Autosave - Cannot overwrite)\n'
+                _display_ = _display_ + f'[{index}] {_save_} (Autosave - Cannot overwrite)\n'
             else:
                 _save_ = save.split('.')
                 _save_[1] = datetime.strptime(_save_[1], '%Y-%m-%d').strftime('%B, %A %d, %Y')
@@ -3692,7 +3692,7 @@ def restore(tracker_file):
             else:
                 _save_ = 'Previous autosave (2 exits ago)'
 
-            _display_ = _display_ + f'[{index}] {save} (Autosave - Cannot overwrite)\n'
+            _display_ = _display_ + f'[{index}] {_save_} (Autosave)\n'
         else:
             _save_ = save.split('.')
             _save_[1] = datetime.strptime(_save_[1], '%Y-%m-%d').strftime('%B, %A %d, %Y')
@@ -3703,7 +3703,7 @@ def restore(tracker_file):
     logging.info(_display_)
     restore = input('> ')
 
-    if (not restore.isdigit() or int(restore) < 2 or int(restore) > len(saves) - 1):
+    if (not restore.isdigit() or int(restore) > len(saves) - 1):
         logging.error('Invalid restore argument')
         return False
     

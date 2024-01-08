@@ -233,7 +233,12 @@ def parser(tracker_file, command):
         elif (command[1] == 'untracked'):
             if (len(command) == 3):
                 print_debug(f'Executing >> {command[0]} {command[1]} {command[2]} <<')
-                list_untracked(tracker_file, True)
+                
+                if (command[2] == 'kappa'):
+                    list_untracked(tracker_file, True)
+                else:
+                    print_debug(f'Failed >> {command[0]} {command[1]} <<')
+                    print_error('Command not recognized')
             else:
                 print_debug(f'Executing >> {command[0]} {command[1]} <<')
                 list_untracked(tracker_file, False)
@@ -3417,8 +3422,13 @@ def import_data(tracker_file):
             map['normalizedName'] = 'streets'
         elif (map['normalizedName'] == 'the-lab'):
             map['normalizedName'] = 'labs'
+
+    for trader in database['traders']:
+        if (trader['normalizedName'] == 'btr-driver'):
+            trader['normalizedName'] = 'btr'
     
     print_message('Overwrote normalized name for "Streets of Tarkov" to "streets" and for "The Lab" to "labs"')
+    print_message('Overwrote normalized name for "BTR-Driver" to "btr"')
     database = import_all_items(database, headers)
     print_message('Retrieved latest item data from the api.tarkov.dev server')
     write_database(tracker_file, database)

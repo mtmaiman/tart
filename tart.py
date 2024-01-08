@@ -3620,13 +3620,13 @@ def backup(tracker_file):
                 else:
                     _save_ = 'Previous autosave (2 exits ago)'
 
-                _display_ = _display_ + f'[{index}] {_save_} (Autosave - Cannot overwrite)\n'
+                _display_ = _display_ + f'[{index + 1}] {_save_} (Autosave - Cannot overwrite)\n'
             else:
                 _save_ = save.split('.')
                 _save_[1] = datetime.strptime(_save_[1], '%Y-%m-%d').strftime('%B, %A %d, %Y')
                 _save_[2] = datetime.strptime(_save_[2], '%H-%M-%S').strftime('%H:%M:%S')
                 _save_ = f'{_save_[1]} at {_save_[2]}'
-                _display_ = _display_ + f'[{index}] {_save_}\n'
+                _display_ = _display_ + f'[{index + 1}] {_save_}\n'
 
         print_message(_display_)
         overwrite = input('> ')
@@ -3635,7 +3635,7 @@ def backup(tracker_file):
             print_error('Invalid overwrite argument')
             return False
         
-        overwrite = saves[int(overwrite)]
+        overwrite = saves[int(overwrite - 1)]
         print_message(f'Overwriting save file {overwrite}')
         remove(overwrite)
 
@@ -3663,13 +3663,13 @@ def restore(tracker_file):
             else:
                 _save_ = 'Previous autosave (2 exits ago)'
 
-            _display_ = _display_ + f'[{index}] {_save_} (Autosave)\n'
+            _display_ = _display_ + f'[{index + 1}] {_save_} (Autosave)\n'
         else:
             _save_ = save.split('.')
             _save_[1] = datetime.strptime(_save_[1], '%Y-%m-%d').strftime('%B, %A %d, %Y')
             _save_[2] = datetime.strptime(_save_[2], '%H-%M-%S').strftime('%H:%M:%S')
             _save_ = f'{_save_[1]} at {_save_[2]}'
-            _display_ = _display_ + f'[{index}] {_save_}\n'
+            _display_ = _display_ + f'[{index + 1}] {_save_}\n'
 
     print_message(_display_)
     restore = input('> ')
@@ -3678,7 +3678,7 @@ def restore(tracker_file):
         print_error('Invalid restore argument')
         return False
     
-    restore = saves[int(restore)]
+    restore = saves[int(restore - 1)]
     print_message(f'Restoring from save file {restore}')
     restore_database = open_database(restore)
     write_database(tracker_file, restore_database)

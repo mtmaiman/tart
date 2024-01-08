@@ -171,7 +171,6 @@ BUFFER = '----------------------------------------------------------------------
 
 
 #TODO: Add more debug messages (starting with untrack workers)
-#TODO: If have == need, items are not showing up in print
 # Command parsing
 def parser(tracker_file, command):
     command = command.lower().split(' ')

@@ -174,6 +174,8 @@ BUFFER = '----------------------------------------------------------------------
 
 #TODO: Textile Part 2 listed twice for requires duct tape
 #TODO: Change completing things to consume NIR first then FIR if available (change from FIR to NIR then consume)
+#TODO: Manual backup
+#TODO: Restore backup
 # Command parsing
 def parser(tracker_file, command):
     command = command.lower().split(' ')
@@ -571,7 +573,7 @@ def parser(tracker_file, command):
         
         if (f'{file}.curr.bak' in listdir('.')):
             rename(f'{file}.curr.bak', f'{file}.prev.bak')
-            
+
         write_database(f'{file}.curr.bak', database)
         logging.info(f'Saved a backup of the current database file')
         return False
@@ -1802,8 +1804,15 @@ def print_inventory_generic(items, inv):
 
 def print_tasks(database, tasks):
     display = TASK_HEADER + BUFFER
+    # There are some duplicate tasks for USEC and BEAR (i.e., Textile Part 1 and 2)
+    observed_tasks = []
     
     for task in tasks:
+        if (task['name'] in observed_tasks):
+            logging.debug(f'The task {task["name"]} has already been seen and will be skipped during printing')
+            continue
+
+        observed_tasks.append(task['name'])
         display = display + '{:<40} {:<20} {:<20} {:<20} {:<20} {:<40}\n'.format(task['name'], guid_to_trader(database, task['trader']['id']), task['status'], print_bool(task['tracked']), print_bool(task['kappaRequired']), task['id'])
 
         for objective in task['objectives']:
@@ -3546,7 +3555,7 @@ def delta_import(tracker_file):
 
 def main(args):
     if (len(args) > 1 and args[1] == 'debug'):
-        logging.basicConfig(level = logging.DEBUG, format = '[%(levelname)s] %(message)s')
+        logging.basicConfig(level = logging.INFO, format = '[%(levelname)s] %(message)s')
         logging.info('Welcome to the TARkov Tracker (TART)!')
         logging.info('RUNNING IN DEBUG MODE. All changes will affect only the debug database file!')
         tracker_file = 'debug.json'

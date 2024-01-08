@@ -32,7 +32,6 @@ commands
 \tdel help
 \tlevel help
 \tclear help
-\treset help
 \timport help
 \tbackup help
 \trestore help
@@ -135,17 +134,6 @@ level : The integer value greater than 0 to set the player level at
 CLEAR_HELP = '''
 > clear\n
 Clears the terminal
-'''
-RESET_HELP = '''
-> reset [object]\n
-Resets all progression on a or all data structure(s)\n
-objects
-\ttasks : Resets all progress on tasks
-\tstations : Resets all progress on hideout stations
-\thideout : Resets all progress on hideout stations
-\tbarters : Resets all progress on barters
-\tinv : Clears the inventory of all items
-\tall : Resets progress for all data structures and clears the inventory of all items
 '''
 IMPORT_HELP = '''
 > import {prices}\n
@@ -264,48 +252,6 @@ def parser(tracker_file, command):
             logging.debug(f'Failed to execute command: {command[0]} {command[1]}')
             logging.error('Unhandled ls argument')
             logging.info(LS_HELP)
-    # Reset
-    elif (command[0] == 'reset'):
-        if (len(command) < 2):
-            logging.debug(f'Failed to execute command: {command[0]}')
-            logging.error('Missing reset argument')
-            logging.info(RESET_HELP)
-        elif (command[1] == 'help' or command[1] == 'h'):
-            logging.info(RESET_HELP)
-        else:
-            logging.warning('You are about to reset progress! Are you sure you wish to proceed? (Y/N)')
-            confirmation = input('> ').lower()
-
-            if (confirmation == 'y'):
-                if (command[1] == 'tasks'):
-                    logging.debug(f'Executing command: {command[0]} {command[1]}')
-                    reset_tasks(tracker_file)
-                elif (command[1] == 'stations' or command[1] == 'hideout'):
-                    logging.debug(f'Executing command: {command[0]} {command[1]}')
-                    reset_stations(tracker_file)
-                elif (command[1] == 'barters'):
-                    logging.debug(f'Executing command: {command[0]} {command[1]}')
-                    reset_barters(tracker_file)
-                elif (command[1] == 'crafts'):
-                    logging.debug(f'Executing command: {command[0]} {command[1]}')
-                    reset_crafts(tracker_file)
-                elif (command[1] == 'inv'):
-                    logging.debug(f'Executing command: {command[0]} {command[1]}')
-                    reset_inventory(tracker_file)
-                elif (command[1] == 'all'):
-                    logging.debug(f'Executing command: {command[0]} {command[1]}')
-                    reset_tasks(tracker_file)
-                    reset_stations(tracker_file)
-                    reset_barters(tracker_file)
-                    reset_crafts(tracker_file)
-                    reset_inventory(tracker_file)
-                else:
-                    logging.debug(f'Failed to execute command: {command[0]} {command[1]}')
-                    logging.error('Unhandled reset argument')
-                    logging.info(RESET_HELP)
-            else:
-                logging.debug(f'Aborted command execution for {command[0]} {command[1]} due to confirmation response of {confirmation}')
-                logging.info('Reset aborted')
     # Restart
     elif (command[0] == 'restart'):
         if (len(command) < 2):
@@ -498,12 +444,12 @@ def parser(tracker_file, command):
                 logging.debug(f'Executing command: {command[0]} {command[1]} {command[2:-1]} {command[-1]}')
                 count = int(command[1])
                 argument = ' '.join(command[2:-1])
-                add_item_fir(tracker_file, argument, count)
+                write_item_fir(tracker_file, count, argument = argument)
             else:
                 logging.debug(f'Executing command: {command[0]} {command[1]} {command[2:]}')
                 count = int(command[1])
                 argument = ' '.join(command[2:])
-                add_item_nir(tracker_file, argument, count)
+                write_item_nir(tracker_file, count, argument = argument)
     # Delete
     elif (command[0] == 'del'):
         if (len(command) < 2):
@@ -526,12 +472,12 @@ def parser(tracker_file, command):
                 logging.debug(f'Executing command: {command[0]} {command[1]} {command[2:-1]} {command[-1]}')
                 count = int(command[1])
                 argument = ' '.join(command[2:-1])
-                delete_item_fir(tracker_file, argument, count)
+                unwrite_item_fir(tracker_file, count, argument = argument)
             else:
                 logging.debug(f'Executing command: {command[0]} {command[1]} {command[2:]}')
                 count = int(command[1])
                 argument = ' '.join(command[2:])
-                delete_item_nir(tracker_file, argument, count)
+                unwrite_item_nir(tracker_file, count, argument = argument)
     # Level
     elif (command[0] == 'level'):
         if (len(command) > 1):
@@ -932,6 +878,141 @@ def verify_craft(craft):
     
     logging.debug(f'Craft recipe {craft["id"]} successfully verified')
     return True
+
+# Add Items
+def add_item_fir(database, count, argument = '', guid = ''):
+    memory = database
+    
+    if (not guid):
+        guid = item_to_guid(database, argument)
+
+        if (not guid):
+            logging.error(f'Could not find any item that matches {argument}')
+            return False
+    
+    if (not count or count < 1):
+        logging.error(f'Invalid or missing count argument. Accepts an integer greater than 0')
+        return False
+    
+    if (guid not in database['inventory'].keys()):
+        logging.error(f'{guid_to_item(database, guid)} is not needed')
+        return False
+
+    if (database['inventory'][guid]['need_fir'] == 0):
+        logging.info(f'No {guid_to_item(database, guid)} are needed as Found In Raid (FIR) and therefore will be added as Not found In Raid (NIR)')
+        database = add_item_nir(database, count, guid = guid)
+    elif (database['inventory'][guid]['have_fir'] == database['inventory'][guid]['need_fir']):
+        logging.info(f'Already found all {guid_to_item(database, guid)} as Found In Raid (FIR). Therefore, items will be added as Not found In Raid (NIR)')
+        database = add_item_nir(database, count, guid = guid)
+    elif (database['inventory'][guid]['have_fir'] + count > database['inventory'][guid]['need_fir']):
+        _remainder_ = database['inventory'][guid]['have_fir'] + count - database['inventory'][guid]['need_fir']
+        logging.info(f'Added {count - _remainder_} {guid_to_item(database, guid)} to Found In Raid (FIR) inventory (Found all items)')
+        database = add_item_nir(database, count, guid = guid)
+        database['inventory'][guid]['have_fir'] = database['inventory'][guid]['need_fir']
+    else:
+        database['inventory'][guid]['have_fir'] = database['inventory'][guid]['have_fir'] + count
+        logging.info(f'Added {count} {guid_to_item(database, guid)} to needed Found In Raid (FIR) inventory')
+
+    if (not database):
+        logging.error(f'Database file was corrupted. Restoring from memory')
+        database = memory
+
+    return database
+
+def add_item_nir(database, count, argument = '', guid = ''):
+    memory = database
+    
+    if (not guid):
+        guid = item_to_guid(database, argument)
+
+        if (not guid):
+            logging.error(f'Could not find any item that matches {argument}')
+            return False
+    
+    if (not count or count < 1):
+        logging.error(f'Invalid or missing count argument. Accepts an integer greater than 0')
+        return False
+    
+    if (guid not in database['inventory'].keys()):
+        logging.error(f'{guid_to_item(database, guid)} is not needed')
+        return False
+
+    if (database['inventory'][guid]['need_nir'] == 0):
+        logging.info(f'No {guid_to_item(database, guid)} are needed as Not found In Raid (NIR)')
+    elif (database['inventory'][guid]['have_nir'] == database['inventory'][guid]['need_nir']):
+        logging.info(f'Already found all {guid_to_item(database, guid)} as Not found In Raid (NIR)')
+    elif (database['inventory'][guid]['have_nir'] + count > database['inventory'][guid]['need_nir']):
+        _remainder_ = database['inventory'][guid]['have_nir'] + count - database['inventory'][guid]['need_nir']
+        database['inventory'][guid]['have_nir'] = database['inventory'][guid]['need_nir']
+        logging.info(f'Added {count - _remainder_} {guid_to_item(database, guid)} to Not found In Raid (NIR) inventory and skipped remaining {_remainder_} (Found all items)')
+    else:
+        database['inventory'][guid]['have_nir'] = database['inventory'][guid]['have_nir'] + count
+        logging.info(f'Added {count} {guid_to_item(database, guid)} to needed Not found In Raid (NIR) inventory')
+
+    if (not database):
+        logging.error(f'Database file was corrupted. Restoring from memory')
+        database = memory
+
+    return database
+
+# Delete Items
+def del_item_fir(database, count, argument = '', guid = ''):
+    if (not database):
+        return False
+    
+    if (not guid):
+        guid = item_to_guid(database, argument)
+
+        if (not guid):
+            logging.error(f'Could not find any item that matches {argument}')
+            return False
+    
+    if (not count or count < 1):
+        logging.error(f'Invalid or missing count argument. Accepts an integer greater than 0')
+        return False
+    
+    if (guid not in database['inventory'].keys()):
+        logging.error(f'Item {guid_to_item(database, guid)} was not found in the inventory. Skipping')
+        return False
+
+    if (database['inventory'][guid]['have_fir'] - count < 0):
+        count = database['inventory'][guid]['have_fir']
+        database['inventory'][guid]['have_fir'] = 0
+    else:
+        database['inventory'][guid]['have_fir'] = database['inventory'][guid]['have_fir'] - count
+
+    remaining = database['inventory'][guid]['have_fir']
+    logging.info(f'Removed {count} of {guid_to_item(database, guid)} from the Found In Raid (FIR) inventory [{remaining} remaining FIR]')
+    return database
+
+def del_item_nir(database, count, argument = '', guid = ''):
+    if (not database):
+        return False
+    
+    if (not guid):
+        guid = item_to_guid(database, argument)
+
+        if (not guid):
+            logging.error(f'Could not find any item that matches {argument}')
+            return False
+    
+    if (not count or count < 1):
+        logging.error(f'Invalid or missing count argument. Accepts an integer greater than 0')
+        return False
+    
+    if (guid not in database['inventory'].keys()):
+        logging.error(f'Item {guid_to_item(database, guid)} was not found in the inventory. Skipping')
+        return False
+
+    if (database['inventory'][guid]['have_nir'] - count < 0):
+        count = database['inventory'][guid]['have_nir']
+        database['inventory'][guid]['have_nir'] = 0
+    else:
+        database['inventory'][guid]['have_nir'] = database['inventory'][guid]['have_nir'] - count
+
+    remaining = database['inventory'][guid]['have_nir']
+    logging.info(f'Removed {count} of {guid_to_item(database, guid)} from the Not found In Raid (NIR) inventory [{remaining} remaining NIR]')
+    return database
 
 # Get functions
 def get_items(database):
@@ -1499,7 +1580,7 @@ def complete_task(tracker_file, database, guid, force):
                             logging.error(f'{_remainder_} more {guid_to_item(database, item_guid)} (FIR) required')
                             return False                     
                         elif (force):
-                            database = add_item_fir(tracker_file, '', _remainder_, True, item_guid)
+                            database = add_item_fir(database, _remainder_, guid = item_guid)
                         
                         consumer_table[item_guid] = {
                             'count': need_fir,
@@ -1514,14 +1595,14 @@ def complete_task(tracker_file, database, guid, force):
                                 logging.error(f'{_remainder_} more {guid_to_item(database, item_guid)} required')
                                 return False
                             elif (force):
-                                database = add_item_nir(tracker_file, '', _remainder_, True, item_guid)
+                                database = add_item_nir(database, _remainder_, guid = item_guid)
                             else:
                                 logging.info(f'{_remainder_} more {guid_to_item(database, item_guid)} required. You have {available_fir} (FIR) available which can be used instead. Would you like to consume these for this task? (Y/N)')
                                 _confirmation_ = input('> ').lower()
 
                                 if (_confirmation_ == 'y'):
-                                    database = delete_item_fir(tracker_file, '', _remainder_, True, item_guid)
-                                    database = add_item_nir(tracker_file, '', _remainder_, True, item_guid)
+                                    database = del_item_fir(database, _remainder_, guid = item_guid)
+                                    database = add_item_nir(database, _remainder_, guid = item_guid)
                                 else:
                                     logging.error(f'Task not completed')
                                     return False
@@ -1545,18 +1626,14 @@ def complete_task(tracker_file, database, guid, force):
 
     return database
 
-def complete_recursive_task(tracker_file, database, guid, force):
-    updated_database = complete_task(tracker_file, database, guid, force)
-
-    if (updated_database):
-        database = updated_database
-
+def complete_recursive_task(tracker_file, database, guid, tasks = []):
     for task in database['tasks']:
         if (task['id'] == guid):
             for prereq in task['taskRequirements']:
-                database = complete_recursive_task(tracker_file, database, prereq['task']['id'], force)
-
-    return database
+                tasks.append(prereq['task']['id'])
+                tasks =  complete_recursive_task(tracker_file, database, prereq['task']['id'], tasks)
+    
+    return tasks
 
 def complete_station(tracker_file, database, guid, force):
     for station in database['hideout']:
@@ -1585,14 +1662,14 @@ def complete_station(tracker_file, database, guid, force):
                             logging.error(f'{_remainder_} more {guid_to_item(database, item_guid)} required')
                             return False
                         elif (force):
-                            database = add_item_nir(tracker_file, '', _remainder_, True, item_guid)
+                            database = add_item_nir(database, _remainder_, guid = item_guid)
                         else:
                             logging.info(f'{_remainder_} more {guid_to_item(database, item_guid)} required. You have {available_fir} (FIR) available which can be used instead. Would you like to consume these for this hideout station? (Y/N)')
                             _confirmation_ = input('> ').lower()
 
                             if (_confirmation_ == 'y'):
-                                database = delete_item_fir(tracker_file, '', _remainder_, True, item_guid)
-                                database = add_item_nir(tracker_file, '', _remainder_, True, item_guid)
+                                database = del_item_fir(database, _remainder_, guid = item_guid)
+                                database = add_item_nir(database, _remainder_, guid = item_guid)
                             else:
                                 logging.error(f'Hideout station not completed')
                                 return False
@@ -1643,14 +1720,14 @@ def complete_barter(tracker_file, database, guid, force):
                         logging.error(f'{_remainder_} more {guid_to_item(database, item_guid)} required')
                         return False
                     elif (force):
-                        database = add_item_nir(tracker_file, '', _remainder_, True, item_guid)
+                        database = add_item_nir(database, _remainder_, guid = item_guid)
                     else:
                         logging.info(f'{_remainder_} more {guid_to_item(database, item_guid)} required. You have {available_fir} (FIR) available which can be used instead. Would you like to consume these for this barter? (Y/N)')
                         _confirmation_ = input('> ').lower()
 
                         if (_confirmation_ == 'y'):
-                            database = delete_item_fir(tracker_file, '', _remainder_, True, item_guid)
-                            database = add_item_nir(tracker_file, '', _remainder_, True, item_guid)
+                            database = del_item_fir(database, _remainder_, guid = item_guid)
+                            database = add_item_nir(database, _remainder_, guid = item_guid)
                         else:
                             logging.error(f'Barter not completed')
                             return False
@@ -1698,14 +1775,14 @@ def complete_craft(tracker_file, database, guid, force):
                         logging.error(f'{_remainder_} more {guid_to_item(database, item_guid)} required')
                         return False
                     elif (force):
-                        database = add_item_nir(tracker_file, '', _remainder_, True, item_guid)
+                        database = add_item_nir(database, _remainder_, guid = item_guid)
                     else:
                         logging.info(f'{_remainder_} more {guid_to_item(database, item_guid)} required. You have {available_fir} (FIR) available which can be used instead. Would you like to consume these for this craft? (Y/N)')
                         _confirmation_ = input('> ').lower()
 
                         if (_confirmation_ == 'y'):
-                            database = delete_item_fir(tracker_file, '', _remainder_, True, item_guid)
-                            database = add_item_nir(tracker_file, '', _remainder_, True, item_guid)
+                            database = del_item_fir(database, _remainder_, guid = item_guid)
+                            database = add_item_nir(database, _remainder_, guid = item_guid)
                         else:
                             logging.error(f'Craft not completed')
                             return False
@@ -2097,7 +2174,7 @@ def print_search(database, tasks, stations, barters, crafts, items, traders, map
 
 ###################################################
 #                                                 #
-# CALLABLE FUNCTIONS                              #
+# WRITABLE FUNCTIONS                              #
 #                                                 #
 ###################################################
 
@@ -2654,7 +2731,11 @@ def complete(tracker_file, argument, force, recurse):
         if (guid and not recurse):
             database = complete_task(tracker_file, database, guid, force)
         elif (guid and recurse):
-            database = complete_recursive_task(tracker_file, database, guid, True)
+            tasks = complete_recursive_task(tracker_file, database, guid)
+            tasks.insert(0, guid)
+
+            for task in tasks:
+                database = complete_task(tracker_file, database, task, True)
         else:
             guid = station_to_guid(database, argument)
 
@@ -2723,165 +2804,44 @@ def restart_barter_or_craft(tracker_file, argument):
     return False
 
 # Add
-def add_item_fir(tracker_file, argument, count, return_database = False, guid = ''):
+def write_item_fir(tracker_file, count, argument):
     database = open_database(tracker_file)
-    memory = database
+    database = add_item_fir(database, count, argument = argument)
 
     if (not database):
         return False
-    
-    if (not guid):
-        guid = item_to_guid(database, argument)
-
-        if (not guid):
-            logging.error(f'Could not find any item that matches {argument}')
-            return False
-    
-    if (not count or count < 1):
-        logging.error(f'Invalid or missing count argument. Accepts an integer greater than 0')
-        return False
-    
-    if (guid not in database['inventory'].keys()):
-        logging.error(f'Item {guid_to_item(database, guid)} is not needed in the inventory')
-        return False
-
-    if (database['inventory'][guid]['need_fir'] == 0):
-        logging.info(f'No {guid_to_item(database, guid)} are needed as Found In Raid (FIR) and therefore will be added as Not found In Raid (NIR)')
-        database = add_item_nir(tracker_file, argument, count, True, guid)
-    elif (database['inventory'][guid]['have_fir'] == database['inventory'][guid]['need_fir']):
-        logging.info(f'Already found all {guid_to_item(database, guid)} as Found In Raid (FIR). Therefore, items will be added as Not found In Raid (NIR)')
-        database = add_item_nir(tracker_file, argument, count, True, guid)
-    elif (database['inventory'][guid]['have_fir'] + count > database['inventory'][guid]['need_fir']):
-        _remainder_ = database['inventory'][guid]['have_fir'] + count - database['inventory'][guid]['need_fir']
-        logging.info(f'Added {count - _remainder_} {guid_to_item(database, guid)} to Found In Raid (FIR) inventory (Found all items)')
-        database = add_item_nir(tracker_file, argument, _remainder_, True, guid)
-        database['inventory'][guid]['have_fir'] = database['inventory'][guid]['need_fir']
-    else:
-        database['inventory'][guid]['have_fir'] = database['inventory'][guid]['have_fir'] + count
-        logging.info(f'Added {count} {guid_to_item(database, guid)} to needed Found In Raid (FIR) inventory')
-
-    if (return_database):
-        return database
-
-    if (not database):
-        logging.error(f'Database file was corrupted. Restoring from memory')
-        write_database(tracker_file, memory)
 
     write_database(tracker_file, database)
     return True
 
-def add_item_nir(tracker_file, argument, count, return_database = False, guid = ''):
+def write_item_nir(tracker_file, count, argument):
     database = open_database(tracker_file)
-    memory = database
+    database = add_item_nir(database, count, argument = argument)
 
     if (not database):
         return False
-    
-    if (not guid):
-        guid = item_to_guid(database, argument)
-
-        if (not guid):
-            logging.error(f'Could not find any item that matches {argument}')
-            return False
-    
-    if (not count or count < 1):
-        logging.error(f'Invalid or missing count argument. Accepts an integer greater than 0')
-        return False
-    
-    if (guid not in database['inventory'].keys()):
-        logging.error(f'Item {guid_to_item(database, guid)} is not needed in the inventory')
-        return False
-
-    if (database['inventory'][guid]['need_nir'] == 0):
-        logging.info(f'No {guid_to_item(database, guid)} are needed as Not found In Raid (NIR)')
-    elif (database['inventory'][guid]['have_nir'] == database['inventory'][guid]['need_nir']):
-        logging.info(f'Already found all {guid_to_item(database, guid)} as Not found In Raid (NIR)')
-    elif (database['inventory'][guid]['have_nir'] + count > database['inventory'][guid]['need_nir']):
-        _remainder_ = database['inventory'][guid]['have_nir'] + count - database['inventory'][guid]['need_nir']
-        database['inventory'][guid]['have_nir'] = database['inventory'][guid]['need_nir']
-        logging.info(f'Added {count - _remainder_} {guid_to_item(database, guid)} to Not found In Raid (NIR) inventory and skipped remaining {_remainder_} (Found all items)')
-    else:
-        database['inventory'][guid]['have_nir'] = database['inventory'][guid]['have_nir'] + count
-        logging.info(f'Added {count} {guid_to_item(database, guid)} to needed Not found In Raid (NIR) inventory')
-    
-    if (return_database):
-        return database
-
-    if (not database):
-        logging.error(f'Database file was corrupted. Restoring from memory')
-        write_database(tracker_file, memory)
 
     write_database(tracker_file, database)
     return True
 
 # Delete
-def delete_item_fir(tracker_file, argument, count, return_database = False, guid = ''):
+def unwrite_item_fir(tracker_file, count, argument):
     database = open_database(tracker_file)
+    database = del_item_fir(database, count, argument = argument)
 
     if (not database):
         return False
-    
-    if (not guid):
-        guid = item_to_guid(database, argument)
 
-        if (not guid):
-            logging.error(f'Could not find any item that matches {argument}')
-            return False
-    
-    if (not count or count < 1):
-        logging.error(f'Invalid or missing count argument. Accepts an integer greater than 0')
-        return False
-    
-    if (guid not in database['inventory'].keys()):
-        logging.error(f'Item {guid_to_item(database, guid)} was not found in the inventory. Skipping')
-        return False
-
-    if (database['inventory'][guid]['have_fir'] - count < 0):
-        count = database['inventory'][guid]['have_fir']
-        database['inventory'][guid]['have_fir'] = 0
-    else:
-        database['inventory'][guid]['have_fir'] = database['inventory'][guid]['have_fir'] - count
-
-    if (return_database):
-        return database
-
-    remaining = database['inventory'][guid]['have_fir']
-    logging.info(f'Removed {count} of {guid_to_item(database, guid)} from the Found In Raid (FIR) inventory [{remaining} remaining FIR]')
     write_database(tracker_file, database)
     return True
 
-def delete_item_nir(tracker_file, argument, count, return_database = False, guid = ''):
+def unwrite_item_nir(tracker_file, count, argument):
     database = open_database(tracker_file)
+    database = del_item_nir(database, count, argument = argument)
 
     if (not database):
         return False
-    
-    if (not guid):
-        guid = item_to_guid(database, argument)
 
-        if (not guid):
-            logging.error(f'Could not find any item that matches {argument}')
-            return False
-    
-    if (not count or count < 1):
-        logging.error(f'Invalid or missing count argument. Accepts an integer greater than 0')
-        return False
-    
-    if (guid not in database['inventory'].keys()):
-        logging.error(f'Item {guid_to_item(database, guid)} was not found in the inventory. Skipping')
-        return False
-
-    if (database['inventory'][guid]['have_nir'] - count < 0):
-        count = database['inventory'][guid]['have_nir']
-        database['inventory'][guid]['have_nir'] = 0
-    else:
-        database['inventory'][guid]['have_nir'] = database['inventory'][guid]['have_nir'] - count
-
-    if (return_database):
-        return database
-
-    remaining = database['inventory'][guid]['have_nir']
-    logging.info(f'Removed {count} of {guid_to_item(database, guid)} from the Not found In Raid (NIR) inventory [{remaining} remaining NIR]')
     write_database(tracker_file, database)
     return True
 
@@ -2920,82 +2880,6 @@ def level_up(tracker_file):
 #Clear
 def clear():
     system('cls' if name == 'nt' else 'clear')
-    return True
-
-# Reset
-def reset_tasks(tracker_file):
-    database = open_database(tracker_file)
-
-    if (not database):
-        return False
-    
-    for task in database['tasks']:
-        task['status'] = 'incomplete'
-        
-        if (task['kappaRequired']):
-            task['tracked'] = True
-        else:
-            task['tracked'] = False
-    
-    write_database(tracker_file, database)
-    logging.info('All task progress has been reset')
-    return True
-
-def reset_stations(tracker_file):
-    database = open_database(tracker_file)
-
-    if (not database):
-        return False
-    
-    for station in database['hideout']:
-        for level in station['levels']:
-            level['status'] = 'incomplete'
-            level['tracked'] = True
-    
-    write_database(tracker_file, database)
-    logging.info('All hideout progress has been reset')
-    return True
-
-def reset_barters(tracker_file):
-    database = open_database(tracker_file)
-
-    if (not database):
-        return False
-    
-    for barter in database['barters']:
-        barter['status'] = 'incomplete'
-        barter['tracked'] = False
-    
-    write_database(tracker_file, database)
-    logging.info('All barter progress has been reset')
-    return True
-
-def reset_crafts(tracker_file):
-    database = open_database(tracker_file)
-
-    if (not database):
-        return False
-    
-    for craft in database['crafts']:
-        craft['status'] = 'incomplete'
-        craft['tracked'] = False
-    
-    write_database(tracker_file, database)
-    logging.info('All craft recipe progress has been reset')
-    return True
-
-def reset_inventory(tracker_file):
-    database = open_database(tracker_file)
-
-    if (not database):
-        return False
-    
-    for guid in database['inventory'].keys():
-        database['inventory'][guid]['have_fir'] = 0
-        database['inventory'][guid]['have_nir'] = 0
-    
-    write_database(tracker_file, database)
-    logging.info('The inventory has been cleared')
     return True
 
 # Import

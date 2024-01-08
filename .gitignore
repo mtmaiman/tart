@@ -1,7 +1,5 @@
-# Database file #
-database.json
-database.curr.bak
-database.prev.bak
-debug.json
-debug.curr.bak
-debug.prev.bak
+# Database file
+database.*
+
+# Debug files
+debug.*

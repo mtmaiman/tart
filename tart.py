@@ -34,6 +34,8 @@ commands
 \tclear help
 \treset help
 \timport help
+\tbackup help
+\trestore help
 '''
 INV_HELP = '''
 > inv {inventory}\n
@@ -151,6 +153,14 @@ Pulls latest Escape From Tarkov game data from api.tarkov.dev and overwrites all
 prices : Manually imports only item price data (Does not reset any progress)
 delta : Performs a delta import, attempting to save all current data, including task, hideout, barter, and craft progress while importing updated game data (WARNING: This may corrupt some data!)
 '''
+BACKUP_HELP = '''
+> backup\n
+Creates a manual backup of the current database file. This backup will be saved as "database.date.time.bak". You are alloted 2 autosave slots and 5 manual save slots
+'''
+RESTORE_HELP = '''
+> restore\n
+Allows you to restore from a backup file. You can choose one of the two autosave backups or any manual backup within the 5 save slots
+'''
 ITEM_HEADER = '{:<25} {:<60} {:<30} {:<15} {:<20} {:<20} {:<20}\n'.format('Item Short Name', 'Item Normalized Name', 'Item GUID', 'Inv (FIR)', 'Sell To', 'Vend', 'Flea')
 MAP_HEADER = '{:<30} {:<20}\n'.format('Map Normalized Name', 'Map GUID')
 TRADER_HEADER = '{:<30} {:<20}\n'.format('Trader Normalized Name', 'Trader GUID')
@@ -172,10 +182,8 @@ BUFFER = '----------------------------------------------------------------------
 ###################################################
 
 
-#TODO: Textile Part 2 listed twice for requires duct tape
 #TODO: Change completing things to consume NIR first then FIR if available (change from FIR to NIR then consume)
-#TODO: Manual backup
-#TODO: Restore backup
+#TODO: Adding 10 wires as FIR does not actually add them to FIR inventory
 # Command parsing
 def parser(tracker_file, command):
     command = command.lower().split(' ')
@@ -558,6 +566,30 @@ def parser(tracker_file, command):
     elif (command[0] == 'help' or command[0] == 'h'):
         logging.debug(f'Executing command: {command[0]}')
         logging.info(USAGE)
+    # Backup
+    elif (command[0] == 'backup'):
+        if (len(command) == 1):
+            logging.debug(f'Executing command: {command[0]}')
+            backup(tracker_file)
+        elif (command[1] == 'help' or command[1] == 'h'):
+            logging.debug(f'Executing command: {command[0]} {command[1]}')
+            logging.info(BACKUP_HELP)
+        else:
+            logging.debug(f'Failed to execute command: {command[0]} {command[1]}')
+            logging.error('Unhandled backup argument')
+            logging.info(BACKUP_HELP)
+    # Restore
+    elif (command[0] == 'restore'):
+        if (len(command) == 1):
+            logging.debug(f'Executing command: {command[0]}')
+            restore(tracker_file)
+        elif (command[1] == 'help' or command[1] == 'h'):
+            logging.debug(f'Executing command: {command[0]} {command[1]}')
+            logging.info(RESTORE_HELP)
+        else:
+            logging.debug(f'Failed to execute command: {command[0]} {command[1]}')
+            logging.error('Unhandled restore argument')
+            logging.info(RESTORE_HELP)
     # Exit
     elif (command[0] == 'stop' or command[0] == 's' or command[0] == 'quit' or command[0] == 'q' or command[0] == 'exit'):
         logging.debug(f'Executing command: {command[0]}')
@@ -1206,6 +1238,26 @@ def get_untracked(database, ignore_kappa):
                 })
     
     return untracked
+
+def get_saves(file):
+    files = listdir()
+    saves = []
+
+    if (f'{file}.curr.bak' in files):
+        saves.append(f'{file}.curr.bak')
+    else:
+        saves.append('')
+
+    if (f'{file}.prev.bak' in files):
+        saves.append(f'{file}.prev.bak')
+    else:
+        saves.append('')
+
+    for save in files:
+        if (file in save and save != f'{file}.json' and save != f'{file}.curr.bak' and save != f'{file}.prev.bak'):
+            saves.append(save)
+    
+    return saves
 
 
 ###################################################
@@ -3543,6 +3595,92 @@ def delta_import(tracker_file):
 
     write_database(tracker_file, database)
     logging.info(f'Completed database delta import with {changes} total restores')
+    return True
+
+# Backup
+def backup(tracker_file):
+    if (tracker_file == 'debug.json'):
+        file = 'debug'
+    else:
+        file = 'database'
+
+    saves = get_saves(file)
+    
+    if ((saves[0] != '' and saves[1] != '' and len(saves) == 7)
+        or ((saves[0] == '' and saves[1] != '') or (saves[0] != '' and saves[1] == '') and len(saves) == 6)
+        or (saves[0] == '' and saves[1] == '' and len(saves) == 5)):
+        logging.info(f'You are only allowed 5 save files. Please choose a file to overwrite!')
+        _display_ = '\n'
+
+        for index, save in enumerate(saves):
+            if (index < 2):
+                if (save == f'{file}.curr.bak'):
+                    _save_ = 'Current autosave (1 exit ago)'
+                else:
+                    _save_ = 'Previous autosave (2 exits ago)'
+
+                _display_ = _display_ + f'[{index}] {save} (Autosave - Cannot overwrite)\n'
+            else:
+                _save_ = save.split('.')
+                _save_[1] = datetime.strptime(_save_[1], '%Y-%m-%d').strftime('%B, %A %d, %Y')
+                _save_[2] = datetime.strptime(_save_[2], '%H-%M-%S').strftime('%H:%M:%S')
+                _save_ = f'{_save_[1]} at {_save_[2]}'
+                _display_ = _display_ + f'[{index}] {_save_}\n'
+
+        logging.info(_display_)
+        overwrite = input('> ')
+
+        if (not overwrite.isdigit() or int(overwrite) < 2 or int(overwrite) > len(saves) - 1):
+            logging.error('Invalid overwrite argument')
+            return False
+        
+        overwrite = saves[int(overwrite)]
+        logging.info(f'Overwriting save file {overwrite}')
+        remove(overwrite)
+
+    database = open_database(tracker_file)
+    filename = f'{file}.{datetime.now().strftime('%Y-%m-%d.%H-%M-%S')}.bak'
+    write_database(filename, database)
+    logging.info(f'Created new save file {filename}')
+    return True
+
+# Restore
+def restore(tracker_file):
+    if (tracker_file == 'debug.json'):
+        file = 'debug'
+    else:
+        file = 'database'
+
+    saves = get_saves(file)
+    logging.info('Please choose a save file to restore from')
+    _display_ = '\n'
+
+    for index, save in enumerate(saves):
+        if (index < 2):
+            if (save == f'{file}.curr.bak'):
+                _save_ = 'Current autosave (1 exit ago)'
+            else:
+                _save_ = 'Previous autosave (2 exits ago)'
+
+            _display_ = _display_ + f'[{index}] {save} (Autosave - Cannot overwrite)\n'
+        else:
+            _save_ = save.split('.')
+            _save_[1] = datetime.strptime(_save_[1], '%Y-%m-%d').strftime('%B, %A %d, %Y')
+            _save_[2] = datetime.strptime(_save_[2], '%H-%M-%S').strftime('%H:%M:%S')
+            _save_ = f'{_save_[1]} at {_save_[2]}'
+            _display_ = _display_ + f'[{index}] {_save_}\n'
+
+    logging.info(_display_)
+    restore = input('> ')
+
+    if (not restore.isdigit() or int(restore) < 2 or int(restore) > len(saves) - 1):
+        logging.error('Invalid restore argument')
+        return False
+    
+    restore = saves[int(restore)]
+    logging.info(f'Restoring from save file {restore}')
+    restore_database = open_database(restore)
+    write_database(tracker_file, restore_database)
     return True
 
 

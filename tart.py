@@ -824,7 +824,7 @@ def verify_task(database, task, task_table):
             id = prereq['task']['id']
 
         if (task_table[id] == 'incomplete'):
-            return f'{prereq["name"]} must be completed first'
+            return f'{guid_to_task(prereq)["name"]} must be completed first'
     
     print_debug(f'Verified task >> {task["name"]} <<')
     return True
@@ -933,10 +933,10 @@ def add_item_nir(database, count, argument = '', guid = ''):
         print_message(f'Added {count - _remainder_} {guid_to_item(database, guid)} (FIR) (COMPLETED). Skipped {_remainder_} items')
     elif (database['inventory'][guid]['have_nir'] + count == database['inventory'][guid]['need_nir']):
         database['inventory'][guid]['have_nir'] = database['inventory'][guid]['need_nir']
-        print_message(f'Added {count - _remainder_} {guid_to_item(database, guid)} (FIR) (COMPLETED)')
+        print_message(f'Added {count} {guid_to_item(database, guid)} (FIR) (COMPLETED)')
     else:
         database['inventory'][guid]['have_nir'] = database['inventory'][guid]['have_nir'] + count
-        print_message(f'Added {count - _remainder_} {guid_to_item(database, guid)} (FIR)')
+        print_message(f'Added {count} {guid_to_item(database, guid)} (FIR)')
 
     if (not database):
         print_error('Something went wrong. Aborted')
@@ -3694,10 +3694,12 @@ def restore(tracker_file):
 
 def main(args):
     if (len(args) > 1 and args[1] == 'debug'):
+        global DEBUG
+        DEBUG = True
+
         print_message('Welcome to the TARkov Tracker (TART)!')
         print_debug('RUNNING IN DEBUG MODE. All changes will affect only the debug database file!')
         tracker_file = 'debug.json'
-        DEBUG = True
     else:
         print_message('Welcome to the TARkov Tracker (TART)! Type help for usage')
         tracker_file = 'database.json'

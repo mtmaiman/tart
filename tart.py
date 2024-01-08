@@ -1,7 +1,7 @@
 # Standard library
 try:
     from datetime import datetime, timedelta
-    from os import system, name, rename, remove
+    from os import system, name, rename, remove, listdir
     import logging
     import json
     import sys
@@ -566,8 +566,12 @@ def parser(tracker_file, command):
         else:
             file = 'database'
 
-        remove(f'{file}.prev.bak')
-        rename(f'{file}.curr.bak', f'{file}.prev.bak')
+        if (f'{file}.prev.bak' in listdir('.')):
+            remove(f'{file}.prev.bak')
+        
+        if (f'{file}.curr.bak' in listdir('.')):
+            rename(f'{file}.curr.bak', f'{file}.prev.bak')
+            
         write_database(f'{file}.curr.bak', database)
         logging.info(f'Saved a backup of the current database file')
         return False

@@ -3653,7 +3653,7 @@ def backup(tracker_file):
             print_error('Invalid overwrite argument')
             return False
         
-        overwrite = saves[int(overwrite - 1)]
+        overwrite = saves[int(overwrite) - 1]
         print_message(f'Overwriting save file {overwrite}')
         remove(overwrite)
 
@@ -3696,7 +3696,7 @@ def restore(tracker_file):
         print_error('Invalid restore argument')
         return False
     
-    restore = saves[int(restore - 1)]
+    restore = saves[int(restore) - 1]
     print_message(f'Restoring from save file {restore}')
     restore_database = open_database(restore)
     write_database(tracker_file, restore_database)

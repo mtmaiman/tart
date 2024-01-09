@@ -3653,7 +3653,7 @@ def backup(tracker_file):
         print_message(_display_)
         overwrite = input('> ')
 
-        if (not overwrite.isdigit() or int(overwrite) < 2 or int(overwrite) > len(saves) - 1):
+        if (not overwrite.isdigit() or int(overwrite) < 2 or int(overwrite) > len(saves)):
             print_error('Invalid overwrite argument')
             return False
         
@@ -3696,7 +3696,7 @@ def restore(tracker_file):
     print_message(_display_)
     restore = input('> ')
 
-    if (not restore.isdigit() or int(restore) > len(saves) - 1):
+    if (not restore.isdigit() or int(restore) > len(saves)):
         print_error('Invalid restore argument')
         return False
     

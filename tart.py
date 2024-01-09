@@ -3499,6 +3499,7 @@ def delta_import(tracker_file):
         for level in station['levels']:
             if (level['id'] not in station_table):
                 print_warning(f'Hideout station {level["normalizedName"]} cannot be found in the new dataset. Data will be lost. Acknowledge? (Y/N)')
+                _confirmation_ = input('> ').lower()
 
                 if (_confirmation_ == 'y'):
                     continue
@@ -3531,6 +3532,7 @@ def delta_import(tracker_file):
     for barter in memory['barters']:
         if (barter['id'] not in barter_table):
             print_warning(f'Barter {barter["id"]} cannot be found in the new dataset. Data will be lost. Acknowledge? (Y/N)')
+            _confirmation_ = input('> ').lower()
 
             if (_confirmation_ == 'y'):
                 continue
@@ -3564,6 +3566,7 @@ def delta_import(tracker_file):
         for craft in memory['crafts']:
             if (craft['id'] not in craft_table):
                 print_warning(f'Craft {craft["id"]} cannot be found in the new dataset. Data will be lost. Acknowledge? (Y/N)')
+                _confirmation_ = input('> ').lower()
 
                 if (_confirmation_ == 'y'):
                     continue
@@ -3588,6 +3591,7 @@ def delta_import(tracker_file):
     for item in database['inventory'].keys():
         if (item not in memory['inventory'].keys()):
             print_warning(f'Inventory item {guid_to_item(database, item)} cannot be found in the new inventory. Data will be lost. Acknowledge? (Y/N)')
+            _confirmation_ = input('> ').lower()
             
             if (_confirmation_ == 'y'):
                 continue

@@ -171,7 +171,7 @@ BUFFER = '----------------------------------------------------------------------
 
 
 #TODO: Add more debug messages (starting with untrack workers)
-#TODO: (Un)track in delta import
+#TODO: Add git download command
 # Command parsing
 def parser(tracker_file, command):
     command = command.lower().split(' ')
@@ -1376,7 +1376,7 @@ def track_task(database, guid):
         if (task['id'] == guid):
             if (task['tracked']):
                 print_message(f'Already tracking {task["name"]}')
-                return False
+                return database
             
             for objective in task['objectives']:
                 if (objective['type'] == 'giveItem'):
@@ -1406,7 +1406,7 @@ def track_station(database, guid):
             if (level['id'] == guid):
                 if (level['tracked']):
                     print_message(f'Already tracking {level["normalizedName"]}')
-                    return False
+                    return database
                 
                 for requirement in level['itemRequirements']:
                     item_guid = requirement['item']['id']
@@ -1422,12 +1422,15 @@ def track_station(database, guid):
 
 def track_barter(database, guid):
     print_debug(f'Tracking barter >> {guid} <<')
+    write_database('test.json', database)
 
     for barter in database['barters']:
         if (barter['id'] == guid):
+            print_debug(f'Found >> {guid} <<')
+
             if (barter['tracked']):
                 print_message(f'Already tracking {barter["id"]}')
-                return False
+                return database, True
             
             for requirement in barter['requiredItems']:
                 item_guid = requirement['item']['id']
@@ -1452,9 +1455,9 @@ def track_barter(database, guid):
             print_message(f'Tracked {barter["id"]}')
             break
     else:
-        return None
+        return database, False
                 
-    return database
+    return database, True
 
 def track_craft(database, guid):
     print_debug(f'Tracking craft >> {guid} <<')
@@ -1463,7 +1466,7 @@ def track_craft(database, guid):
         if (craft['id'] == guid):
             if (craft['tracked']):
                 print_message(f'Already tracking {craft["id"]}')
-                return False
+                return database, True
             
             for requirement in craft['requiredItems']:
                 item_guid = requirement['item']['id']
@@ -1488,16 +1491,16 @@ def track_craft(database, guid):
             print_message(f'Tracked {craft["id"]}')
             break
     else:
-        return None
+        return database, False
                 
-    return database
+    return database, False
 
 def untrack_task(database, guid):
     for task in database['tasks']:
         if (task['id'] == guid):
             if (not task['tracked'] and task['id'] != '5c51aac186f77432ea65c552' and task['id'] != '5edac020218d181e29451446'):
                 print_message(f'{task["name"]} is already untracked')
-                return False
+                return database
             
             for objective in task['objectives']:
                 if (objective['type'] == 'giveItem'):
@@ -1522,7 +1525,7 @@ def untrack_station(database, guid):
             if (level['id'] == guid):
                 if (not level['tracked']):
                     print_message(f'{level["normalizedName"]} is already untracked')
-                    return False
+                    return database
                 
                 for requirement in level['itemRequirements']:
                     item_guid = requirement['item']['id']
@@ -1540,7 +1543,7 @@ def untrack_barter(database, guid):
         if (barter['id'] == guid):
             if (not barter['tracked']):
                 print_message(f'{barter["id"]} is already untracked')
-                return False
+                return database, True
             
             for requirement in barter['requiredItems']:
                 item_guid = requirement['item']['id']
@@ -1553,16 +1556,16 @@ def untrack_barter(database, guid):
             break
     
     else:
-        return False
+        return database, False
                 
-    return database
+    return database, True
 
 def untrack_craft(database, guid):
     for craft in database['crafts']:
         if (craft['id'] == guid):
             if (not craft['tracked']):
                 print_message(f'{craft["id"]} is already untracked')
-                return False
+                return database, True
             
             for requirement in craft['requiredItems']:
                 item_guid = requirement['item']['id']
@@ -1575,9 +1578,9 @@ def untrack_craft(database, guid):
             break
     
     else:
-        return False
+        return database, False
                 
-    return database
+    return database, True
 
 # Complete functions
 def complete_task(database, guid, force):
@@ -2238,9 +2241,9 @@ def print_search(database, tasks, stations, barters, crafts, items, traders, map
 
     return True
 
-def print_debug(debug):
+def print_debug(message):
     if (DEBUG):
-        #print(f'? DEBUG ? {debug}')
+        print(f'? DEBUG ? {message}')
         return True
     
     return False
@@ -2249,12 +2252,12 @@ def print_message(message):
     print(f'{message}')
     return True
 
-def print_warning(warning):
-    print(f'! WARNING ! {warning}')
+def print_warning(message):
+    print(f'! WARNING ! {message}')
     return True
 
-def print_error(exception):
-    print(f'X ERROR X {exception}!')
+def print_error(message):
+    print(f'X ERROR X {message}!')
     return True
 
 
@@ -2737,13 +2740,12 @@ def track(tracker_file, argument):
 
     if (is_guid(argument)):
         guid = argument
-        _database_copy_ = database
-        database = track_barter(database, guid)
+        database, found = track_barter(database, guid)
         
-        if (database is None):
-            database = track_craft(_database_copy_, guid)
+        if (not found):
+            database, found = track_craft(database, guid)
         
-            if (database is None):
+            if (not found):
                 print_error(f'Could not find {argument}')
     else:
         guid = task_to_guid(database, argument)
@@ -2759,11 +2761,8 @@ def track(tracker_file, argument):
                 print_error('Invalid argument')
                 return False
     
-    if (database):
-        write_database(tracker_file, database)
-        return True
-
-    return False
+    write_database(tracker_file, database)
+    return True
 
 def untrack(tracker_file, argument):
     database = open_database(tracker_file)
@@ -2773,13 +2772,12 @@ def untrack(tracker_file, argument):
 
     if (is_guid(argument)):
         guid = argument
-        _database_copy_ = database
-        database = untrack_barter(database, guid)
+        database, found = untrack_barter(database, guid)
 
-        if (database is None):
-            database = untrack_craft(_database_copy_, guid)
+        if (not found):
+            database = untrack_craft(database, guid)
         
-            if (database is None):
+            if (not found):
                 print_error(f'Could not find {argument}')
     else:
         guid = task_to_guid(database, argument)
@@ -2795,11 +2793,8 @@ def untrack(tracker_file, argument):
                 print_error('Invalid argument')
                 return False
 
-    if (database):
-        write_database(tracker_file, database)
-        return True
-
-    return False
+    write_database(tracker_file, database)
+    return True
 
 # Complete
 def complete(tracker_file, argument, force, recurse):
@@ -3485,11 +3480,7 @@ def delta_import(tracker_file):
                     write_database(tracker_file, memory)
                     return False
 
-                _database_ = untrack_task(database, new_task['id'])
-
-                if (_database_):
-                    database = _database_
-
+                database = untrack_task(database, new_task['id'])
             elif (not task['kappaRequired'] and not task['tracked'] and new_task['kappaRequired']):
                 print_warning(f'Task {task["name"]} is now Kappa required and has been tracked. Acknowledge? (Y/N)')
                 _confirmation_ = input('> ').lower()
@@ -3501,17 +3492,10 @@ def delta_import(tracker_file):
                 
             elif (task['kappaRequired'] and not task['tracked']):
                 print_warning(f'You had previously untracked a Kappa required task {task["name"]} which will continue to be untracked')
-                _database_ = untrack_task(database, new_task['id'])
-
-                if (_database_):
-                    database = _database_
-
+                database = untrack_task(database, new_task['id'])
             elif (not new_task['tracked']):
                 print_warning(f'You had previously tracked task {task["name"]} which will remain tracked')
-                _database_ = track_task(database, new_task['id'])
-
-                if (_database_):
-                    database = _database_
+                database = track_task(database, new_task['id'])
             else:
                 print_error('Unhandled error with (un)tracked tasks. Aborted')
                 write_database(tracker_file, memory)
@@ -3546,16 +3530,10 @@ def delta_import(tracker_file):
             
             if (new_station['tracked'] != level['tracked']):
                 if (level['tracked']):
-                    _database_ = track_station(database, new_task['id'])
-
-                    if (_database_):
-                        database = _database_
+                    database = track_station(database, new_station['id'])
                 else:
                     print_warning(f'You had previously untracked hideout station {level["normalizedName"]} which will continue to be untracked')
-                    _database_ = untrack_station(database, new_task['id'])
-
-                    if (_database_):
-                        database = _database_
+                    database = untrack_station(database, new_station['id'])
 
     print_message('Completed hideout station delta import')
 
@@ -3585,16 +3563,9 @@ def delta_import(tracker_file):
         if (new_barter['tracked'] != barter['tracked']):
                 if (barter['tracked']):
                     print_warning(f'You had previously tracked barter {barter["id"]} which will continue to be tracked')
-                    _database_ = track_barter(database, new_task['id'])
-
-                    if (_database_):
-                        database = _database_
+                    database = track_barter(database, new_barter['id'])[0]
                 else:
-                    _database_ = untrack_barter(database, new_task['id'])
-
-                    if (_database_):
-                        database = _database_
-                    
+                    database = untrack_barter(database, new_barter['id'])[0]
     
     print_message('Completed barter delta import')
 
@@ -3622,16 +3593,9 @@ def delta_import(tracker_file):
             if (new_craft['tracked'] != craft['tracked']):
                 if (craft['tracked']):
                     print_warning(f'You had previously tracked craft recipe {craft["id"]} which will continue to be tracked')
-                    _database_ = track_craft(database, new_task['id'])
-
-                    if (_database_):
-                        database = _database_
+                    database = track_craft(database, new_craft['id'])[0]
                 else:
-                    _database_ = untrack_craft(database, new_task['id'])
-
-                    if (_database_):
-                        database = _database_
-                    
+                    database = untrack_craft(database, new_craft['id'])[0]
     
     print_message('Completed craft recipes delta import')
 

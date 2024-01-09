@@ -149,7 +149,7 @@ RESTORE_HELP = '''
 > restore\n
 Allows you to restore from a backup file. You can choose one of the two autosave backups or any manual backup within the 5 save slots
 '''
-ITEM_HEADER = '{:<25} {:<60} {:<30} {:<15} {:<20} {:<20} {:<20}\n'.format('Item Short Name', 'Item Normalized Name', 'Item GUID', 'Inv (FIR)', 'Sell To', 'Vend', 'Flea')
+ITEM_HEADER = '{:<25} {:<60} {:<30} {:<15} {:<10} {:<10} {:<10} {:<10} {:<10} {:<10}\n'.format('Item Short Name', 'Item Normalized Name', 'Item GUID', 'Inv (FIR)', 'Sell To', 'Vend', 'Flea', 'Buy From', 'Vend', 'Flea')
 MAP_HEADER = '{:<30} {:<20}\n'.format('Map Normalized Name', 'Map GUID')
 TRADER_HEADER = '{:<30} {:<20}\n'.format('Trader Normalized Name', 'Trader GUID')
 INVENTORY_HEADER = '{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} \n'.format('Item', 'Inv (FIR)', 'Item', 'Inv (FIR)', 'Item', 'Inv (FIR)', 'Item', 'Inv (FIR)')
@@ -170,8 +170,7 @@ BUFFER = '----------------------------------------------------------------------
 ###################################################
 
 
-#TODO: Add more debug messages (starting with untrack workers)
-#TODO: Add git download command
+#TODO: Fix price data
 # Command parsing
 def parser(tracker_file, command):
     command = command.lower().split(' ')
@@ -1880,13 +1879,19 @@ def import_all_items(database, headers):
                     id
                     normalizedName
                     shortName
-                    width
-                    height
                     sellFor {
                         vendor {
                             normalizedName
                         }
-                        priceRUB
+                        price
+                        currency
+                    }
+                    buyFor {
+                        vendor {
+                            normalizedName
+                        }
+                        price
+                        currency
                     }
                     fleaMarketFee
                 }
@@ -1905,35 +1910,68 @@ def import_all_items(database, headers):
 
         database['all_items'] = response.json()['data']['items']
 
+    usd_to_roubles = 0
+    euro_to_roubles = 0
+
     for item in database['all_items']:
-        item_area = item['width'] * item['height']
-        max_vend = 0
-        max_vend_trader = ''
+        if (item['id'] == '5696686a4bdc2da3298b456a'):
+            for vendor in item['buyFor']:
+                if (vendor['vendor']['normalizedName'] == 'peacekeeper'):
+                    usd_to_roubles = int(vendor['price'])
+
+        if (item['id'] == '569668774bdc2da2298b4568'):
+            for vendor in item['buyFor']:
+                if (vendor['vendor']['normalizedName'] == 'skier'):
+                    euro_to_roubles = int(vendor['price'])
+
+    for item in database['all_items']:
+        price = 0
+        price_roubles = 0
+        trader = ''
+        currency = ''
         
         for vendor in item['sellFor']:
+            this_price = int(vendor['price'])
+            this_price_roubles = 0
+            this_currency = vendor['currency']
+
+            if (this_currency.lower() == 'usd'):
+                this_price_roubles = this_price * usd_to_roubles
+            elif (this_currency.lower() == 'euro'):
+                this_price_roubles = this_price * euro_to_roubles
+            else:
+                this_price_roubles = this_price
+
             if (vendor['vendor']['normalizedName'] == 'flea-market'):
                 if (item['fleaMarketFee'] is None):
                     print_warning(f'Found an invalid flea market fee value (this usually means the last observed list price for this item was abnormally high). Substituting temporary flea market fee of 100,000,000 roubles): {item}')
                     item['fleaMarketFee'] = 100000000
+                
+                this_price = this_price - item['fleaMarketFee']
+                item['flea'] = this_price
+                item['flea_currency'] = this_currency
 
-                item['flea'] = int((vendor['priceRUB'] - item['fleaMarketFee']) / item_area)
-            elif (vendor['priceRUB'] > max_vend):
-                max_vend = vendor['priceRUB']
-                max_vend_trader = vendor['vendor']['normalizedName']
+            elif (this_price_roubles > price_roubles):
+                price = this_price
+                price_roubles = this_price_roubles
+                trader = vendor['vendor']['normalizedName']
+                currency = this_currency
 
         if ('flea' not in item.keys()):
-            item['flea'] = int(0)
+            item['flea'] = 0
+            item['flea_currency'] = 'N/A'
 
-        if (max_vend == 0 or max_vend_trader == ''):
+        if (price == 0):
             item['trader'] = ''
-            item['vend'] = int(0)
+            item['trade'] = 0
+            item['trade_currency'] = 'N/A'
         else:
-            item['trader'] = max_vend_trader
-            item['vend'] = int(max_vend / item_area)
+            item['trader'] = trader
+            item['trade'] = price
+            item['trade_currency'] = currency
 
         del item['sellFor']
-        del item['width']
-        del item['height']
+        del item['buyFor']
         del item['fleaMarketFee']
 
     database['last_price_refresh'] = datetime.now().isoformat()

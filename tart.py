@@ -3438,15 +3438,16 @@ def import_data(tracker_file):
 
 def delta_import(tracker_file):
     memory = open_database(tracker_file)
-    updated = import_data(tracker_file)
+    update = import_data(tracker_file)
 
-    if (not updated):
+    if (not update):
         print_error('Encountered an error while importing the database. Aborted')
         write_database(tracker_file, memory)
         return False
 
-    # Tasks
     database = open_database(tracker_file)
+
+    # Tasks
     task_table = {}
 
     for index, task in enumerate(database['tasks']):
@@ -3471,10 +3472,24 @@ def delta_import(tracker_file):
         
         if (new_task['tracked'] != task['tracked']):
             if (task['kappaRequired'] and task['tracked'] and not new_task['kappaRequired']):
-                print_warning(f'You are currently tracking {task["name"]} which is no longer Kappa required and will be untracked')
+                print_warning(f'You are currently tracking {task["name"]} which is no longer Kappa required and will be untracked. Acknowledge? (Y/N)')
+                _confirmation_ = input('> ').lower()
+
+                if (_confirmation_ != 'y'):
+                    print_message('Aborted')
+                    write_database(tracker_file, memory)
+                    return False
+
                 database = untrack_task(database, new_task['id'])
             elif (not task['kappaRequired'] and not task['tracked'] and new_task['kappaRequired']):
-                print_warning(f'Task {task["name"]} is now Kappa required and has been tracked')
+                print_warning(f'Task {task["name"]} is now Kappa required and has been tracked. Acknowledge? (Y/N)')
+                _confirmation_ = input('> ').lower()
+
+                if (_confirmation_ != 'y'):
+                    print_message('Aborted')
+                    write_database(tracker_file, memory)
+                    return False
+                
             elif (task['kappaRequired'] and not task['tracked']):
                 print_warning(f'You had previously untracked a Kappa required task {task["name"]} which will continue to be untracked')
                 database = untrack_task(database, new_task['id'])

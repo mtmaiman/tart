@@ -935,13 +935,13 @@ def add_item_nir(database, count, argument = '', guid = ''):
     elif (database['inventory'][guid]['have_nir'] + count > database['inventory'][guid]['need_nir']):
         _remainder_ = database['inventory'][guid]['have_nir'] + count - database['inventory'][guid]['need_nir']
         database['inventory'][guid]['have_nir'] = database['inventory'][guid]['need_nir']
-        print_message(f'Added {count - _remainder_} {guid_to_item(database, guid)} (FIR) (COMPLETED). Skipped {_remainder_} items')
+        print_message(f'Added {count - _remainder_} {guid_to_item(database, guid)} (NIR) (COMPLETED). Skipped {_remainder_} items')
     elif (database['inventory'][guid]['have_nir'] + count == database['inventory'][guid]['need_nir']):
         database['inventory'][guid]['have_nir'] = database['inventory'][guid]['need_nir']
-        print_message(f'Added {count} {guid_to_item(database, guid)} (FIR) (COMPLETED)')
+        print_message(f'Added {count} {guid_to_item(database, guid)} (NIR) (COMPLETED)')
     else:
         database['inventory'][guid]['have_nir'] = database['inventory'][guid]['have_nir'] + count
-        print_message(f'Added {count} {guid_to_item(database, guid)} (FIR)')
+        print_message(f'Added {count} {guid_to_item(database, guid)} (NIR)')
 
     if (not database):
         print_error('Something went wrong. Aborted')

@@ -1925,10 +1925,16 @@ def import_all_items(database, headers):
                     euro_to_roubles = int(vendor['price'])
 
     for item in database['all_items']:
-        price = 0
-        price_roubles = 0
-        trader = ''
-        currency = ''
+        sell_price = 0
+        sell_price_roubles = 0
+        sell_trader = ''
+        sell_currency = ''
+        sell_to = ''
+        buy_price = 0
+        buy_price_roubles = 0
+        buy_trader = ''
+        buy_currency = ''
+        buy_from = ''
         
         for vendor in item['sellFor']:
             this_price = int(vendor['price'])
@@ -1947,11 +1953,38 @@ def import_all_items(database, headers):
                     print_warning(f'Found an invalid flea market fee value (this usually means the last observed list price for this item was abnormally high). Substituting temporary flea market fee of 100,000,000 roubles): {item}')
                     item['fleaMarketFee'] = 100000000
                 
-                this_price = this_price - item['fleaMarketFee']
+                this_price_roubles = this_price_roubles - item['fleaMarketFee']
                 item['flea'] = this_price
                 item['flea_currency'] = this_currency
 
+                if (this_price_roubles > sell_price_roubles):
+                    sell_to = 'flea'
+
             elif (this_price_roubles > price_roubles):
+                price = this_price
+                price_roubles = this_price_roubles
+                trader = vendor['vendor']['normalizedName']
+                currency = this_currency
+                sell_to = trader
+
+        for vendor in item['buyFor']:
+            this_price = int(vendor['price'])
+            this_price_roubles = sys.maxsize
+            this_currency = vendor['currency']
+
+            if (this_currency.lower() == 'usd'):
+                this_price_roubles = this_price * usd_to_roubles
+            elif (this_currency.lower() == 'euro'):
+                this_price_roubles = this_price * euro_to_roubles
+            else:
+                this_price_roubles = this_price
+
+            if (vendor['vendor']['normalizedName'] == 'flea-market'):                
+                this_price = this_price
+                item['flea'] = this_price
+                item['flea_currency'] = this_currency
+
+            elif (this_price_roubles < price_roubles):
                 price = this_price
                 price_roubles = this_price_roubles
                 trader = vendor['vendor']['normalizedName']

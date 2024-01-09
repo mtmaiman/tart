@@ -149,7 +149,7 @@ RESTORE_HELP = '''
 > restore\n
 Allows you to restore from a backup file. You can choose one of the two autosave backups or any manual backup within the 5 save slots
 '''
-ITEM_HEADER = '{:<25} {:<60} {:<30} {:<15} {:<10} {:<10} {:<10} {:<10} {:<10} {:<10}\n'.format('Item Short Name', 'Item Normalized Name', 'Item GUID', 'Inv (FIR)', 'Sell To', 'Vend', 'Flea', 'Buy From', 'Vend', 'Flea')
+ITEM_HEADER = '{:<25} {:<60} {:<25} {:<15} {:<12} {:<20} {:<12} {:<20}\n'.format('Item Short Name', 'Item Normalized Name', 'Item GUID', 'Inv (FIR)', 'Sell To', 'Trade / Flea', 'Buy From', 'Trade / Flea')
 MAP_HEADER = '{:<30} {:<20}\n'.format('Map Normalized Name', 'Map GUID')
 TRADER_HEADER = '{:<30} {:<20}\n'.format('Trader Normalized Name', 'Trader GUID')
 INVENTORY_HEADER = '{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} \n'.format('Item', 'Inv (FIR)', 'Item', 'Inv (FIR)', 'Item', 'Inv (FIR)', 'Item', 'Inv (FIR)')
@@ -170,7 +170,6 @@ BUFFER = '----------------------------------------------------------------------
 ###################################################
 
 
-#TODO: Fix price data
 # Command parsing
 def parser(tracker_file, command):
     command = command.lower().split(' ')
@@ -810,6 +809,16 @@ def string_compare(comparable, comparator):
 def alphabetize_items(items):
     print_debug(f'Alphabetizing dict of size >> {len(items)} <<')
     return sorted(items, key = lambda item: item['shortName'].lower())
+
+def format_price(price, currency):
+    currency = currency.lower()
+
+    if (currency == 'usd'):
+        return '${:,}'.format(price)
+    elif (currency == 'euro'):
+        return '€{:,}'.format(price)
+    else:
+        return '₽{:,}'.format(price)
 
 # Verify functions
 def verify_task(database, task, task_table):
@@ -1931,7 +1940,7 @@ def import_all_items(database, headers):
         sell_currency = ''
         sell_to = ''
         buy_price = 0
-        buy_price_roubles = 0
+        buy_price_roubles = sys.maxsize
         buy_trader = ''
         buy_currency = ''
         buy_from = ''
@@ -1950,22 +1959,35 @@ def import_all_items(database, headers):
 
             if (vendor['vendor']['normalizedName'] == 'flea-market'):
                 if (item['fleaMarketFee'] is None):
-                    print_warning(f'Found an invalid flea market fee value (this usually means the last observed list price for this item was abnormally high). Substituting temporary flea market fee of 100,000,000 roubles): {item}')
+                    print_warning(f'Found an invalid flea market value (Will be corrected): {item}')
                     item['fleaMarketFee'] = 100000000
                 
                 this_price_roubles = this_price_roubles - item['fleaMarketFee']
-                item['flea'] = this_price
-                item['flea_currency'] = this_currency
+                item['sell_flea'] = this_price
+                item['sell_flea_currency'] = this_currency
 
                 if (this_price_roubles > sell_price_roubles):
                     sell_to = 'flea'
 
-            elif (this_price_roubles > price_roubles):
-                price = this_price
-                price_roubles = this_price_roubles
-                trader = vendor['vendor']['normalizedName']
-                currency = this_currency
-                sell_to = trader
+            elif (this_price_roubles > sell_price_roubles):
+                sell_price = this_price
+                sell_price_roubles = this_price_roubles
+                sell_trader = vendor['vendor']['normalizedName']
+                sell_currency = this_currency
+                sell_to = sell_trader
+
+        if ('sell_flea' not in item.keys()):
+            item['sell_flea'] = 0
+            item['sell_flea_currency'] = 'N/A'
+
+        if (sell_price == 0):
+            item['sell_trader'] = ''
+            item['sell_trade'] = 0
+            item['sell_trade_currency'] = 'N/A'
+        else:
+            item['sell_trader'] = sell_trader
+            item['sell_trade'] = sell_price
+            item['sell_trade_currency'] = sell_currency
 
         for vendor in item['buyFor']:
             this_price = int(vendor['price'])
@@ -1980,32 +2002,38 @@ def import_all_items(database, headers):
                 this_price_roubles = this_price
 
             if (vendor['vendor']['normalizedName'] == 'flea-market'):                
-                this_price = this_price
-                item['flea'] = this_price
-                item['flea_currency'] = this_currency
+                this_price_roubles = this_price_roubles
+                item['buy_flea'] = this_price
+                item['buy_flea_currency'] = this_currency
 
-            elif (this_price_roubles < price_roubles):
-                price = this_price
-                price_roubles = this_price_roubles
-                trader = vendor['vendor']['normalizedName']
-                currency = this_currency
+                if (this_price_roubles < buy_price_roubles):
+                    buy_from = 'flea'
 
-        if ('flea' not in item.keys()):
-            item['flea'] = 0
-            item['flea_currency'] = 'N/A'
+            elif (this_price_roubles < buy_price_roubles):
+                buy_price = this_price
+                buy_price_roubles = this_price_roubles
+                buy_trader = vendor['vendor']['normalizedName']
+                buy_currency = this_currency
+                buy_from = buy_trader
 
-        if (price == 0):
-            item['trader'] = ''
-            item['trade'] = 0
-            item['trade_currency'] = 'N/A'
+        if ('buy_flea' not in item.keys()):
+            item['buy_flea'] = 0
+            item['buy_flea_currency'] = 'N/A'
+
+        if (buy_price == 0):
+            item['buy_trader'] = ''
+            item['buy_trade'] = 0
+            item['buy_trade_currency'] = 'N/A'
         else:
-            item['trader'] = trader
-            item['trade'] = price
-            item['trade_currency'] = currency
+            item['buy_trader'] = buy_trader
+            item['buy_trade'] = buy_price
+            item['buy_trade_currency'] = buy_currency
 
         del item['sellFor']
         del item['buyFor']
         del item['fleaMarketFee']
+        item['sell_to'] = sell_to
+        item['buy_from'] = buy_from
 
     database['last_price_refresh'] = datetime.now().isoformat()
     return database
@@ -2258,11 +2286,9 @@ def print_items(items):
 
     for item in items:
         item_display = f'{item["have_nir"]}/{item["need_nir"]} ({item["have_fir"]}/{item["need_fir"]})'
-
-        if (item['flea'] > item['vend']):
-            display = display + '{:<25} {:<60} {:<30} {:<15} {:<20} {:<20,} {:<20,}\n'.format(item['shortName'], item['normalizedName'], item['id'], item_display, 'flea', item['vend'], item['flea'])
-        else:
-            display = display + '{:<25} {:<60} {:<30} {:<15} {:<20} {:<20,} {:<20,}\n'.format(item['shortName'], item['normalizedName'], item['id'], item_display, item['trader'], item['vend'], item['flea'])
+        sell_price = f'{format_price(item["sell_trade"], item["sell_trade_currency"])} / {format_price(item["sell_flea"], item["sell_flea_currency"])}'
+        buy_price = f'{format_price(item["buy_trade"], item["buy_trade_currency"])} / {format_price(item["buy_flea"], item["buy_flea_currency"])}'
+        display = display + '{:<25} {:<60} {:<25} {:<15} {:<12} {:<20} {:<12} {:<20}\n'.format(item['shortName'], item['normalizedName'], item['id'], item_display, item['sell_to'], sell_price, item['buy_from'], buy_price)
 
     display = display + '\n\n'
     print_message(f'\n{display}')
@@ -2654,9 +2680,18 @@ def search(tracker_file, argument, ignore_barters, ignore_crafts):
                         'id': item['id'],
                         'shortName': item['shortName'],
                         'normalizedName': item['normalizedName'],
-                        'flea': int(item['flea']),
-                        'vend': int(item['vend']),
-                        'trader': item['trader']
+                        'sell_flea': int(item['sell_flea']),
+                        'sell_flea_currency': item['sell_flea_currency'],
+                        'sell_trader': item['sell_trader'],
+                        'sell_trade': int(item['sell_trade']),
+                        'sell_trade_currency': item['sell_trade_currency'],
+                        'buy_flea': int(item['buy_flea']),
+                        'buy_flea_currency': item['buy_flea_currency'],
+                        'buy_trader': item['buy_trader'],
+                        'buy_trade': int(item['buy_trade']),
+                        'buy_trade_currency': item['buy_trade_currency'],
+                        'sell_to': item['sell_to'],
+                        'buy_from': item['buy_from']
                     })
                 else:
                     items.append({
@@ -2667,9 +2702,18 @@ def search(tracker_file, argument, ignore_barters, ignore_crafts):
                         'id': item['id'],
                         'shortName': item['shortName'],
                         'normalizedName': item['normalizedName'],
-                        'flea': int(item['flea']),
-                        'vend': int(item['vend']),
-                        'trader': item['trader']
+                        'sell_flea': int(item['sell_flea']),
+                        'sell_flea_currency': item['sell_flea_currency'],
+                        'sell_trader': item['sell_trader'],
+                        'sell_trade': int(item['sell_trade']),
+                        'sell_trade_currency': item['sell_trade_currency'],
+                        'buy_flea': int(item['buy_flea']),
+                        'buy_flea_currency': item['buy_flea_currency'],
+                        'buy_trader': item['buy_trader'],
+                        'buy_trade': int(item['buy_trade']),
+                        'buy_trade_currency': item['buy_trade_currency'],
+                        'sell_to': item['sell_to'],
+                        'buy_from': item['buy_from']
                     })
         elif (item['id'] == argument):
             if (item['id'] in database['inventory'].keys()):
@@ -2681,9 +2725,18 @@ def search(tracker_file, argument, ignore_barters, ignore_crafts):
                     'id': item['id'],
                     'shortName': item['shortName'],
                     'normalizedName': item['normalizedName'],
-                    'flea': int(item['flea']),
-                    'vend': int(item['vend']),
-                    'trader': item['trader']
+                    'sell_flea': int(item['sell_flea']),
+                    'sell_flea_currency': item['sell_flea_currency'],
+                    'sell_trader': item['sell_trader'],
+                    'sell_trade': int(item['sell_trade']),
+                    'sell_trade_currency': item['sell_trade_currency'],
+                    'buy_flea': int(item['buy_flea']),
+                    'buy_flea_currency': item['buy_flea_currency'],
+                    'buy_trader': item['buy_trader'],
+                    'buy_trade': int(item['buy_trade']),
+                    'buy_trade_currency': item['buy_trade_currency'],
+                    'sell_to': item['sell_to'],
+                    'buy_from': item['buy_from']
                 })
             else:
                 items.append({
@@ -2694,9 +2747,18 @@ def search(tracker_file, argument, ignore_barters, ignore_crafts):
                     'id': item['id'],
                     'shortName': item['shortName'],
                     'normalizedName': item['normalizedName'],
-                    'flea': item['flea'],
-                    'vend': item['vend'],
-                    'trader': item['trader']
+                    'sell_flea': int(item['sell_flea']),
+                    'sell_flea_currency': item['sell_flea_currency'],
+                    'sell_trader': item['sell_trader'],
+                    'sell_trade': int(item['sell_trade']),
+                    'sell_trade_currency': item['sell_trade_currency'],
+                    'buy_flea': int(item['buy_flea']),
+                    'buy_flea_currency': item['buy_flea_currency'],
+                    'buy_trader': item['buy_trader'],
+                    'buy_trade': int(item['buy_trade']),
+                    'buy_trade_currency': item['buy_trade_currency'],
+                    'sell_to': item['sell_to'],
+                    'buy_from': item['buy_from']
                 })
     
     for trader in database['traders']:

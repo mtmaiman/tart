@@ -884,7 +884,7 @@ def verify_craft(craft):
     return True
 
 # Add Items
-def add_item_fir(database, count, argument = '', guid = ''):  
+def add_item_fir(database, count, argument = '', guid = ''):
     if (not guid):
         guid = item_to_guid(database, argument)
 

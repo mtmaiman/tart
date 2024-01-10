@@ -911,6 +911,9 @@ def add_item_fir(database, count, argument = '', guid = ''):
         print_message(f'Added {count - _remainder_} {guid_to_item(database, guid)} (FIR) (COMPLETED)')
         database = add_item_nir(database, count, guid = guid)
         database['inventory'][guid]['have_fir'] = database['inventory'][guid]['need_fir']
+    elif (database['inventory'][guid]['have_fir'] + count == database['inventory'][guid]['need_fir']):
+        database['inventory'][guid]['have_fir'] = database['inventory'][guid]['need_fir']
+        print_message(f'Added {count - _remainder_} {guid_to_item(database, guid)} (FIR) (COMPLETED)')
     else:
         database['inventory'][guid]['have_fir'] = database['inventory'][guid]['have_fir'] + count
         print_message(f'Added {count} {guid_to_item(database, guid)} (FIR)')

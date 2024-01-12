@@ -14,6 +14,17 @@ except ModuleNotFoundError as exception:
 
 
 DEBUG = False
+ANY = -1
+GUID = 0
+TEXT = 1
+TASK = 2
+STATION = 3
+BARTER = 4
+CRAFT = 5
+ITEM = 6
+MAP = 7
+TRADER = 8
+
 USAGE = '''
 tart.py {debug}\n
 A lightweight python CLI for tracking tasks, hideout stations, barters, and items inventory for Escape From Tarkov. Use the "import" command if this is your first time! Using "debug" as a positional argument enters debug mode.\n
@@ -163,7 +174,6 @@ UNTRACKED_HEADER = '{:<40} {:<20} {:<20} {:<20}\n'.format('Entity Name', 'Type',
 BUFFER = '-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n'
 
 
-#TODO: Could not find for all crafts tracked
 #TODO: When canceling a craft or barter it should say that no items are consumed
 ###################################################
 #                                                 #
@@ -374,7 +384,7 @@ def parser(tracker_file, command):
         if (len(command) < 2):
             print_debug(f'Failed >> {command[0]} <<')
             print_error('Command not recognized')
-        elif (is_guid(command[1])):
+        elif (command[1]):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
             restart_barter_or_craft(tracker_file, command[1])
         elif (command[1] == 'help' or command[1] == 'h'):
@@ -574,173 +584,108 @@ def write_database(file_path, data):
         print_debug(f'Wrote file >> {file_path} <<')
     return
 
-# GUID to name or object
-def guid_to_item(database, guid):
-    print_debug(f'Searching item >> {guid} <<')
+# Find functions
+def disambiguous(text, matches):
+    print_warning(f'Found multiple matches for {text}. Select one')
 
-    for item in database['all_items']:
-        if (item['id'] == guid):
-            print_debug(f'Found item >> {guid} <<')
-            return item['shortName']
+    for index, match in enumerate(matches):
+        print_message(f'[{index + 1}] ({match[2]}) {match[0]['normalizedName']}')
     
+    _choice_ = input('> ')
+
+    if (_choice_.isdigit() and int(_choice_) > 0 and int(_choice_) < len(matches + 1)):
+        selection = matches[int(_choice_)]
+        print_debug(f'Selected item >> {selection}')
+        return selection
+    
+    print_error('Invalid selection')
     return False
 
-def guid_to_item_object(database, guid):
-    print_debug(f'Searching item >> {guid} <<')
-
-    for item in database['all_items']:
-        if (item['id'] == guid):
-            print_debug(f'Found item >> {guid} <<')
-            return item
+def find(text, database, type = ANY, object = [ANY]):
+    if (type(text) is list):
+        text = text.join(' ')
     
-    return False
+    # Text is GUID
+    if (type is GUID or type is ANY):
+        if (len(text) == 24 and text[0].isdigit() and re.match('[0-9a-z]{24}[0-9a-z-]', text)):
+            print_debug(f'Matched text to GUID >> {text} <<')
 
-def guid_to_task(database, guid):
-    print_debug(f'Searching task >> {guid} <<')
+            if (any(this_object in object for this_object in [ANY, BARTER]) and text[0:4] == '658d'):
+                for index, barter in enumerate(database['barters']):
+                    if (barter['id'] == text):
+                        print_debug(f'Found barter matching >> {text} <<')
+                        return barter, index
 
-    for task in database['tasks']:
-        if (task['id'] == guid):
-            print_debug(f'Found task >> {guid} <<')
-            return task['name']
+            if (any(this_object in object for this_object in [ANY, CRAFT])):
+                for index, craft in (database['crafts']):
+                    if (craft['id'] == text):
+                        print_debug(f'Found craft matching >> {text} <<')
+                        return craft, index
+            
+            if (any(this_object in object for this_object in [ANY, ITEM])):
+                for index, item in enumerate(database['all_items']):
+                    if (item['id'] == text):
+                        print_debug(f'Found item matching >> {text} <<')
+                        return item, index
+            
+            if (any(this_object in object for this_object in [ANY, TASK])):
+                for index, task in enumerate(database['tasks']):
+                    if (task['id'] == text):
+                        print_debug(f'Found task matching >> {text} <<')
+                        return task, index
+                
+            if (any(this_object in object for this_object in [ANY, STATION])):
+                for index, station in enumerate(database['hideout']):
+                    for sub_index, level in enumerate(station['levels']):
+                        if (level['id'] == text):
+                            print_debug(f'Found hideout station matching >> {text} <<')
+                            return level, (index, sub_index)
+                        
+            if (any(this_object in object for this_object in [ANY, MAP])):
+                for index, map in enumerate(database['maps']):
+                    if (map['id'] == text):
+                        print_debug(f'Found map matching >> {text} <<')
+                        return map, index
+                    
+            if (any(this_object in object for this_object in [ANY, TRADER])):
+                for index, trader in enumerate(database['traders']):
+                    if (trader['id'] == text):
+                        print_debug(f'Found trader matching >> {text} <<')
+                        return trader, index
+    
+    if (type is TEXT or type is ANY):
+        matches = []
+
+        if (any(this_object in object for this_object in [ANY, ITEM])):
+            for index, item in enumerate(database['all_items']):
+                if (string_compare(text, item['shortName']) or string_compare(text, item['normalizedName'])):
+                    matches.append([item, index, ITEM])
+                
+        if (any(this_object in object for this_object in [ANY, TASK])):
+            for index, task in enumerate(database['tasks']):
+                if (string_compare(text, task['normalizedName'])):
+                    matches.append([task, index, TASK])
         
-    return False
-
-def guid_to_trader(database, guid):
-    print_debug(f'Searching trader >> {guid} <<')
-
-    for trader in database['traders']:
-        if (trader['id'] == guid):
-            print_debug(f'Found trader >> {guid} <<')
-            return trader['normalizedName']
-    
-    return False
-
-def guid_to_station(database, guid):
-    print_debug(f'Searching hideout >> {guid} <<')
-
-    for station in database['hideout']:
-        if (station['id'] == guid):
-            print_debug(f'Found hideout >> {guid} <<')
-            return station['normalizedName']
-    
-    return False
-
-# Name to GUID
-def item_to_guid(database, item_name):
-    print_debug(f'Searching item >> {item_name} <<')
-    items = []
-
-    for item in database['all_items']:
-        if (string_compare(item_name, item['shortName']) or string_compare(item_name, item['normalizedName'])):
-            print_debug(f'Found item >> {item_name} <<')
-            items.append(item)
-
-    if (len(items) > 1):
-        print_warning('Mulitple matches found. Please select one')
-        count = 1
-
-        for item in items:
-            print_message(f'[{count}] {item["normalizedName"]}')
-            count = count + 1
-
-        _choice_ = input('> ')
-
-        if (_choice_.isdigit() and int(_choice_) > 0 and int(_choice_) < count):
-            print_debug(f'Selected item >> {items[int(_choice_) - 1]["id"]}')
-            return items[int(_choice_) - 1]['id']
+        if (any(this_object in object for this_object in [ANY, STATION])):
+            for index, station in enumerate(database['hideout']):
+                for sub_index, level in enumerate(station['levels']):
+                    matches.append([level, (index, sub_index), STATION])
+                
+        if (any(this_object in object for this_object in [ANY, MAP])):
+            for index, map in enumerate(database['maps']):
+                matches.append([map, index, MAP])
+                
+        if (any(this_object in object for this_object in [ANY, TRADER])):
+            for index, trader in enumerate(database['traders']):
+                matches.append([trader, index, TRADER])
         
-        print_error(f'Invalid selection. Aborted')
-        return False
-    
-    elif (len(items) == 0):
-        return False
-    else:
-        print_debug(f'Found item >> {items[0]["id"]}')
-        return items[0]['id']
-
-def task_to_guid(database, task_name):
-    print_debug(f'Searching task >> {task_name} <<')
-    tasks = []
-
-    for task in database['tasks']:
-        if (string_compare(task_name, task['normalizedName'])):
-            print_debug(f'Found task >> {task_name} <<')
-            tasks.append(task)
-
-    if (len(tasks) > 1):
-        print_warning('Mulitple matches found. Please select one')
-        count = 1
-
-        for task in tasks:
-            print_message(f'[{count}] {task["normalizedName"]}')
-            count = count + 1
-
-        _choice_ = input('> ')
-
-        if (_choice_.isdigit() and int(_choice_) > 0 and int(_choice_) < count):
-            print_debug(f'Selected task >> {tasks[int(_choice_) - 1]["id"]}')
-            return tasks[int(_choice_) - 1]['id']
-        
-        print_error(f'Invalid selection. Aborted')
-        return False
-    
-    elif (len(tasks) == 0):
-        return False
-    else:
-        print_debug(f'Found task >> {tasks[0]["id"]}')
-        return tasks[0]['id']
-
-def station_to_guid(database, station_name):
-    print_debug(f'Searching station >> {station_name} <<')
-    stations = []
-
-    for station in database['hideout']:
-        for level in station['levels']:
-            if (string_compare(station_name, level['normalizedName'])):
-                print_debug(f'Found station >> {station_name} <<')
-                stations.append(level)
-
-    if (len(stations) > 1):
-        print_warning('Mulitple matches found. Please select one')
-        count = 1
-
-        for station in stations:
-            print_message(f'[{count}] {station["normalizedName"]}')
-            count = count + 1
-
-        _choice_ = input('> ')
-
-        if (_choice_.isdigit() and int(_choice_) > 0 and int(_choice_) < count):
-            print_debug(f'Selected station >> {stations[int(_choice_) - 1]["id"]}')
-            return stations[int(_choice_) - 1]['id']
-        
-        print_error(f'Invalid selection. Aborted')
-        return False
-    
-    elif (len(stations) == 0):
-        return False
-    else:
-        print_debug(f'Found station >> {stations[0]["id"]}')
-        return stations[0]['id']
-
-def map_to_guid(database, map_name):
-    print_debug(f'Searching map >> {map_name} <<')
-
-    for map in database['maps']:
-        if (normalize(map['normalizedName']) == normalize(map_name)):
-            print_debug(f'Found map >> {map_name} <<')
-            return map['id']
-    
-    return False
-
-def trader_to_guid(database, trader_name):
-    print_debug(f'Searching trader >> {trader_name} <<')
-
-    for trader in database['traders']:
-        if (normalize(trader['normalizedName']) == normalize(trader_name)):
-            print_debug(f'Found trader >> {trader_name} <<')
-            return trader['id']
-    
+        if (len(matches) == 1):
+            return matches[0][0], matches[0][1]
+        else:
+            _selection_ = disambiguous(text, matches)
+            return _selection_[0], _selection_[1]
+                
+    print_error(f'Could not find anything matching {text}')
     return False
 
 # Inventory functions
@@ -765,25 +710,6 @@ def get_nir_count_by_guid(database, guid):
     return False
 
 # String functions
-def is_guid(text):
-    if (type(text) is list):
-        text = text.join(' ')
-
-    if (len(text) == 24 and text[0].isdigit()):
-        print_debug(f'GUID matched (24) >> {text} <<')
-        return True
-    
-    if (len(text) > 24 and text[0].isdigit() and text[24] == '-'):
-        print_debug(f'GUID matched (24-+) >> {text} <<')
-        return True
-    
-    if (len(text) > 24 and text[0].isdigit() and text[0:2] == '65'):
-        print_debug(f'GUID matched (barter) >> {text} <<')
-        return True
-    
-    print_debug(f'Not GUID >> {text} <<')
-    return False
-
 def normalize(text):
     unwanted_strings = ['', '.', '(', ')', '+', '=', '\'', '"', ',', '\\', '/', '?', '#', '$', '&', '!', '@', '[', ']', '{', '}', '-', '_']
     normalized = text.lower()
@@ -840,7 +766,7 @@ def verify_task(database, task, task_table):
             id = prereq['task']['id']
 
         if (task_table[id] == 'incomplete'):
-            return f'{guid_to_task(database, id)} must be completed first'
+            return f'{find(id, database, type = GUID, object = TASK)['normalizedName']} must be completed first'
     
     print_debug(f'Verified task >> {task["name"]} <<')
     return True
@@ -886,39 +812,30 @@ def verify_craft(craft):
     return True
 
 # Add Items
-def add_item_fir(database, count, argument = '', guid = ''):
-    if (not guid):
-        guid = item_to_guid(database, argument)
+def add_item_fir(database, count, guid):
+    item_name = find(guid, database, type = GUID, object = ITEM)['normalizedName']
 
-        if (not guid):
-            print_error(f'Could not find {argument}')
-            return False
-    
-    if (not count or count < 1):
-        print_error(f'Invalid integer value')
-        return False
-    
     if (guid not in database['inventory'].keys()):
-        print_error(f'{guid_to_item(database, guid)} is not needed')
+        print_error(f'{item_name} is not needed')
         return False
 
     if (database['inventory'][guid]['need_fir'] == 0):
-        print_message(f'{guid_to_item(database, guid)} (FIR) is not needed')
+        print_message(f'{item_name} (FIR) is not needed')
         database = add_item_nir(database, count, guid = guid)
     elif (database['inventory'][guid]['have_fir'] == database['inventory'][guid]['need_fir']):
-        print_message(f'{guid_to_item(database, guid)} (FIR) already found')
+        print_message(f'{item_name} (FIR) already found')
         database = add_item_nir(database, count, guid = guid)
     elif (database['inventory'][guid]['have_fir'] + count > database['inventory'][guid]['need_fir']):
         _remainder_ = database['inventory'][guid]['have_fir'] + count - database['inventory'][guid]['need_fir']
-        print_message(f'Added {count - _remainder_} {guid_to_item(database, guid)} (FIR) (COMPLETED)')
+        print_message(f'Added {count - _remainder_} {item_name} (FIR) (COMPLETED)')
         database = add_item_nir(database, count, guid = guid)
         database['inventory'][guid]['have_fir'] = database['inventory'][guid]['need_fir']
     elif (database['inventory'][guid]['have_fir'] + count == database['inventory'][guid]['need_fir']):
         database['inventory'][guid]['have_fir'] = database['inventory'][guid]['need_fir']
-        print_message(f'Added {count} {guid_to_item(database, guid)} (FIR) (COMPLETED)')
+        print_message(f'Added {count} {item_name} (FIR) (COMPLETED)')
     else:
         database['inventory'][guid]['have_fir'] = database['inventory'][guid]['have_fir'] + count
-        print_message(f'Added {count} {guid_to_item(database, guid)} (FIR)')
+        print_message(f'Added {count} {item_name} (FIR)')
 
     if (not database):
         print_error('Something went wrong. Aborted')
@@ -926,36 +843,27 @@ def add_item_fir(database, count, argument = '', guid = ''):
 
     return database
 
-def add_item_nir(database, count, argument = '', guid = ''):
-    if (not guid):
-        guid = item_to_guid(database, argument)
+def add_item_nir(database, count, guid = ''):    
+    item_name = find(guid, database, type = GUID, object = ITEM)['normalizedName']
 
-        if (not guid):
-            print_error(f'Could not find {argument}')
-            return False
-    
-    if (not count or count < 1):
-        print_error(f'Invalid integer value')
-        return False
-    
     if (guid not in database['inventory'].keys()):
-        print_error(f'{guid_to_item(database, guid)} is not needed')
+        print_error(f'{item_name} is not needed')
         return False
 
     if (database['inventory'][guid]['need_nir'] == 0):
-        print_message(f'{guid_to_item(database, guid)} (NIR) is not needed')
+        print_message(f'{item_name} (NIR) is not needed')
     elif (database['inventory'][guid]['have_nir'] == database['inventory'][guid]['need_nir']):
-        print_message(f'{guid_to_item(database, guid)} (NIR) already found')
+        print_message(f'{item_name} (NIR) already found')
     elif (database['inventory'][guid]['have_nir'] + count > database['inventory'][guid]['need_nir']):
         _remainder_ = database['inventory'][guid]['have_nir'] + count - database['inventory'][guid]['need_nir']
         database['inventory'][guid]['have_nir'] = database['inventory'][guid]['need_nir']
-        print_message(f'Added {count - _remainder_} {guid_to_item(database, guid)} (NIR) (COMPLETED). Skipped {_remainder_} items')
+        print_message(f'Added {count - _remainder_} {item_name} (NIR) (COMPLETED). Skipped {_remainder_} items')
     elif (database['inventory'][guid]['have_nir'] + count == database['inventory'][guid]['need_nir']):
         database['inventory'][guid]['have_nir'] = database['inventory'][guid]['need_nir']
-        print_message(f'Added {count} {guid_to_item(database, guid)} (NIR) (COMPLETED)')
+        print_message(f'Added {count} {item_name} (NIR) (COMPLETED)')
     else:
         database['inventory'][guid]['have_nir'] = database['inventory'][guid]['have_nir'] + count
-        print_message(f'Added {count} {guid_to_item(database, guid)} (NIR)')
+        print_message(f'Added {count} {item_name} (NIR)')
 
     if (not database):
         print_error('Something went wrong. Aborted')
@@ -964,23 +872,11 @@ def add_item_nir(database, count, argument = '', guid = ''):
     return database
 
 # Delete Items
-def del_item_fir(database, count, argument = '', guid = ''):
-    if (not database):
-        return False
-    
-    if (not guid):
-        guid = item_to_guid(database, argument)
-
-        if (not guid):
-            print_error(f'Could not find {argument}')
-            return False
-    
-    if (not count or count < 1):
-        print_error(f'Invalid integer value')
-        return False
+def del_item_fir(database, count, guid = ''):    
+    item_name = find(guid, database, type = GUID, object = ITEM)['normalizedName']
     
     if (guid not in database['inventory'].keys()):
-        print_error(f'{guid_to_item(database, guid)} is not in the inventory')
+        print_error(f'{item_name} is not in the inventory')
         return False
 
     if (database['inventory'][guid]['have_fir'] - count < 0):
@@ -990,26 +886,14 @@ def del_item_fir(database, count, argument = '', guid = ''):
         database['inventory'][guid]['have_fir'] = database['inventory'][guid]['have_fir'] - count
 
     remaining = database['inventory'][guid]['have_fir']
-    print_message(f'Removed {count} {guid_to_item(database, guid)} (FIR) ({remaining} remaining FIR)')
+    print_message(f'Removed {count} {item_name} (FIR) ({remaining} remaining FIR)')
     return database
 
-def del_item_nir(database, count, argument = '', guid = ''):
-    if (not database):
-        return False
-    
-    if (not guid):
-        guid = item_to_guid(database, argument)
-
-        if (not guid):
-            print_error(f'Could not find {argument}')
-            return False
-    
-    if (not count or count < 1):
-        print_error(f'Invalid integer value')
-        return False
+def del_item_nir(database, count, guid = ''):
+    item_name = find(guid, database, type = GUID, object = ITEM)['normalizedName']
     
     if (guid not in database['inventory'].keys()):
-        print_error(f'{guid_to_item(database, guid)} is not in the inventory')
+        print_error(f'{item_name} is not in the inventory')
         return False
 
     if (database['inventory'][guid]['have_nir'] - count < 0):
@@ -1019,7 +903,7 @@ def del_item_nir(database, count, argument = '', guid = ''):
         database['inventory'][guid]['have_nir'] = database['inventory'][guid]['have_nir'] - count
 
     remaining = database['inventory'][guid]['have_nir']
-    print_message(f'Removed {count} {guid_to_item(database, guid)} (NIR) ({remaining} remaining NIR)')
+    print_message(f'Removed {count} {item_name} (NIR) ({remaining} remaining NIR)')
     return database
 
 # Get functions
@@ -2875,6 +2759,8 @@ def track(tracker_file, argument):
 
     if (not database):
         return False
+    
+    type = string_to_type(argument)
 
     if (is_guid(argument)):
         guid = argument
@@ -3024,7 +2910,7 @@ def restart_barter_or_craft(tracker_file, argument):
             
             return True
     
-    print_error(f'Encountered an unhandled error when restarting craft or barter {argument}')
+    print_error(f'Could not find a match for {argument}')
     return False
 
 # Add

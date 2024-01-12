@@ -14,17 +14,6 @@ except ModuleNotFoundError as exception:
 
 
 DEBUG = False
-ANY = -1
-GUID = 0
-TEXT = 1
-TASK = 2
-STATION = 3
-BARTER = 4
-CRAFT = 5
-ITEM = 6
-MAP = 7
-TRADER = 8
-
 USAGE = '''
 tart.py {debug}\n
 A lightweight python CLI for tracking tasks, hideout stations, barters, and items inventory for Escape From Tarkov. Use the "import" command if this is your first time! Using "debug" as a positional argument enters debug mode.\n
@@ -585,160 +574,206 @@ def write_database(file_path, data):
     return
 
 # Find functions
-def disambiguate(text, matches):
-    print_warning(f'Found multiple matches for {text}. Select one')
-
+def disambiguate(matches):
     for index, match in enumerate(matches):
         print_message(f'[{index + 1}] ({match[1]}) {match[0]['normalizedName']}')
     
     _choice_ = input('> ')
 
     if (_choice_.isdigit() and int(_choice_) > 0 and int(_choice_) < len(matches + 1)):
-        selection = matches[int(_choice_)]
+        selection = matches[int(_choice_) - 1]
         print_debug(f'Selected item >> {selection}')
         return selection
     
     print_error('Invalid selection')
-    return False, False
+    return False
 
-def guid_to_task(text, database):
+def find_task(text, database, disambiguous):
+    print_debug(f'Searching for task >> {text} <<')
+    tasks = []
+
     for task in database['tasks']:
-        if (task['id'] == text):
-            print_debug(f'Found task matching >> {text} <<')
-            return task
+        if (string_compare(text, task['normalizedName'])):
+            print_debug(f'Found matching task >> {task['normalizedName']} <<')
+            tasks.append(task)
 
-def guid_to_station(text, database):
+    if (len(tasks) == 0):
+        return False
+    elif (len(tasks) == 1):
+        return tasks[0]
+    elif (disambiguous):
+        print_warning(f'Found {len(tasks)} tasks for {text}. Please choose one')
+        return disambiguate(tasks)
+    else:
+        return tasks
+
+def find_station(text, database, disambiguous):
+    print_debug(f'Searching for hideout station >> {text} <<')
+    stations = []
+
     for station in database['hideout']:
         for level in station['levels']:
-            if (level['id'] == text):
-                print_debug(f'Found hideout station matching >> {text} <<')
+            if (string_compare(text, level['normalizedName'])):
+                print_debug(f'Found matching station >> {level['normalizedName']} <<')
+                stations.append(level)
+
+    if (len(stations) == 0):
+        return False
+    elif (len(stations) == 1):
+        return stations[0]
+    elif (disambiguous):
+        print_warning(f'Found {len(stations)} hideout stations for {text}. Please choose one')
+        return disambiguate(stations)
+    else:
+        return stations
+
+def find_barter(text, database):
+    print_debug(f'Searching for barters with items >> {text} <<')
+    barters = []
+
+    for barter in database['barters']:
+        for requirement in barter['requiredItems']:
+            item = guid_to_item(requirement['item']['id'], database)
+
+            if (string_compare(text, item['shortName']) or string_compare(text, item['normalizedName'])):
+                print_debug(f'Found matching barter >> {barter['id']} <<')
+                barters.append(barter)
+
+        for reward in barter['rewardItems']:
+            item = guid_to_item(reward['item']['id'], database)
+
+            if (string_compare(text, item['shortName']) or string_compare(text, item['normalizedName'])):
+                print_debug(f'Found matching barter >> {barter['id']} <<')
+                barters.append(barter)
+    
+    return barters
+
+def find_craft(text, database):
+    print_debug(f'Searching for crafts with items >> {text} <<')
+    crafts = []
+
+    for craft in database['crafts']:
+        for requirement in craft['requiredItems']:
+            item = guid_to_item(requirement['item']['id'], database)
+
+            if (string_compare(text, item['shortName']) or string_compare(text, item['normalizedName'])):
+                print_debug(f'Found matching barter >> {craft['id']} <<')
+                crafts.append(craft)
+
+        for reward in craft['rewardItems']:
+            item = guid_to_item(reward['item']['id'], database)
+
+            if (string_compare(text, item['shortName']) or string_compare(text, item['normalizedName'])):
+                print_debug(f'Found matching barter >> {craft['id']} <<')
+                crafts.append(craft)
+    
+    return crafts
+
+def find_item(text, database, disambiguous):
+    print_debug(f'Searching for item >> {text} <<')
+    items = []
+
+    for item in database['all_items']:
+        if (string_compare(text, item['normalizedName']) or string_compare(text, item['shortName'])):
+            print_debug(f'Found matching item >> {item['normalizedName']} <<')
+            items.append(item)
+
+    if (len(items) == 0):
+        return False
+    elif (len(items) == 1):
+        return items[0]
+    elif (disambiguous):
+        print_warning(f'Found {len(items)} items for {text}. Please choose one')
+        return disambiguate(items)
+    else:
+        return items
+
+def find_filter(text, database):
+    maps = []
+    traders = []
+
+    for map in database['maps']:
+        if (string_compare(text, map['normalizedName'])):
+            map['type'] = 'map'
+            maps.append(map)
+
+    for trader in database['traders']:
+        if (string_compare(text, map['normalizedName'])):
+            trader['type'] = 'trader'
+            traders.append(trader)
+
+    return disambiguate(maps + traders)
+
+# GUID unwrap
+def guid_to_task(guid, database):
+    print_debug(f'Searching task >> {guid} <<')
+    
+    for task in database['tasks']:
+        if (task['id'] == guid):
+            print_debug(f'Found task matching >> {guid} <<')
+            return task
+
+def guid_to_station(guid, database):
+    print_debug(f'Searching station >> {guid} <<')
+    for station in database['hideout']:
+        for level in station['levels']:
+            if (level['id'] == guid):
+                print_debug(f'Found hideout station matching >> {guid} <<')
                 return level
 
-def guid_to_barter(text, database):
+def guid_to_barter(guid, database):
+    print_debug(f'Searching barter >> {guid} <<')
+
     for barter in database['barters']:
-        if (barter['id'] == text):
-            print_debug(f'Found barter matching >> {text} <<')
+        if (barter['id'] == guid):
+            print_debug(f'Found barter matching >> {guid} <<')
             return barter
 
-def guid_to_craft(text, database):
+def guid_to_craft(guid, database):
+    print_debug(f'Searching craft >> {guid} <<')
+
     for craft in database['crafts']:
-        if (craft['id'] == text):
-            print_debug(f'Found craft matching >> {text} <<')
+        if (craft['id'] == guid):
+            print_debug(f'Found craft matching >> {guid} <<')
             return craft
 
-def guid_to_item(text, database):
+def guid_to_item(guid, database):
+    print_debug(f'Searching item >> {guid} <<')
     for item in database['all_items']:
-        if (item['id'] == text):
-            print_debug(f'Found item matching >> {text} <<')
+        if (item['id'] == guid):
+            print_debug(f'Found item matching >> {guid} <<')
             return item
 
-def guid_to_any(text, database):
-    # This is gross
-    object = guid_to_barter(text, database)
+def guid_to_any(guid, database):
+    object = guid_to_barter(guid, database)
+
+    if (object):
+        return object
+
+    object = guid_to_craft(guid, database)
+
+    if (object):
+        return object
+
+    object = guid_to_task(guid, database)
+
+    if (object):
+        return object
+
+    object = guid_to_station(guid, database)
+
+    if (object):
+        return object
+
+    object = guid_to_item(guid, database)
+
+    if (object):
+        return object
 
     if (not object):
-        object = guid_to_craft(text, database)
-
-        if (not object):
-            object = guid_to_task(text, database)
-
-            if (not object):
-                object = guid_to_station(text, database)
-
-                if (not object):
-                    object = guid_to_item(text, database)
-
-                    if (not object):
-                        print_error(f'Could not find GUID {text}')
+        print_error(f'Could not find GUID {guid}')
 
     return object
-
-def find(text, database, type = ANY, object = [ANY]):
-    if (type(text) is list):
-        text = text.join(' ')
-    
-    # Text is GUID
-    if (type is GUID or type is ANY):
-        if (len(text) == 24 and text[0].isdigit() and re.match('[0-9a-z]{24}[0-9a-z-]', text)):
-            print_debug(f'Matched text to GUID >> {text} <<')
-
-            if (any(this_object in object for this_object in [ANY, BARTER]) and text[0:4] == '658d'):
-                for barter in database['barters']:
-                    if (barter['id'] == text):
-                        print_debug(f'Found barter matching >> {text} <<')
-                        return barter, BARTER
-
-            if (any(this_object in object for this_object in [ANY, CRAFT])):
-                for craft in database['crafts']:
-                    if (craft['id'] == text):
-                        print_debug(f'Found craft matching >> {text} <<')
-                        return craft, CRAFT
-            
-            if (any(this_object in object for this_object in [ANY, ITEM])):
-                for item in database['all_items']:
-                    if (item['id'] == text):
-                        print_debug(f'Found item matching >> {text} <<')
-                        return item, ITEM
-            
-            if (any(this_object in object for this_object in [ANY, TASK])):
-                for task in database['tasks']:
-                    if (task['id'] == text):
-                        print_debug(f'Found task matching >> {text} <<')
-                        return task, TASK
-                
-            if (any(this_object in object for this_object in [ANY, STATION])):
-                for station in database['hideout']:
-                    for level in station['levels']:
-                        if (level['id'] == text):
-                            print_debug(f'Found hideout station matching >> {text} <<')
-                            return level, STATION
-                        
-            if (any(this_object in object for this_object in [ANY, MAP])):
-                for map in database['maps']:
-                    if (map['id'] == text):
-                        print_debug(f'Found map matching >> {text} <<')
-                        return map, MAP
-                    
-            if (any(this_object in object for this_object in [ANY, TRADER])):
-                for trader in database['traders']:
-                    if (trader['id'] == text):
-                        print_debug(f'Found trader matching >> {text} <<')
-                        return trader, TRADER
-    
-    if (type is TEXT or type is ANY):
-        matches = []
-
-        if (any(this_object in object for this_object in [ANY, ITEM])):
-            for item in database['all_items']:
-                if (string_compare(text, item['shortName']) or string_compare(text, item['normalizedName'])):
-                    matches.append([item, ITEM])
-                
-        if (any(this_object in object for this_object in [ANY, TASK])):
-            for task in database['tasks']:
-                if (string_compare(text, task['normalizedName'])):
-                    matches.append([task, TASK])
-        
-        if (any(this_object in object for this_object in [ANY, STATION])):
-            for station in database['hideout']:
-                for level in station['levels']:
-                    matches.append([level, STATION])
-                
-        if (any(this_object in object for this_object in [ANY, MAP])):
-            for map in database['maps']:
-                matches.append([map, MAP])
-                
-        if (any(this_object in object for this_object in [ANY, TRADER])):
-            for trader in database['traders']:
-                matches.append([trader, TRADER])
-        
-        if (len(matches) == 1):
-            return matches[0][0], matches[0][1]
-        else:
-            _selection_ = disambiguate(text, matches)
-            return _selection_[0], _selection_[1]
-    
-    print_error(f'Could not find anything matching {text}')
-    return False, False
 
 # Inventory functions
 def get_fir_count_by_guid(database, guid):
@@ -1145,58 +1180,6 @@ def get_items_needed(database):
 
     return items
 
-def get_tasks_by_map(database, guid):
-    tasks = []
-    task_table = {}
-    print_debug(f'Compiling tasks for map >> {guid} <<')
-
-    for task in database['tasks']:
-        task_table[task['id']] = task['status']
-
-    for task in database['tasks']:
-        if (verify_task(database, task, task_table) != True):
-            continue
-
-        invalid_map = False
-        potential = False
-
-        for objective in task['objectives']:
-            if (len(objective['maps']) == 0):
-                print_debug(f'Found task >> {task["name"]} << for map >> {guid} <<')
-                potential = True
-
-            for map in objective['maps']:
-                if (map['id'] == guid):
-                    print_debug(f'Found task >> {task["name"]} << for map >> {guid} <<')
-                    tasks.append(task)
-                    break
-                else:
-                    invalid_map = True
-            else:
-                continue
-            break
-        else:
-            if (potential and not invalid_map):
-                tasks.append(task)
-        continue
-
-    return tasks
-
-def get_tasks_by_trader(database, guid):
-    tasks = []
-    task_table = {}
-    print_debug(f'Compiling tasks for trader >> {guid} <<')
-
-    for task in database['tasks']:
-        task_table[task['id']] = task['status']
-
-    for task in database['tasks']:
-        if (task['trader']['id'] == guid and verify_task(database, task, task_table) == True):
-            print_debug(f'Found task >> {task["name"]} << for trader >> {guid} <<')
-            tasks.append(task)
-
-    return tasks
-
 def get_available_tasks(database):
     tasks = []
     task_table = {}
@@ -1212,6 +1195,51 @@ def get_available_tasks(database):
 
     return tasks
 
+def get_available_tasks_filtered(database, argument):
+    print_debug(f'Compiling available tasks with filter >> {argument} <<')
+    task_map = []
+    tasks = []
+
+    for task in database['tasks']:
+        task_map[task['id']] = task['status']
+
+    for task in database['tasks']:
+        if (verify_task(database, task, task_map) != True):
+            continue
+
+        filter = find_filter(argument, database)
+
+        if (filter['type'] == 'map'):
+            invalid = False
+            potential = False
+
+            for objective in task['objectives']:
+                if (len(objective['maps']) == 0):
+                    print_debug(f'Found task >> {task["name"]} << for map >> {argument} <<')
+                    potential = True
+
+                for map in objective['maps']:
+                    if (map['id'] == argument):
+                        print_debug(f'Found task >> {task["name"]} << for map >> {argument} <<')
+                        tasks.append(task)
+                        break
+                    else:
+                        invalid = True
+                else:
+                    continue
+                break
+            else:
+                if (potential and not invalid):
+                    tasks.append(task)
+            continue
+
+        else:
+            for task in database['tasks']:
+                if (task['trader']['id'] == argument):
+                    tasks.append(task)
+
+    return tasks
+
 def get_hideout_stations(database):
     hideout_stations = []
     print_debug('Compiling available stations')
@@ -1224,7 +1252,7 @@ def get_hideout_stations(database):
     
     return hideout_stations
 
-def get_barters(database):
+def get_available_barters(database):
     barters = []
     print_debug('Compiling available barters')
 
@@ -1235,7 +1263,7 @@ def get_barters(database):
 
     return barters
 
-def get_barters_by_trader(database, guid):
+def get_available_barters_by_trader(database, guid):
     barters = []
     print_debug(f'Compiling barters for trader >> {guid} <<')
 
@@ -2439,17 +2467,10 @@ def list_tasks(tracker_file, argument):
     if (argument == 'all'):
         tasks = get_available_tasks(database)
     else:
-        guid, type = find(argument, database, type = TEXT, object = [MAP, TRADER])
-    
-    if (type is MAP):
-        tasks = get_tasks_by_map(database, guid)
-    elif (type is TRADER):
-        tasks = get_tasks_by_trader(database, guid)
-    else:
-        tasks = []
+        tasks = get_available_tasks_filtered(database, argument)
 
     if (len(tasks) == 0):
-        print_message('No available or tracked tasks')
+        print_message('No available or tracked tasks found')
         return False
     
     print_tasks(database, tasks)
@@ -2465,7 +2486,7 @@ def list_stations(tracker_file):
     stations = get_hideout_stations(database)
 
     if (len(stations) == 0):
-        print_message('No available or tracked hideout stations')
+        print_message('No available or tracked hideout stations found')
     else:
         print_hideout_stations(database, stations)
     
@@ -2479,17 +2500,13 @@ def list_barters(tracker_file, argument):
         return False
     
     if (argument == 'all'):
-        barters = get_barters(database)
+        barters = get_available_barters(database)
     else:
-        guid, type = find(argument, database, type = TEXT, object = [MAP, TRADER])
-    
-    if (type is TRADER):
-        barters = get_barters_by_trader(database, guid)
-    else:
-        barters = []
+        filter = find_filter(argument, database)
+        barters = get_available_barters_by_trader(database, filter['id'])
 
     if (len(barters) == 0):
-        print_message('No tracked barters')
+        print_message('No tracked barters found')
         return False
     
     print_barters(database, barters)
@@ -2505,7 +2522,7 @@ def list_crafts(tracker_file):
     crafts = get_crafts(database)
 
     if (len(crafts) == 0):
-        print_message('No tracked crafts')
+        print_message('No tracked crafts found')
     else:
         print_crafts(database, crafts)
     
@@ -2521,9 +2538,9 @@ def list_untracked(tracker_file, ignore_kappa):
     untracked = get_untracked(database, ignore_kappa)
 
     if (len(untracked) == 0 and ignore_kappa):
-        print_message('No untracked items (including Kappa tasks)')
+        print_message('No untracked items (including Kappa tasks) found')
     elif (len(untracked) == 0):
-        print_message('No untracked items (excluding Kappa tasks)')
+        print_message('No untracked items (excluding Kappa tasks) found')
     else:
         print_untracked(untracked)
 
@@ -2549,6 +2566,7 @@ def list_traders(tracker_file):
     traders = ', '.join(trader['normalizedName'] for trader in database['traders']).strip(', ')
     print_message(f'Accepted trader names are: {traders}')
 
+#TODO: Start here
 # Search
 def search(tracker_file, argument, ignore_barters, ignore_crafts):
     database = open_database(tracker_file)

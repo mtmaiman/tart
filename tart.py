@@ -585,11 +585,11 @@ def write_database(file_path, data):
     return
 
 # Find functions
-def disambiguous(text, matches):
+def disambiguate(text, matches):
     print_warning(f'Found multiple matches for {text}. Select one')
 
     for index, match in enumerate(matches):
-        print_message(f'[{index + 1}] ({match[2]}) {match[0]['normalizedName']}')
+        print_message(f'[{index + 1}] ({match[1]}) {match[0]['normalizedName']}')
     
     _choice_ = input('> ')
 
@@ -599,7 +599,59 @@ def disambiguous(text, matches):
         return selection
     
     print_error('Invalid selection')
-    return False
+    return False, False
+
+def guid_to_task(text, database):
+    for task in database['tasks']:
+        if (task['id'] == text):
+            print_debug(f'Found task matching >> {text} <<')
+            return task
+
+def guid_to_station(text, database):
+    for station in database['hideout']:
+        for level in station['levels']:
+            if (level['id'] == text):
+                print_debug(f'Found hideout station matching >> {text} <<')
+                return level
+
+def guid_to_barter(text, database):
+    for barter in database['barters']:
+        if (barter['id'] == text):
+            print_debug(f'Found barter matching >> {text} <<')
+            return barter
+
+def guid_to_craft(text, database):
+    for craft in database['crafts']:
+        if (craft['id'] == text):
+            print_debug(f'Found craft matching >> {text} <<')
+            return craft
+
+def guid_to_item(text, database):
+    for item in database['all_items']:
+        if (item['id'] == text):
+            print_debug(f'Found item matching >> {text} <<')
+            return item
+
+def guid_to_any(text, database):
+    # This is gross
+    object = guid_to_barter(text, database)
+
+    if (not object):
+        object = guid_to_craft(text, database)
+
+        if (not object):
+            object = guid_to_task(text, database)
+
+            if (not object):
+                object = guid_to_station(text, database)
+
+                if (not object):
+                    object = guid_to_item(text, database)
+
+                    if (not object):
+                        print_error(f'Could not find GUID {text}')
+
+    return object
 
 def find(text, database, type = ANY, object = [ANY]):
     if (type(text) is list):
@@ -611,82 +663,82 @@ def find(text, database, type = ANY, object = [ANY]):
             print_debug(f'Matched text to GUID >> {text} <<')
 
             if (any(this_object in object for this_object in [ANY, BARTER]) and text[0:4] == '658d'):
-                for index, barter in enumerate(database['barters']):
+                for barter in database['barters']:
                     if (barter['id'] == text):
                         print_debug(f'Found barter matching >> {text} <<')
-                        return barter, index
+                        return barter, BARTER
 
             if (any(this_object in object for this_object in [ANY, CRAFT])):
-                for index, craft in (database['crafts']):
+                for craft in database['crafts']:
                     if (craft['id'] == text):
                         print_debug(f'Found craft matching >> {text} <<')
-                        return craft, index
+                        return craft, CRAFT
             
             if (any(this_object in object for this_object in [ANY, ITEM])):
-                for index, item in enumerate(database['all_items']):
+                for item in database['all_items']:
                     if (item['id'] == text):
                         print_debug(f'Found item matching >> {text} <<')
-                        return item, index
+                        return item, ITEM
             
             if (any(this_object in object for this_object in [ANY, TASK])):
-                for index, task in enumerate(database['tasks']):
+                for task in database['tasks']:
                     if (task['id'] == text):
                         print_debug(f'Found task matching >> {text} <<')
-                        return task, index
+                        return task, TASK
                 
             if (any(this_object in object for this_object in [ANY, STATION])):
-                for index, station in enumerate(database['hideout']):
-                    for sub_index, level in enumerate(station['levels']):
+                for station in database['hideout']:
+                    for level in station['levels']:
                         if (level['id'] == text):
                             print_debug(f'Found hideout station matching >> {text} <<')
-                            return level, (index, sub_index)
+                            return level, STATION
                         
             if (any(this_object in object for this_object in [ANY, MAP])):
-                for index, map in enumerate(database['maps']):
+                for map in database['maps']:
                     if (map['id'] == text):
                         print_debug(f'Found map matching >> {text} <<')
-                        return map, index
+                        return map, MAP
                     
             if (any(this_object in object for this_object in [ANY, TRADER])):
-                for index, trader in enumerate(database['traders']):
+                for trader in database['traders']:
                     if (trader['id'] == text):
                         print_debug(f'Found trader matching >> {text} <<')
-                        return trader, index
+                        return trader, TRADER
     
     if (type is TEXT or type is ANY):
         matches = []
 
         if (any(this_object in object for this_object in [ANY, ITEM])):
-            for index, item in enumerate(database['all_items']):
+            for item in database['all_items']:
                 if (string_compare(text, item['shortName']) or string_compare(text, item['normalizedName'])):
-                    matches.append([item, index, ITEM])
+                    matches.append([item, ITEM])
                 
         if (any(this_object in object for this_object in [ANY, TASK])):
-            for index, task in enumerate(database['tasks']):
+            for task in database['tasks']:
                 if (string_compare(text, task['normalizedName'])):
-                    matches.append([task, index, TASK])
+                    matches.append([task, TASK])
         
         if (any(this_object in object for this_object in [ANY, STATION])):
-            for index, station in enumerate(database['hideout']):
-                for sub_index, level in enumerate(station['levels']):
-                    matches.append([level, (index, sub_index), STATION])
+            for station in database['hideout']:
+                for level in station['levels']:
+                    matches.append([level, STATION])
                 
         if (any(this_object in object for this_object in [ANY, MAP])):
-            for index, map in enumerate(database['maps']):
-                matches.append([map, index, MAP])
+            for map in database['maps']:
+                matches.append([map, MAP])
                 
         if (any(this_object in object for this_object in [ANY, TRADER])):
-            for index, trader in enumerate(database['traders']):
-                matches.append([trader, index, TRADER])
+            for trader in database['traders']:
+                matches.append([trader, TRADER])
         
         if (len(matches) == 1):
             return matches[0][0], matches[0][1]
         else:
-            _selection_ = disambiguous(text, matches)
+            _selection_ = disambiguate(text, matches)
             return _selection_[0], _selection_[1]
-                
+    
     print_error(f'Could not find anything matching {text}')
-    return False
+    return False, False
 
 # Inventory functions
 def get_fir_count_by_guid(database, guid):
@@ -918,7 +970,7 @@ def get_items(database):
             'have_fir': database['inventory'][guid]['have_fir'],
             'have_nir': database['inventory'][guid]['have_nir'],
             'id': guid,
-            'shortName': guid_to_item(database, guid)
+            'shortName': find(guid, database, type = GUID, object = ITEM)['shortName']
         })
 
     return items
@@ -939,7 +991,7 @@ def get_items_needed_for_tasks(database):
                         'have_fir': 0,
                         'have_nir': 0,
                         'id': guid,
-                        'shortName': guid_to_item(database, guid)
+                        'shortName': find(guid, database, type = GUID, object = ITEM)['shortName']
                     }
 
                     if (fir):
@@ -979,7 +1031,7 @@ def get_items_needed_for_stations(database):
                         'have_fir': 0,
                         'have_nir': 0,
                         'id': guid,
-                        'shortName': guid_to_item(database, guid)
+                        'shortName': find(guid, database, type = GUID, object = ITEM)['shortName']
                     }
                     item['need_nir'] = requirement['count']
 
@@ -1010,7 +1062,7 @@ def get_items_needed_for_barters(database):
                     'have_fir': 0,
                     'have_nir': 0,
                     'id': guid,
-                    'shortName': guid_to_item(database, guid)
+                    'shortName': find(guid, database, type = GUID, object = ITEM)['shortName']
                 }
                 item['need_nir'] = requirement['count']
 
@@ -1041,7 +1093,7 @@ def get_items_needed_for_crafts(database):
                     'have_fir': 0,
                     'have_nir': 0,
                     'id': guid,
-                    'shortName': guid_to_item(database, guid)
+                    'shortName': find(guid, database, type = GUID, object = ITEM)['shortName']
                 }
                 item['need_nir'] = requirement['count']
 
@@ -1068,7 +1120,7 @@ def get_items_owned(database):
                 'have_fir': database['inventory'][guid]['have_fir'],
                 'have_nir': database['inventory'][guid]['have_nir'],
                 'id': guid,
-                'shortName': guid_to_item(database, guid)
+                'shortName': find(guid, database, type = GUID, object = ITEM)['shortName']
             })
 
     return items
@@ -1083,7 +1135,7 @@ def get_items_needed(database):
                 'need_fir': database['inventory'][guid]['need_fir'] - database['inventory'][guid]['have_fir'],
                 'need_nir': database['inventory'][guid]['need_nir'] - database['inventory'][guid]['have_nir'],
                 'id': guid,
-                'shortName': guid_to_item(database, guid)
+                'shortName': find(guid, database, type = GUID, object = ITEM)['shortName']
             }
 
             if (item['need_fir'] == 0 and item['need_nir'] == 0):
@@ -1278,17 +1330,18 @@ def track_task(database, guid):
             for objective in task['objectives']:
                 if (objective['type'] == 'giveItem'):
                     item_guid = objective['item']['id']
+                    item_name = find(item_guid, database, type = GUID, object = ITEM)['normalizedName']
                     count = objective['count']
                     print_debug(f'Adding >> {count} << of >> {item_guid} << for objective >> {objective["description"]} <<')
 
                     if (objective['foundInRaid']):
                         print_debug('FIR')
                         database['inventory'][item_guid]['need_fir'] = database['inventory'][item_guid]['need_fir'] + count
-                        print_message(f'{count} more {guid_to_item(database, item_guid)} (FIR) now needed')
+                        print_message(f'{count} more {item_name} (FIR) now needed')
                     else:
                         print_debug('NIR')
                         database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] + count
-                        print_message(f'{count} more {guid_to_item(database, item_guid)} (NIR) now needed')
+                        print_message(f'{count} more {item_name} (NIR) now needed')
 
             task['tracked'] = True
             print_message(f'Tracked {task["name"]}')
@@ -1307,10 +1360,11 @@ def track_station(database, guid):
                 
                 for requirement in level['itemRequirements']:
                     item_guid = requirement['item']['id']
+                    item_name = find(item_guid, database, type = GUID, object = ITEM)['normalizedName']
                     count = requirement['count']
                     print_debug(f'Adding >> {count} << of >> {item_guid} << for requirement >> {requirement["id"]} <<')
                     database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] + count
-                    print_message(f'{count} more {guid_to_item(database, item_guid)} (NIR) now needed')
+                    print_message(f'{count} more {item_name} (NIR) now needed')
 
                 level['tracked'] = True
                 print_message(f'Tracked {level["normalizedName"]}')
@@ -1331,6 +1385,7 @@ def track_barter(database, guid):
             
             for requirement in barter['requiredItems']:
                 item_guid = requirement['item']['id']
+                item_name = find(item_guid, database, type = GUID, object = ITEM)['normalizedName']
                 count = requirement['count']
                 
                 if (item_guid not in database['inventory'].keys()):
@@ -1346,7 +1401,7 @@ def track_barter(database, guid):
                     database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] + count
                 
                 print_debug(f'Adding >> {count} << of >> {item_guid} << for requirement')
-                print_message(f'{count} more {guid_to_item(database, item_guid)} (NIR) now needed')
+                print_message(f'{count} more {item_name} (NIR) now needed')
 
             barter['tracked'] = True
             print_message(f'Tracked {barter["id"]}')
@@ -1367,6 +1422,7 @@ def track_craft(database, guid):
             
             for requirement in craft['requiredItems']:
                 item_guid = requirement['item']['id']
+                item_name = find(item_guid, database, type = GUID, object = ITEM)['normalizedName']
                 count = requirement['count']
                 
                 if (item_guid not in database['inventory'].keys()):
@@ -1382,7 +1438,7 @@ def track_craft(database, guid):
                     database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] + count
                 
                 print_debug(f'Adding >> {count} << of >> {item_guid} << for requirement')
-                print_message(f'{count} more {guid_to_item(database, item_guid)} (NIR) now needed')
+                print_message(f'{count} more {item_name} (NIR) now needed')
 
             craft['tracked'] = True
             print_message(f'Tracked {craft["id"]}')
@@ -1402,14 +1458,15 @@ def untrack_task(database, guid):
             for objective in task['objectives']:
                 if (objective['type'] == 'giveItem'):
                     item_guid = objective['item']['id']
+                    item_name = find(item_guid, database, type = GUID, object = ITEM)['normalizedName']
                     count = objective['count']
 
                     if (objective['foundInRaid']):
                         database['inventory'][item_guid]['need_fir'] = database['inventory'][item_guid]['need_fir'] - count
-                        print_message(f'{count} less {guid_to_item(database, item_guid)} (FIR) needed')
+                        print_message(f'{count} less {item_name} (FIR) needed')
                     else:
                         database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] - count
-                        print_message(f'{count} less {guid_to_item(database, item_guid)} (NIR) needed')
+                        print_message(f'{count} less {item_name} (NIR) needed')
 
             task['tracked'] = False
             print_message(f'Untracked {task["name"]}')
@@ -1426,9 +1483,10 @@ def untrack_station(database, guid):
                 
                 for requirement in level['itemRequirements']:
                     item_guid = requirement['item']['id']
+                    item_name = find(item_guid, database, type = GUID, object = ITEM)['normalizedName']
                     count = requirement['count']
                     database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] - count
-                    print_message(f'{count} less {guid_to_item(database, item_guid)} (NIR) needed')
+                    print_message(f'{count} less {item_name} (NIR) needed')
 
                 level['tracked'] = False
                 print_message(f'Untracked {level["normalizedName"]}')
@@ -1444,9 +1502,10 @@ def untrack_barter(database, guid):
             
             for requirement in barter['requiredItems']:
                 item_guid = requirement['item']['id']
+                item_name = find(item_guid, database, type = GUID, object = ITEM)['normalizedName']
                 count = requirement['count']
                 database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] - count
-                print_message(f'{count} less {guid_to_item(database, item_guid)} (NIR) needed')
+                print_message(f'{count} less {item_name} (NIR) needed')
 
             barter['tracked'] = False
             print_message(f'Untracked {barter["id"]}')
@@ -1466,9 +1525,10 @@ def untrack_craft(database, guid):
             
             for requirement in craft['requiredItems']:
                 item_guid = requirement['item']['id']
+                item_name = find(item_guid, database, type = GUID, object = ITEM)['normalizedName']
                 count = requirement['count']
                 database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] - count
-                print_message(f'{count} less {guid_to_item(database, item_guid)} (NIR) needed')
+                print_message(f'{count} less {item_name} (NIR) needed')
 
             craft['tracked'] = False
             print_message(f'Untracked {craft["id"]}')
@@ -1506,6 +1566,7 @@ def complete_task(database, guid, force):
             for objective in task['objectives']:
                 if (objective['type'] == 'giveItem'):
                     item_guid = objective['item']['id']
+                    item_name = find(item_guid, database, type = GUID, object = ITEM)['normalizedName']
                     available_fir = get_fir_count_by_guid(database, item_guid)
                     available_nir = get_nir_count_by_guid(database, item_guid)
 
@@ -1514,7 +1575,7 @@ def complete_task(database, guid, force):
                         _remainder_ = need_fir - available_fir
 
                         if (_remainder_ > 0 and not force):
-                            print_error(f'{_remainder_} more {guid_to_item(database, item_guid)} (FIR) required')
+                            print_error(f'{_remainder_} more {item_name} (FIR) required')
                             return False                     
                         elif (force):
                             database = add_item_fir(database, _remainder_, guid = item_guid)
@@ -1532,7 +1593,7 @@ def complete_task(database, guid, force):
 
                         if (_remainder_ > 0):
                             if (available_fir < _remainder_ and not force):
-                                print_error(f'{_remainder_} more {guid_to_item(database, item_guid)} required')
+                                print_error(f'{_remainder_} more {item_name} required')
                                 return False
                             elif (force):
                                 database = add_item_nir(database, _remainder_, guid = item_guid)
@@ -1540,7 +1601,7 @@ def complete_task(database, guid, force):
                                 if (not database):
                                     return False
                             else:
-                                print_message(f'{_remainder_} more {guid_to_item(database, item_guid)} required. Consume {_remainder_} (FIR) instead? (Y/N)')
+                                print_message(f'{_remainder_} more {item_name} required. Consume {_remainder_} (FIR) instead? (Y/N)')
                                 _confirmation_ = input('> ').lower()
 
                                 if (_confirmation_ == 'y'):
@@ -1602,6 +1663,7 @@ def complete_station(database, guid, force):
 
                 for requirement in level['itemRequirements']:
                     item_guid = requirement['item']['id']
+                    item_name = find(item_guid, database, type = GUID, object = ITEM)['normalizedName']
                     available_fir = get_fir_count_by_guid(database, item_guid)
                     available_nir = get_nir_count_by_guid(database, item_guid)
                     need_nir = requirement['count']
@@ -1609,7 +1671,7 @@ def complete_station(database, guid, force):
 
                     if (_remainder_ > 0):
                         if (available_fir < _remainder_ and not force):
-                            print_error(f'{_remainder_} more {guid_to_item(database, item_guid)} required')
+                            print_error(f'{_remainder_} more {item_name} required')
                             return False
                         elif (force):
                             database = add_item_nir(database, _remainder_, guid = item_guid)
@@ -1617,7 +1679,7 @@ def complete_station(database, guid, force):
                             if (not database):
                                 return False
                         else:
-                            print_message(f'{_remainder_} more {guid_to_item(database, item_guid)} required. Consume {_remainder_} (FIR) instead? (Y/N)')
+                            print_message(f'{_remainder_} more {item_name} required. Consume {_remainder_} (FIR) instead? (Y/N)')
                             _confirmation_ = input('> ').lower()
 
                             if (_confirmation_ == 'y'):
@@ -1666,6 +1728,7 @@ def complete_barter(database, guid, force):
 
             for requirement in barter['requiredItems']:
                 item_guid = requirement['item']['id']
+                item_name = find(item_guid, database, type = GUID, object = ITEM)['normalizedName']
                 available_fir = get_fir_count_by_guid(database, item_guid)
                 available_nir = get_nir_count_by_guid(database, item_guid)
                 need_nir = requirement['count']
@@ -1673,7 +1736,7 @@ def complete_barter(database, guid, force):
 
                 if (_remainder_ > 0):
                     if (available_fir < _remainder_ and not force):
-                        print_error(f'{_remainder_} more {guid_to_item(database, item_guid)} required')
+                        print_error(f'{_remainder_} more {item_name} required')
                         return False
                     elif (force):
                         database = add_item_nir(database, _remainder_, guid = item_guid)
@@ -1681,7 +1744,7 @@ def complete_barter(database, guid, force):
                         if (not database):
                             return False
                     else:
-                        print_message(f'{_remainder_} more {guid_to_item(database, item_guid)} required. Consume {available_fir} (FIR) instead? (Y/N)')
+                        print_message(f'{_remainder_} more {item_name} required. Consume {available_fir} (FIR) instead? (Y/N)')
                         _confirmation_ = input('> ').lower()
 
                         if (_confirmation_ == 'y'):
@@ -1727,6 +1790,7 @@ def complete_craft(database, guid, force):
 
             for requirement in craft['requiredItems']:
                 item_guid = requirement['item']['id']
+                item_name = find(item_guid, database, type = GUID, object = ITEM)['normalizedName']
                 available_fir = get_fir_count_by_guid(database, item_guid)
                 available_nir = get_nir_count_by_guid(database, item_guid)
                 need_nir = requirement['count']
@@ -1734,7 +1798,7 @@ def complete_craft(database, guid, force):
 
                 if (_remainder_ > 0):
                     if (available_fir < _remainder_ and not force):
-                        print_error(f'{_remainder_} more {guid_to_item(database, item_guid)} required')
+                        print_error(f'{_remainder_} more {item_name} required')
                         return False
                     elif (force):
                         database = add_item_nir(database, _remainder_, guid = item_guid)
@@ -1742,7 +1806,7 @@ def complete_craft(database, guid, force):
                         if (not database):
                             return False
                     else:
-                        print_message(f'{_remainder_} more {guid_to_item(database, item_guid)} required. Consume {available_fir} (FIR) instead? (Y/N)')
+                        print_message(f'{_remainder_} more {item_name} required. Consume {available_fir} (FIR) instead? (Y/N)')
                         _confirmation_ = input('> ').lower()
 
                         if (_confirmation_ == 'y'):
@@ -2018,7 +2082,7 @@ def print_tasks(database, tasks):
             continue
 
         observed_tasks.append(task['name'])
-        display = display + '{:<40} {:<20} {:<20} {:<20} {:<20} {:<40}\n'.format(task['name'], guid_to_trader(database, task['trader']['id']), task['status'], print_bool(task['tracked']), print_bool(task['kappaRequired']), task['id'])
+        display = display + '{:<40} {:<20} {:<20} {:<20} {:<20} {:<40}\n'.format(task['name'], find(task['trader']['id'], database, type = GUID, object = TRADER)['normalizedName'], task['status'], print_bool(task['tracked']), print_bool(task['kappaRequired']), task['id'])
 
         for objective in task['objectives']:
             objective_string = '-->'
@@ -2085,7 +2149,7 @@ def print_hideout_stations(database, stations):
         for item in level['itemRequirements']:
             guid = item['item']['id']
             have_available_nir = database['inventory'][guid]['have_nir'] - database['inventory'][guid]['consumed_nir']
-            short_name = guid_to_item(database, guid)
+            short_name = find(guid, database, type = GUID, object = ITEM)['shortName']
             count = item['count']
             display = display + f'--> {have_available_nir}/{count} {short_name} available\n'
         
@@ -2098,27 +2162,28 @@ def print_barters(database, barters):
     display = BARTER_HEADER + BUFFER
 
     for barter in barters:
-        display = display + '{:<40} {:<20} {:<20} {:<20}\n'.format(barter['id'], guid_to_trader(database, barter['trader']['id']), barter['level'], print_bool(barter['tracked']))
+        display = display + '{:<40} {:<20} {:<20} {:<20}\n'.format(barter['id'], find(barter['trader']['id'], database, type = GUID, object = TRADER)['normalizedName'], barter['level'], print_bool(barter['tracked']))
 
         for item in barter['requiredItems']:
             guid = item['item']['id']
+            item_name = find(guid, database, type = GUID, object = ITEM)['normalizedName']
 
             if (guid in database['inventory'].keys()):
                 have_available_nir = database['inventory'][guid]['have_nir'] - database['inventory'][guid]['consumed_nir']
             else:
                 have_available_nir = 0
                 
-            short_name = guid_to_item(database, guid)
             count = item['count']
-            display = display + f'--> Give {have_available_nir}/{count} {short_name} available\n'
+            display = display + f'--> Give {have_available_nir}/{count} {item_name} available\n'
 
         for item in barter['rewardItems']:
-            short_name = guid_to_item(database, item['item']['id'])
+            guid = item['item']['id']
+            item_name = find(guid, database, type = GUID, object = ITEM)['normalizedName']
             count = item['count']
-            display = display + f'--> Receive {count} {short_name}\n'
+            display = display + f'--> Receive {count} {item_name}\n'
 
         if (barter['taskUnlock'] is not None):
-            display = display + f'--> Requires task {guid_to_task(database, barter["taskUnlock"]["id"])}\n'
+            display = display + f'--> Requires task {find(barter["taskUnlock"]["id"], database, type = GUID, object = TASK)['name']}\n'
 
         display = display + '\n\n'
 
@@ -2129,27 +2194,28 @@ def print_crafts(database, crafts):
     display = CRAFT_HEADER + BUFFER
 
     for craft in crafts:
-        display = display + '{:<40} {:<20} {:<30} {:<20}\n'.format(craft['id'], guid_to_station(database, craft['station']['id']), craft['level'], print_bool(craft['tracked']))
+        display = display + '{:<40} {:<20} {:<30} {:<20}\n'.format(craft['id'], find(craft['station']['id'], database, type = GUID, object = STATION)['normalizedName'], craft['level'], print_bool(craft['tracked']))
 
         for item in craft['requiredItems']:
             guid = item['item']['id']
+            item_name = find(guid, database, type = GUID, object = ITEM)['normalizedName']
 
             if (guid in database['inventory'].keys()):
                 have_available_nir = database['inventory'][guid]['have_nir'] - database['inventory'][guid]['consumed_nir']
             else:
                 have_available_nir = 0
                 
-            short_name = guid_to_item(database, guid)
             count = item['count']
-            display = display + f'--> Give {have_available_nir}/{count} {short_name} available\n'
+            display = display + f'--> Give {have_available_nir}/{count} {item_name} available\n'
 
         for item in craft['rewardItems']:
-            short_name = guid_to_item(database, item['item']['id'])
+            guid = item['item']['id']
+            item_name = find(guid, database, type = GUID, object = ITEM)['normalizedName']
             count = item['count']
-            display = display + f'--> Receive {count} {short_name}\n'
+            display = display + f'--> Receive {count} {item_name}\n'
 
         if (craft['taskUnlock'] is not None):
-            display = display + f'--> Requires task {guid_to_task(database, craft["taskUnlock"]["id"])}\n'
+            display = display + f'--> Requires task {find(craft["taskUnlock"]["id"], database, type = GUID, object = TASK)['name']}\n'
 
         display = display + f'--> Takes {str(timedelta(seconds = craft["duration"]))} to complete\n'
         display = display + '\n\n'
@@ -2259,6 +2325,7 @@ def inventory(tracker_file):
     database = open_database(tracker_file)
 
     if (not database):
+        print_error('No database file found')
         return False
 
     inventory = get_items(database)
@@ -2269,6 +2336,7 @@ def inventory_tasks(tracker_file):
     database = open_database(tracker_file)
 
     if (not database):
+        print_error('No database file found')
         return False
     
     task_items = get_items_needed_for_tasks(database)
@@ -2284,6 +2352,7 @@ def inventory_stations(tracker_file):
     database = open_database(tracker_file)
 
     if (not database):
+        print_error('No database file found')
         return False
     
     station_items = get_items_needed_for_stations(database)
@@ -2299,6 +2368,7 @@ def inventory_barters(tracker_file):
     database = open_database(tracker_file)
 
     if (not database):
+        print_error('No database file found')
         return False
     
     barter_items = get_items_needed_for_barters(database)
@@ -2314,6 +2384,7 @@ def inventory_crafts(tracker_file):
     database = open_database(tracker_file)
 
     if (not database):
+        print_error('No database file found')
         return False
     
     craft_items = get_items_needed_for_crafts(database)
@@ -2329,6 +2400,7 @@ def inventory_have(tracker_file):
     database = open_database(tracker_file)
 
     if (not database):
+        print_error('No database file found')
         return False
     
     owned_items = get_items_owned(database)
@@ -2344,6 +2416,7 @@ def inventory_need(tracker_file):
     database = open_database(tracker_file)
 
     if (not database):
+        print_error('No database file found')
         return False
     
     needed_items = get_items_needed(database)
@@ -2360,31 +2433,33 @@ def list_tasks(tracker_file, argument):
     database = open_database(tracker_file)
 
     if (not database):
+        print_error('No database file found')
         return False
     
-    guid = map_to_guid(database, argument)
-
-    if (guid):
-        tasks = get_tasks_by_map(database, guid)
+    if (argument == 'all'):
+        tasks = get_available_tasks(database)
     else:
-        guid = trader_to_guid(database, argument)
-
-        if (guid):
-            tasks = get_tasks_by_trader(database, guid)
-        else:
-            tasks = get_available_tasks(database)
+        guid, type = find(argument, database, type = TEXT, object = [MAP, TRADER])
+    
+    if (type is MAP):
+        tasks = get_tasks_by_map(database, guid)
+    elif (type is TRADER):
+        tasks = get_tasks_by_trader(database, guid)
+    else:
+        tasks = []
 
     if (len(tasks) == 0):
         print_message('No available or tracked tasks')
-    else:
-        print_tasks(database, tasks)
-
+        return False
+    
+    print_tasks(database, tasks)
     return True
 
 def list_stations(tracker_file):
     database = open_database(tracker_file)
 
     if (not database):
+        print_error('No database file found')
         return False
     
     stations = get_hideout_stations(database)
@@ -2400,32 +2475,37 @@ def list_barters(tracker_file, argument):
     database = open_database(tracker_file)
 
     if (not database):
+        print_error('No database file found')
         return False
     
-    guid = trader_to_guid(database, argument)
-
-    if (guid):
+    if (argument == 'all'):
+        barters = get_barters(database)
+    else:
+        guid, type = find(argument, database, type = TEXT, object = [MAP, TRADER])
+    
+    if (type is TRADER):
         barters = get_barters_by_trader(database, guid)
     else:
-        barters = get_barters(database)
+        barters = []
 
     if (len(barters) == 0):
-        print_message('No available or tracked barters')
-    else:
-        print_barters(database, barters)
+        print_message('No tracked barters')
+        return False
     
+    print_barters(database, barters)
     return True
 
 def list_crafts(tracker_file):
     database = open_database(tracker_file)
 
     if (not database):
+        print_error('No database file found')
         return False
     
     crafts = get_crafts(database)
 
     if (len(crafts) == 0):
-        print_message('No available or tracked crafts')
+        print_message('No tracked crafts')
     else:
         print_crafts(database, crafts)
     
@@ -2435,6 +2515,7 @@ def list_untracked(tracker_file, ignore_kappa):
     database = open_database(tracker_file)
 
     if (not database):
+        print_error('No database file found')
         return False
     
     untracked = get_untracked(database, ignore_kappa)
@@ -2452,6 +2533,7 @@ def list_maps(tracker_file):
     database = open_database(tracker_file)
 
     if (not database):
+        print_error('No database file found')
         return False
     
     maps = ', '.join(map['normalizedName'] for map in database['maps']).strip(', ')
@@ -2461,6 +2543,7 @@ def list_traders(tracker_file):
     database = open_database(tracker_file)
 
     if (not database):
+        print_error('No database file found')
         return False
     
     traders = ', '.join(trader['normalizedName'] for trader in database['traders']).strip(', ')
@@ -2469,7 +2552,6 @@ def list_traders(tracker_file):
 # Search
 def search(tracker_file, argument, ignore_barters, ignore_crafts):
     database = open_database(tracker_file)
-    guid = False
     tasks = []
     stations = []
     barters = []
@@ -2479,10 +2561,8 @@ def search(tracker_file, argument, ignore_barters, ignore_crafts):
     maps = []
 
     if (not database):
+        print_error('No database file found')
         return False
-    
-    if (is_guid(argument)):
-        guid = True
 
     for task in database['tasks']:
         if (not guid):
@@ -2677,6 +2757,7 @@ def required_search(tracker_file, argument, ignore_barters, ignore_crafts):
     items, traders, maps = [], [], []
 
     if (not database):
+        print_error('No database file found')
         return False
     
     if (is_guid(argument)):
@@ -2758,6 +2839,7 @@ def track(tracker_file, argument):
     database = open_database(tracker_file)
 
     if (not database):
+        print_error('No database file found')
         return False
     
     type = string_to_type(argument)
@@ -2792,6 +2874,7 @@ def untrack(tracker_file, argument):
     database = open_database(tracker_file)
 
     if (not database):
+        print_error('No database file found')
         return False
 
     if (is_guid(argument)):
@@ -2825,6 +2908,7 @@ def complete(tracker_file, argument, force, recurse):
     database = open_database(tracker_file)
 
     if (not database):
+        print_error('No database file found')
         return False
     
     if (is_guid(argument)):
@@ -2868,6 +2952,7 @@ def restart_barter_or_craft(tracker_file, argument):
     database = open_database(tracker_file)
 
     if (not database):
+        print_error('No database file found')
         return False
 
     for barter in database['barters']:
@@ -2919,6 +3004,7 @@ def write_item_fir(tracker_file, count, argument):
     database = add_item_fir(database, count, argument = argument)
 
     if (not database):
+        print_error('No database file found')
         return False
 
     write_database(tracker_file, database)
@@ -2929,6 +3015,7 @@ def write_item_nir(tracker_file, count, argument):
     database = add_item_nir(database, count, argument = argument)
 
     if (not database):
+        print_error('No database file found')
         return False
 
     write_database(tracker_file, database)
@@ -2940,6 +3027,7 @@ def unwrite_item_fir(tracker_file, count, argument):
     database = del_item_fir(database, count, argument = argument)
 
     if (not database):
+        print_error('No database file found')
         return False
 
     write_database(tracker_file, database)
@@ -2950,6 +3038,7 @@ def unwrite_item_nir(tracker_file, count, argument):
     database = del_item_nir(database, count, argument = argument)
 
     if (not database):
+        print_error('No database file found')
         return False
 
     write_database(tracker_file, database)
@@ -2960,6 +3049,7 @@ def check_level(tracker_file):
     database = open_database(tracker_file)
 
     if (not database):
+        print_error('No database file found')
         return False
     
     print_message(f'You are level {database["player_level"]}')
@@ -2969,6 +3059,7 @@ def set_level(tracker_file, level):
     database = open_database(tracker_file)
 
     if (not database):
+        print_error('No database file found')
         return False
     
     database['player_level'] = level
@@ -2980,6 +3071,7 @@ def level_up(tracker_file):
     database = open_database(tracker_file)
 
     if (not database):
+        print_error('No database file found')
         return False
     
     database['player_level'] = database['player_level'] + 1

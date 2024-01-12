@@ -3,3 +3,6 @@ database.*
 
 # Debug files
 debug.*
+
+# Test files
+test*.json

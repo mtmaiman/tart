@@ -163,6 +163,8 @@ UNTRACKED_HEADER = '{:<40} {:<20} {:<20} {:<20}\n'.format('Entity Name', 'Type',
 BUFFER = '-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n'
 
 
+#TODO: Could not find for all crafts tracked
+#TODO: When canceling a craft or barter it should say that no items are consumed
 ###################################################
 #                                                 #
 # UTIL FUNCTIONS (DEBUGGED)                       #

@@ -2755,7 +2755,7 @@ def display_crafts(database, crafts):
     display = CRAFT_HEADER + BUFFER
 
     for guid, craft in crafts.items():
-        display = display + '{:<40} {:<20} {:<30} {:<20}\n'.format(guid, find(craft['station']['id'], database, type = GUID, object = STATION)['normalizedName'], craft['level'], print_bool(craft['tracked']))
+        display = display + '{:<40} {:<20} {:<30} {:<20}\n'.format(guid, database['hideout'][craft['station']['id']]['normalizedName'], craft['level'], display_bool(craft['tracked']))
 
         for item in craft['requiredItems']:
             item_guid = item['item']['id']

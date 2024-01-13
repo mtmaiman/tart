@@ -585,6 +585,7 @@ def disambiguate(matches):
     for guid, match in matches.items():
         options.append(guid)
         print_message(f'[{index + 1}] {match['normalizedName']} ({guid})')
+        index = index + 1
     
     _choice_ = input('> ')
 

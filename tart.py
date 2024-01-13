@@ -1195,10 +1195,9 @@ def get_tasks_filtered(database, argument):
             continue
 
         else:
-            for task in database['tasks']:
-                if (task['trader']['id'] == filter):
-                    print_debug(f'Found task >> {task["name"]} << for trader >> {argument} <<')
-                    tasks[guid] = task
+            if (task['trader']['id'] == filter):
+                print_debug(f'Found task >> {task["name"]} << for trader >> {argument} <<')
+                tasks[guid] = task
 
     return tasks
 

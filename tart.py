@@ -3093,7 +3093,7 @@ def search(tracker_file, argument, ignore_barters, ignore_crafts):
     if (not ignore_crafts):
         _crafts_ = search_crafts_by_item(argument, database)
 
-        if (barters and _crafts_):
+        if (crafts and _crafts_):
             crafts = crafts | _crafts_
         elif (not crafts and _crafts_):
             crafts = _crafts_

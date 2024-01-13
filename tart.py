@@ -1540,11 +1540,11 @@ def track_task(database, guid):
 
             if (objective['foundInRaid']):
                 print_debug('FIR')
-                database['inventory'][item_guid]['need_fir'] = database['inventory'][item_guid]['need_fir'] + count
+                database['items'][item_guid]['need_fir'] = database['items'][item_guid]['need_fir'] + count
                 print_message(f'{count} more {item_name} (FIR) now needed')
             else:
                 print_debug('NIR')
-                database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] + count
+                database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_nir'] + count
                 print_message(f'{count} more {item_name} (NIR) now needed')
 
     database['tasks'][guid]['tracked'] = True
@@ -1561,10 +1561,10 @@ def track_station(database, guid):
     
     for requirement in station['itemRequirements']:
         item_guid = requirement['item']['id']
-        item_name = database['items'][item_guid]
+        item_name = database['items'][item_guid]['shortName']
         count = requirement['count']
         print_debug(f'Adding >> {count} << of >> {item_guid} << for requirement >> {requirement["id"]} <<')
-        database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] + count
+        database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_nir'] + count
         print_message(f'{count} more {item_name} (NIR) now needed')
 
     database['hideout'][guid]['tracked'] = True
@@ -1581,14 +1581,14 @@ def track_barter(database, guid):
     
     for requirement in barter['requiredItems']:
         item_guid = requirement['item']['id']
-        item_name = database['items'][item_guid]
+        item_name = database['items'][item_guid]['shortName']
         count = requirement['count']
-        database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] + count
+        database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_nir'] + count
         print_debug(f'Adding >> {count} << of >> {item_guid} << for requirement')
         print_message(f'{count} more {item_name} (NIR) now needed')
 
     database['barters'][guid]['tracked'] = True
-    print_message(f'Tracked {barter["id"]}')          
+    print_message(f'Tracked {guid}')          
     return database
 
 def track_craft(database, guid):
@@ -1601,14 +1601,14 @@ def track_craft(database, guid):
     
     for requirement in craft['requiredItems']:
         item_guid = requirement['item']['id']
-        item_name = database['items'][item_guid]
+        item_name = database['items'][item_guid]['shortName']
         count = requirement['count']
-        database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] + count
+        database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_nir'] + count
         print_debug(f'Adding >> {count} << of >> {item_guid} << for requirement')
         print_message(f'{count} more {item_name} (NIR) now needed')
 
     database['crafts'][guid]['tracked'] = True
-    print_message(f'Tracked {craft["id"]}')          
+    print_message(f'Tracked {guid}')          
     return database
 
 def untrack_task(database, guid):
@@ -1625,10 +1625,10 @@ def untrack_task(database, guid):
                     count = objective['count']
 
                     if (objective['foundInRaid']):
-                        database['inventory'][item_guid]['need_fir'] = database['inventory'][item_guid]['need_fir'] - count
+                        database['items'][item_guid]['need_fir'] = database['items'][item_guid]['need_fir'] - count
                         print_message(f'{count} less {item_name} (FIR) needed')
                     else:
-                        database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] - count
+                        database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_nir'] - count
                         print_message(f'{count} less {item_name} (NIR) needed')
 
             task['tracked'] = False
@@ -2642,14 +2642,14 @@ def display_inventory(items, output_type = INV):
 def display_tasks(database, tasks):
     display = TASK_HEADER + BUFFER
     # There are some duplicate tasks for USEC and BEAR (i.e., Textile Part 1 and 2)
-    guids = []
+    duplicates = []
     
     for guid, task in tasks.items():
-        if (guid in guids):
+        if (task['name'] in duplicates):
             print_debug(f'>> {task["name"]} << has already been seen and will be skipped during printing')
             continue
 
-        guids.append(guid)
+        duplicates.append(task['name'])
         display = display + '{:<40} {:<20} {:<20} {:<20} {:<20} {:<40}\n'.format(task['name'], database['traders'][task['trader']['id']]['normalizedName'], task['status'], display_bool(task['tracked']), display_bool(task['kappaRequired']), guid)
 
         for objective in task['objectives']:

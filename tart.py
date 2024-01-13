@@ -608,7 +608,7 @@ def find_task(text, database):
     if (len(tasks) == 0):
         return False
     elif (len(tasks) == 1):
-        return tasks.keys()[0]
+        return next(iter(tasks))
     else:
         print_warning(f'Found {len(tasks)} tasks for {text}. Please choose one')
         return disambiguate(tasks)
@@ -625,7 +625,7 @@ def find_station(text, database):
     if (len(stations) == 0):
         return False
     elif (len(stations) == 1):
-        return stations.keys()[0]
+        return next(iter(stations))
     else:
         print_warning(f'Found {len(stations)} hideout stations for {text}. Please choose one')
         return disambiguate(stations)
@@ -642,7 +642,7 @@ def find_barter(text, database):
     if (len(barters) == 0):
         return False
     elif (len(barters) == 1):
-        return barters.keys()[0]
+        return next(iter(barters))
     else:
         print_warning(f'Found {len(barters)} barters for {text}. Please choose one')
         return disambiguate(barters)
@@ -659,7 +659,7 @@ def find_craft(text, database):
     if (len(crafts) == 0):
         return False
     elif (len(crafts) == 1):
-        return crafts.keys()[0]
+        return next(iter(crafts))
     else:
         print_warning(f'Found {len(crafts)} crafts for {text}. Please choose one')
         return disambiguate(crafts)
@@ -676,7 +676,7 @@ def find_item(text, database):
     if (len(items) == 0):
         return False
     elif (len(items) == 1):
-        return items.keys()[0]
+        return next(iter(items))
     else:
         print_warning(f'Found {len(items)} items for {text}. Please choose one')
         return disambiguate(items)
@@ -693,7 +693,7 @@ def find_map(text, database):
     if (len(maps) == 0):
         return False
     elif (len(maps) == 1):
-        return maps.keys()[0]
+        return next(iter(maps))
     else:
         print_warning(f'Found {len(maps)} maps for {text}. Please choose one')
         return disambiguate(maps)
@@ -710,7 +710,7 @@ def find_trader(text, database):
     if (len(traders) == 0):
         return False
     elif (len(traders) == 1):
-        return traders
+        return next(iter(traders))
     else:
         print_warning(f'Found {len(traders)} traders for {text}. Please choose one')
         return disambiguate(traders)
@@ -729,7 +729,7 @@ def create_filter(text, database):
     if (len(filters) == 0):
         return False
     elif (len(filters) == 1):
-        return filters.keys()[0]
+        return next(iter(filters))
     else:
         print_warning(f'Found {len(filters)} filter matches for {text}. Please choose one')
         return disambiguate(filters)

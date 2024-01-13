@@ -808,8 +808,10 @@ def verify_station(database, station):
         return f'Hideout station {station["normalizedName"]} is not tracked'
 
     for prereq in station['stationLevelRequirements']:
-        if (database['hideout'][prereq['station']['id'] + '-' + str(prereq['level'])]['status'] != 'complete'):
-            return f'{database['hideout'][prereq['station']['id']]['normalizedName']} must be completed first'
+        prereq_guid = prereq['station']['id'] + '-' + str(prereq['level'])
+        
+        if (database['hideout'][prereq_guid]['status'] != 'complete'):
+            return f'{database['hideout'][prereq_guid]['normalizedName']} must be completed first'
         
     print_debug(f'Verified station >> {station["normalizedName"]} <<')
     return True

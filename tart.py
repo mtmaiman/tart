@@ -573,7 +573,7 @@ def write_database(file_path, data):
         print_debug(f'Wrote file >> {file_path} <<')
     return
 
-# Find functions
+# Find functions (GUID wrap)
 def disambiguate(matches):
     for index, match in enumerate(matches):
         print_message(f'[{index + 1}] ({match[1]}) {match[0]['normalizedName']}')
@@ -1345,6 +1345,61 @@ def get_saves(file):
 ###################################################
 
 
+# Inventory functions
+def calculate_inventory(database):
+    for guid, task in database['tasks'].items():
+        if (not task['tracked']):
+            continue
+
+        for objective in task['objectives']:
+            if (objective['type'] == 'giveItem'):
+                item_guid = objective['item']['id']
+                fir = objective['foundInRaid']
+
+                if (fir):
+                    database['items'][item_guid]['need_fir'] = database['items'][item_guid]['need_fir'] + objective['count']
+                else:
+                    database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_fir'] + objective['count']
+        
+        if (task['neededKeys'] is not None and len(task['neededKeys']) > 0):
+            for _key_ in task['neededKeys']:
+                for key in _key_['keys']:
+                    item_guid = key['id']
+                    database['items'][item_guid]['need_nir'] = 1
+    
+    print_message('Added all items required for tracked tasks to the database')
+
+    for guid, station in database['hideout'].items():
+        if (not station['tracked']):
+            continue
+
+        for requirement in station['itemRequirements']:
+            item_guid = requirement['item']['id']
+            database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_fir'] + requirement['count']
+
+    print_message('Added all items required for tracked hideout stations to the database')
+
+    for guid, barter in database['barters'].items():
+        if (not barter['tracked']):
+            continue
+
+        for requirement in barter['requiredItems']:
+            item_guid = requirement['item']['id']
+            database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_fir'] + requirement['count']
+
+    print_message('Added all items required for tracked barters to the database')
+
+    for guid, craft in database['crafts'].items():
+        if (not craft['tracked']):
+            continue
+
+        for requirement in craft['requiredItems']:
+            item_guid = requirement['item']['id']
+            database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_fir'] + requirement['count']
+
+    print_message('Added all items required for tracked crafts to the database')
+    return database
+
 # Track functions
 def track_task(database, guid):
     print_debug(f'Tracking task >> {guid} <<')
@@ -1861,7 +1916,339 @@ def complete_craft(database, guid, force):
     return database
 
 # Import functions
-def import_all_items(database, headers):
+def import_tasks(database, headers):
+    data = {
+        'query': """
+            {
+                tasks {
+                    id
+                    name
+                    normalizedName
+                    trader {
+                        id
+                    }
+                    map {
+                        id
+                    }
+                    minPlayerLevel
+                    taskRequirements {
+                        task {
+                            id
+                        }
+                    }
+                    traderRequirements {
+                        id
+                        requirementType
+                        trader {
+                            id
+                        }
+                    }
+                    objectives {
+                        id
+                        type
+                        description
+                        optional
+                        maps {
+                            id
+                        }
+                        ... on TaskObjectiveExtract {
+                            maps {
+                                id
+                            }
+                            exitStatus
+                            exitName
+                            zoneNames
+                        }
+                        ... on TaskObjectiveItem {
+                            id
+                            count
+                            foundInRaid
+                            item {
+                                id
+                            }
+                        }
+                        ... on TaskObjectivePlayerLevel {
+                            playerLevel
+                        }
+                        ... on TaskObjectiveQuestItem {
+                            questItem {
+                                id
+                            }
+                            count
+                        }
+                        ... on TaskObjectiveShoot {
+                            targetNames
+                            count
+                            shotType
+                            zoneNames
+                            bodyParts
+                            usingWeapon {
+                                id
+                            }
+                            usingWeaponMods {
+                                id
+                            }
+                            wearing {
+                                id
+                            }
+                            notWearing {
+                                id
+                            }
+                            distance {
+                                value
+                            }
+                            playerHealthEffect {
+                                bodyParts
+                                effects
+                                time {
+                                    value
+                                }
+                            }
+                            enemyHealthEffect {
+                                bodyParts
+                                effects
+                                time {
+                                    value
+                                }
+                            }
+                            timeFromHour
+                            timeUntilHour
+                        }
+                        ... on TaskObjectiveSkill {
+                            skillLevel {
+                                name
+                                level
+                            }
+                        }
+                        ... on TaskObjectiveTaskStatus {
+                            task {
+                                id
+                            }
+                            status
+                        }
+                        ... on TaskObjectiveTraderLevel {
+                            trader {
+                                id
+                            }
+                            level
+                        }
+                        ... on TaskObjectiveTraderStanding {
+                            trader {
+                                id
+                            }
+                            value
+                        }
+                        ... on TaskObjectiveUseItem {
+                            useAny {
+                                id
+                            }
+                            count
+                            zoneNames
+                        }
+                    }
+                    neededKeys {
+                        keys {
+                            id
+                        }
+                    }
+                    kappaRequired
+                    lightkeeperRequired
+                }
+            }
+        """
+    }
+    response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+
+    if (response.status_code < 200 or response.status_code > 299):
+        print_error(f'Network error [{response.status_code}] {response.json()}')
+        return False
+    else:
+        if ('errors' in response.json().keys()):
+            print_error(f'Errors detected {json.dumps(response.json())}')
+            return False
+        
+        print_message('Retrieved latest task data from the api.tarkov.dev server')
+
+    nonKappa = 0
+
+    for task in response.json()['data']['tasks']:
+        guid = task['id']
+        del task['id']
+        task['status'] = 'incomplete'
+        
+        if (not task['kappaRequired']):
+            task['tracked'] = False
+            nonKappa = nonKappa + 1
+
+        database['tasks'][guid] = task
+
+    print_message(f'Successfully loaded task data into the database! {nonKappa} non-Kappa required tasks have been automatically untracked')
+    return database
+
+def import_hideout(database, headers):
+    data = {
+        'query': """
+            {
+                hideoutStations {
+                    id
+                    normalizedName
+                    levels {
+                        id
+                        level
+                        itemRequirements {
+                            id
+                            count
+                            item {
+                                id
+                            }
+                        }
+                        stationLevelRequirements {
+                            station {
+                                id
+                            }
+                            level
+                        }
+                    }
+                }
+            }
+        """
+    }
+    response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+
+    if (response.status_code < 200 or response.status_code > 299):
+        print_error(f'Network error [{response.status_code}] {response.json()}')
+        return False
+    else:
+        if ('errors' in response.json().keys()):
+            print_error(f'Errors detected {json.dumps(response.json())}')
+            return False
+        
+        print_message('Retrieved latest hideout data from the api.tarkov.dev server')
+        hideout = response.json()['data']['hideoutStations']
+
+    for station in hideout:
+        for level in station['levels']:
+            guid = level['id']
+            level['normalizedName'] = station['normalizedName'] + '-' + str(level['level'])
+            del level['id']
+            level['status'] = 'incomplete'
+            level['tracked'] = True
+
+            if (level['normalizedName'] == 'stash-1'):
+                level['status'] = 'complete'
+                print_message('Complete stash-1 automatically')
+
+            database['hideout'][guid] = level
+
+    print_message(f'Successfully loaded hideout data into the database!')
+    return database
+
+def import_barters(database, headers):
+    data = {
+        'query': """
+            {
+                barters {
+                    id
+                    trader {
+                    id
+                    }
+                    level
+                    taskUnlock {
+                    id
+                    }
+                    requiredItems {
+                    item {
+                        id
+                    }
+                    count
+                    }
+                    rewardItems {
+                    item {
+                        id
+                    }
+                    count
+                    }
+                }
+            }
+        """
+    }
+    response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+
+    if (response.status_code < 200 or response.status_code > 299):
+        print_error(f'Network error [{response.status_code}] {response.json()}')
+        return False
+    else:
+        if ('errors' in response.json().keys()):
+                print_error(f'Errors detected {json.dumps(response.json())}')
+                return False
+
+        print_message('Retrieved latest barter data from the api.tarkov.dev server')
+        barters = response.json()['data']['barters']
+
+    for barter in barters:
+        guid = barter['id']
+        del barter['id']
+        barter['status'] = 'incomplete'
+        barter['tracked'] = False
+        database['barters'][guid] = barter
+
+    print_message(f'Successfully loaded barter data into the database!')
+    return database
+
+def import_crafts(database, headers):
+    data = {
+        'query': """
+            {
+                crafts {
+                    id
+                    duration
+                    station {
+                    id
+                    }
+                    level
+                    taskUnlock {
+                    id
+                    }
+                    requiredItems {
+                    item {
+                        id
+                    }
+                    count
+                    }
+                    rewardItems {
+                    item {
+                        id
+                    }
+                    count
+                    }
+                }
+            }
+        """
+    }
+    response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+
+    if (response.status_code < 200 or response.status_code > 299):
+        print_error(f'Network error [{response.status_code}] {response.json()}')
+        return False
+    else:
+        if ('errors' in response.json().keys()):
+            print_error(f'Errors detected {json.dumps(response.json())}')
+            return False
+
+        print_message('Retrieved latest craft data from the api.tarkov.dev server')
+        crafts = response.json()['data']['crafts']
+
+    for craft in crafts:
+        guid = craft['id']
+        del craft['id']
+        craft['status'] = 'incomplete'
+        craft['tracked'] = False
+        database['crafts'][guid] = craft
+    
+    print_message(f'Successfully loaded craft data into the database!')
+    return database
+
+def import_items(database, headers):
     data = {
         'query': """
             {
@@ -1888,22 +2275,22 @@ def import_all_items(database, headers):
             }
         """
     }
-
     response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
 
     if (response.status_code < 200 or response.status_code > 299):
         print_error(f'Network error [{response.status_code}] {response.json()}')
-        exit(1)
+        return False
     else:
         if ('errors' in response.json().keys()):
-                print_warning(f'Errors detected {json.dumps(response.json()["errors"])}')
+            print_warning(f'Errors detected {json.dumps(response.json()["errors"])}')
+            return False
 
-        database['all_items'] = response.json()['data']['items']
+        items = response.json()['data']['items']
 
     usd_to_roubles = 0
     euro_to_roubles = 0
 
-    for item in database['all_items']:
+    for item in items:
         if (item['id'] == '5696686a4bdc2da3298b456a'):
             for vendor in item['buyFor']:
                 if (vendor['vendor']['normalizedName'] == 'peacekeeper'):
@@ -1914,7 +2301,9 @@ def import_all_items(database, headers):
                 if (vendor['vendor']['normalizedName'] == 'skier'):
                     euro_to_roubles = int(vendor['price'])
 
-    for item in database['all_items']:
+    for item in items:
+        guid = item['id']
+        del item['id']
         sell_price = 0
         sell_price_roubles = 0
         sell_trader = ''
@@ -1940,7 +2329,7 @@ def import_all_items(database, headers):
 
             if (vendor['vendor']['normalizedName'] == 'flea-market'):
                 if (item['fleaMarketFee'] is None):
-                    print_warning(f'Found an invalid flea market value (Will be corrected): {item}')
+                    print_warning(f'Found an invalid flea market value (Will be corrected): {item['normalizedName']}')
                     item['fleaMarketFee'] = 100000000
                 
                 this_price_roubles = this_price_roubles - item['fleaMarketFee']
@@ -2015,8 +2404,84 @@ def import_all_items(database, headers):
         del item['fleaMarketFee']
         item['sell_to'] = sell_to
         item['buy_from'] = buy_from
+        database['items'][guid] = item
 
-    database['last_price_refresh'] = datetime.now().isoformat()
+    database['refresh'] = datetime.now().isoformat()
+    print_message(f'Successfully loaded item data into the database!')
+    return database
+
+def import_maps(database, headers):
+    data = {
+        'query': """
+            {
+                maps {
+                    id
+                    normalizedName
+                }
+            }
+        """
+    }
+    response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+
+    if (response.status_code < 200 or response.status_code > 299):
+        print_error(f'Network error [{response.status_code}] {response.json()}')
+        return False
+    else:
+        if ('errors' in response.json().keys()):
+            print_error(f'Errors detected {json.dumps(response.json())}')
+            return False
+
+        print_message('Retrieved latest map data from the api.tarkov.dev server')
+        maps = response.json()['data']['maps']
+
+    for map in maps:
+        guid = map['id']
+        del map['id']
+
+        if (map['normalizedName'] == 'streets-of-tarkov'):
+            map['normalizedName'] = 'streets'
+        elif (map['normalizedName'] == 'the-lab'):
+            map['normalizedName'] = 'labs'
+
+        database['maps'][guid] = map
+
+    print_message(f'Successfully loaded map data into the database!')
+    return database
+
+def import_traders(database, headers):
+    data = {
+        'query': """
+            {
+                traders {
+                    id
+                    normalizedName
+                }
+            }
+        """
+    }
+    response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+
+    if (response.status_code < 200 or response.status_code > 299):
+        print_error(f'Network error [{response.status_code}] {response.json()}')
+        return False
+    else:
+        if ('errors' in response.json().keys()):
+            print_error(f'Errors detected {json.dumps(response.json())}')
+            return False
+
+        print_message('Retrieved latest trader data from the api.tarkov.dev server')
+        traders = response.json()['data']['traders']
+
+    for trader in traders:
+        guid = trader['id']
+        del trader['id']
+
+        if (trader['normalizedName'] == 'btr-driver'):
+            trader['normalizedName'] = 'btr'
+
+        database['maps'][guid] = trader
+
+    print_message(f'Successfully loaded trader data into the database!')
     return database
 
 # Print functions
@@ -3103,470 +3568,73 @@ def clear():
     return True
 
 # Import
-def import_data(tracker_file):
+def import_data(tracker_file, delta_import):
     database = {
-        'tasks': [],
-        'hideout': [],
-        'maps': [],
-        'traders': [],
-        'barters': [],
-        'crafts': [],
-        'all_items': [],
-        'inventory': {},
-        'player_level': 1
+        'tasks': {},
+        'hideout': {},
+        'barters': {},
+        'crafts': {},
+        'items': {},
+        'maps': {},
+        'traders': {},
+        'player_level': 1,
+        'refresh': -1
     }
-
     headers = {
         'Content-Type': 'application/json'
     }
-    data = {
-        'query': """
-            {
-                tasks {
-                    id
-                    name
-                    normalizedName
-                    trader {
-                        id
-                    }
-                    map {
-                        id
-                    }
-                    minPlayerLevel
-                    taskRequirements {
-                        task {
-                            id
-                        }
-                    }
-                    traderRequirements {
-                        id
-                        requirementType
-                        trader {
-                            id
-                        }
-                    }
-                    objectives {
-                        id
-                        type
-                        description
-                        optional
-                        maps {
-                            id
-                        }
-                        ... on TaskObjectiveExtract {
-                            maps {
-                                id
-                            }
-                            exitStatus
-                            exitName
-                            zoneNames
-                        }
-                        ... on TaskObjectiveItem {
-                            id
-                            count
-                            foundInRaid
-                            item {
-                                id
-                            }
-                        }
-                        ... on TaskObjectivePlayerLevel {
-                            playerLevel
-                        }
-                        ... on TaskObjectiveQuestItem {
-                            questItem {
-                                id
-                            }
-                            count
-                        }
-                        ... on TaskObjectiveShoot {
-                            targetNames
-                            count
-                            shotType
-                            zoneNames
-                            bodyParts
-                            usingWeapon {
-                                id
-                            }
-                            usingWeaponMods {
-                                id
-                            }
-                            wearing {
-                                id
-                            }
-                            notWearing {
-                                id
-                            }
-                            distance {
-                                value
-                            }
-                            playerHealthEffect {
-                                bodyParts
-                                effects
-                                time {
-                                    value
-                                }
-                            }
-                            enemyHealthEffect {
-                                bodyParts
-                                effects
-                                time {
-                                    value
-                                }
-                            }
-                            timeFromHour
-                            timeUntilHour
-                        }
-                        ... on TaskObjectiveSkill {
-                            skillLevel {
-                                name
-                                level
-                            }
-                        }
-                        ... on TaskObjectiveTaskStatus {
-                            task {
-                                id
-                            }
-                            status
-                        }
-                        ... on TaskObjectiveTraderLevel {
-                            trader {
-                                id
-                            }
-                            level
-                        }
-                        ... on TaskObjectiveTraderStanding {
-                            trader {
-                                id
-                            }
-                            value
-                        }
-                        ... on TaskObjectiveUseItem {
-                            useAny {
-                                id
-                            }
-                            count
-                            zoneNames
-                        }
-                    }
-                    neededKeys {
-                        keys {
-                            id
-                        }
-                    }
-                    kappaRequired
-                    lightkeeperRequired
-                }
-            }
-        """
-    }
-    response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+    database = import_tasks(database, headers)
 
-    if (response.status_code < 200 or response.status_code > 299):
-        print_error(f'Network error [{response.status_code}] {response.json()}')
-        exit(1)
-    else:
-        if ('errors' in response.json().keys()):
-                print_error(f'Errors detected {json.dumps(response.json())}')
-                exit(1)
+    if (not database):
+        print_error('Encountered error while importing tasks. Import aborted')
+        return False
 
-        print_message('Retrieved latest task data from the api.tarkov.dev server')
-        tasks = response.json()['data']['tasks']
+    database = import_hideout(database, headers)
 
-    untracked_count = 0
+    if (not database):
+        print_error('Encountered error while importing hideout stations. Import aborted')
+        return False
 
-    for task in tasks:
-        task['status'] = 'incomplete'
-        task['tracked'] = True
+    database = import_barters(database, headers)
 
-        if (not task['kappaRequired']):
-            task['tracked'] = False
-            untracked_count = untracked_count + 1
+    if (not database):
+        print_error('Encountered error while importing barters. Import aborted')
+        return False
+
+    database = import_crafts(database, headers)
+
+    if (not database):
+        print_error('Encountered error while importing crafts. Import aborted')
+        return False
+
+    database = import_items(database, headers)
+
+    if (not database):
+        print_error('Encountered error while importing items. Import aborted')
+        return False
+
+    database = import_maps(database, headers)
+
+    if (not database):
+        print_error('Encountered error while importing maps. Import aborted')
+        return False
+
+    database = import_traders(database, headers)
+
+    if (not database):
+        print_error('Encountered error while importing traders. Import aborted')
+        return False
     
-    print_message(f'Untracked {untracked_count} tasks not required for Kappa')
-    database['tasks'] = tasks
+    database = calculate_inventory(database)
 
-    data = {
-        'query': """
-            {
-                hideoutStations {
-                    id
-                    normalizedName
-                    levels {
-                        id
-                        level
-                        itemRequirements {
-                            id
-                            count
-                            item {
-                                id
-                            }
-                        }
-                        stationLevelRequirements {
-                            station {
-                                id
-                            }
-                            level
-                        }
-                    }
-                }
-            }
-        """
-    }
+    if (delta_import):
+        database = delta(tracker_file, database)
 
-    response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
-
-    if (response.status_code < 200 or response.status_code > 299):
-        print_error(f'Network error [{response.status_code}] {response.json()}')
-        exit(1)
-    else:
-        if ('errors' in response.json().keys()):
-                print_error(f'Errors detected {json.dumps(response.json())}')
-                exit(1)
-
-        print_message('Retrieved latest hideout data from the api.tarkov.dev server')
-        hideout = response.json()['data']['hideoutStations']
-
-    for station in hideout:
-        for level in station['levels']:
-            level['normalizedName'] = station['normalizedName'] + '-' + str(level['level'])
-
-            if (level['normalizedName'] != 'stash-1'):
-                level['status'] = 'incomplete'
-            else:
-                level['status'] = 'complete'
-                print_message('Automatically completed stash-1 hideout station')
-
-            level['tracked'] = True
-
-    database['hideout'] = hideout
-
-    data = {
-        'query': """
-            {
-                barters {
-                    id
-                    trader {
-                    id
-                    }
-                    level
-                    taskUnlock {
-                    id
-                    }
-                    requiredItems {
-                    item {
-                        id
-                    }
-                    count
-                    }
-                    rewardItems {
-                    item {
-                        id
-                    }
-                    count
-                    }
-                }
-            }
-        """
-    }
-
-    response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
-
-    if (response.status_code < 200 or response.status_code > 299):
-        print_error(f'Network error [{response.status_code}] {response.json()}')
-        exit(1)
-    else:
-        if ('errors' in response.json().keys()):
-                print_error(f'Errors detected {json.dumps(response.json())}')
-                exit(1)
-
-        print_message('Retrieved latest barter data from the api.tarkov.dev server')
-        barters = response.json()['data']['barters']
-
-    for barter in barters:
-        barter['status'] = 'incomplete'
-        barter['tracked'] = False
-    
-    database['barters'] = barters
-
-    data = {
-        'query': """
-            {
-                crafts {
-                    id
-                    duration
-                    station {
-                    id
-                    }
-                    level
-                    taskUnlock {
-                    id
-                    }
-                    requiredItems {
-                    item {
-                        id
-                    }
-                    count
-                    }
-                    rewardItems {
-                    item {
-                        id
-                    }
-                    count
-                    }
-                }
-            }
-        """
-    }
-
-    response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
-
-    if (response.status_code < 200 or response.status_code > 299):
-        print_error(f'Network error [{response.status_code}] {response.json()}')
-        exit(1)
-    else:
-        if ('errors' in response.json().keys()):
-                print_error(f'Errors detected {json.dumps(response.json())}')
-                exit(1)
-
-        print_message('Retrieved latest craft data from the api.tarkov.dev server')
-        crafts = response.json()['data']['crafts']
-
-    for craft in crafts:
-        craft['status'] = 'incomplete'
-        craft['tracked'] = False
-    
-    database['crafts'] = crafts
-
-
-    data = {
-        'query': """
-            {
-                maps {
-                    id
-                    normalizedName
-                }
-            }
-        """
-    }
-
-    response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
-
-    if (response.status_code < 200 or response.status_code > 299):
-        print_error(f'Network error [{response.status_code}] {response.json()}')
-        exit(1)
-    else:
-        if ('errors' in response.json().keys()):
-                print_error(f'Errors detected {json.dumps(response.json())}')
-                exit(1)
-
-        print_message('Retrieved latest map data from the api.tarkov.dev server')
-        database['maps'] = response.json()['data']['maps']
-
-    data = {
-        'query': """
-            {
-                traders {
-                    id
-                    normalizedName
-                }
-            }
-        """
-    }
-
-    response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
-
-    if (response.status_code < 200 or response.status_code > 299):
-        print_error(f'Network error [{response.status_code}] {response.json()}')
-        exit(1)
-    else:
-        if ('errors' in response.json().keys()):
-                print_error(f'Errors detected {json.dumps(response.json())}')
-                exit(1)
-
-        print_message('Retrieved latest trader data from the api.tarkov.dev server')
-        database['traders'] = response.json()['data']['traders']
-    
-    for task in database['tasks']:
-        if (not task['tracked']):
-            continue
-
-        for objective in task['objectives']:
-            if (objective['type'] == 'giveItem'):
-                guid = objective['item']['id']
-
-                if (guid not in database['inventory'].keys()):
-                    database['inventory'][guid] = {
-                        'need_fir': 0,
-                        'need_nir': 0,
-                        'have_fir': 0,
-                        'have_nir': 0,
-                        'consumed_fir': 0,
-                        'consumed_nir': 0
-                    }
-                    
-                if (objective['foundInRaid']):
-                    database['inventory'][guid]['need_fir'] = database['inventory'][guid]['need_fir'] + objective['count']
-                else:
-                    database['inventory'][guid]['need_nir'] = database['inventory'][guid]['need_nir'] + objective['count']
-        
-        if (task['neededKeys'] is not None and len(task['neededKeys']) > 0):
-            for needed_key_object in task['neededKeys']:
-                for needed_key in needed_key_object['keys']:
-                    guid = needed_key['id']
-
-                    if (guid not in database['inventory'].keys()):
-                        database['inventory'][guid] = {
-                            'need_fir': 0,
-                            'need_nir': 1,
-                            'have_fir': 0,
-                            'have_nir': 0,
-                            'consumed_fir': 0,
-                            'consumed_nir': 0
-                        }
-                    else:
-                        database['inventory'][guid]['need_nir'] = 1
-
-    print_message('All items for tracked tasks are now required in the inventory')
-
-    for station in database['hideout']:
-        for level in station['levels']:
-            for requirement in level['itemRequirements']:
-                guid = requirement['item']['id']
-
-                if (guid not in database['inventory'].keys()):
-                    database['inventory'][guid] = {
-                        'need_fir': 0,
-                        'need_nir': 0,
-                        'have_fir': 0,
-                        'have_nir': 0,
-                        'consumed_fir': 0,
-                        'consumed_nir': 0
-                    }
-                    
-                database['inventory'][guid]['need_nir'] = database['inventory'][guid]['need_nir'] + requirement['count']
-
-    print_message('All items for tracked hideout stations are now required in the inventory')
-
-    for map in database['maps']:
-        if (map['normalizedName'] == 'streets-of-tarkov'):
-            map['normalizedName'] = 'streets'
-        elif (map['normalizedName'] == 'the-lab'):
-            map['normalizedName'] = 'labs'
-
-    for trader in database['traders']:
-        if (trader['normalizedName'] == 'btr-driver'):
-            trader['normalizedName'] = 'btr'
-    
-    print_message('Overwrote normalized name for "Streets of Tarkov" to "streets" and for "The Lab" to "labs"')
-    print_message('Overwrote normalized name for "BTR-Driver" to "btr"')
-    database = import_all_items(database, headers)
-    print_message('Retrieved latest item data from the api.tarkov.dev server')
     write_database(tracker_file, database)
-    print_message(f'Generated a new database file {tracker_file}')
-    print_message('Finished importing and overwriting all data!')
+    print_message(f'Finished importing game data and saved to {tracker_file}')
     return True
 
-def delta_import(tracker_file):
+def delta(database):
     memory = open_database(tracker_file)
     update = import_data(tracker_file)
 

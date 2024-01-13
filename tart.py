@@ -973,7 +973,7 @@ def display_bool(bool_value):
     
 def print_debug(message):
     if (DEBUG):
-        print(f'>> (DEBUG) {message}')
+        #print(f'>> (DEBUG) {message}')
         return True
     
     return False
@@ -1338,7 +1338,7 @@ def search_tasks(text, database):
     tasks = {}
 
     for guid, task in database['tasks'].items():
-        if (string_compare(text, task['normalizedName']) or guid == text):
+        if (string_compare(text, task['normalizedName']) or string_compare(text, task['name']) or guid == text):
             print_debug(f'Found matching task >> {task['normalizedName']} <<')
             tasks[guid] = task
 
@@ -1698,295 +1698,254 @@ def untrack_craft(database, guid):
 
 # Complete functions
 def complete_task(database, guid, force):
-    for task in database['tasks']:
-        if (task['id'] == guid):
-            if (task['status'] == 'complete'):
-                print_message(f'{task["name"]} is already complete')
-                return False
+    task = database['tasks'][guid]
 
-            if (not task['tracked'] and not force):
-                print_error(f'{task["name"]} is not tracked')
-                return False
+    if (task['status'] == 'complete'):
+        print_message(f'{task["name"]} is already complete')
+        return False
 
-            task_table = {}
-            consumer_table = {}
+    if (not task['tracked'] and not force):
+        print_error(f'{task["name"]} is not tracked')
+        return False
 
-            for seen_task in database['tasks']:
-                task_table[seen_task['id']] = seen_task['status']
+    _return_ = verify_task(database, task)
+                            
+    if (type(_return_) is str and not force):
+        print_error(_return_)
+        return False
 
-            _return_ = verify_task(database, task, task_table)
-                                    
-            if (type(_return_) is str and not force):
-                print_error(_return_)
-                return False
+    for objective in task['objectives']:
+        if (objective['type'] == 'giveItem'):
+            item_guid = objective['item']['id']
+            item_name = database['items'][item_guid]['shortName']
+            available_fir = database['items'][item_guid]['have_fir'] - database['items'][item_guid]['consumed_fir']
+            available_nir = database['items'][item_guid]['have_nir'] - database['items'][item_guid]['consumed_nir']
 
-            for objective in task['objectives']:
-                if (objective['type'] == 'giveItem'):
-                    item_guid = objective['item']['id']
-                    item_name = find(item_guid, database, type = GUID, object = ITEM)['normalizedName']
-                    available_fir = get_fir_count_by_guid(database, item_guid)
-                    available_nir = get_nir_count_by_guid(database, item_guid)
+            if (objective['foundInRaid']):
+                need_fir = objective['count']
+                _remainder_ = need_fir - available_fir
 
-                    if (objective['foundInRaid']):
-                        need_fir = objective['count']
-                        _remainder_ = need_fir - available_fir
+                if (_remainder_ > 0 and not force):
+                    print_error(f'{_remainder_} more {item_name} (FIR) required')
+                    return False
+                elif (force):
+                    database = add_item_fir(database, _remainder_, item_guid)
 
-                        if (_remainder_ > 0 and not force):
-                            print_error(f'{_remainder_} more {item_name} (FIR) required')
-                            return False                     
-                        elif (force):
-                            database = add_item_fir(database, _remainder_, guid = item_guid)
+                    if (not database):
+                        print_error(f'Encountered an error. All item changes for this task have been aborted')
+                        return False
+                
+                database['items'][item_guid]['consumed_fir'] = database['items'][item_guid]['consumed_fir'] + need_fir
+            else:
+                need_nir = objective['count']
+                _remainder_ = need_nir - available_nir
+
+                if (_remainder_ > 0):
+                    if (available_fir < _remainder_ and not force):
+                        print_error(f'{_remainder_} more {item_name} required')
+                        return False
+                    elif (force):
+                        database = add_item_nir(database, _remainder_, item_guid)
+
+                        if (not database):
+                            print_error(f'Encountered an error. All item changes for this task have been aborted')
+                            return False
+                    else:
+                        print_message(f'{_remainder_} more {item_name} required. Consume {_remainder_} (FIR) instead? (Y/N)')
+                        _confirmation_ = input('> ').lower()
+
+                        if (_confirmation_ == 'y'):
+                            database = del_item_fir(database, _remainder_, item_guid)
+                            database = add_item_nir(database, _remainder_, item_guid)
 
                             if (not database):
+                                print_error(f'Encountered an error. All item changes for this task have been aborted')
                                 return False
-                        
-                        consumer_table[item_guid] = {
-                            'count': need_fir,
-                            'type': 'fir'
-                        }
-                    else:
-                        need_nir = objective['count']
-                        _remainder_ = need_nir - available_nir
-
-                        if (_remainder_ > 0):
-                            if (available_fir < _remainder_ and not force):
-                                print_error(f'{_remainder_} more {item_name} required')
-                                return False
-                            elif (force):
-                                database = add_item_nir(database, _remainder_, guid = item_guid)
-
-                                if (not database):
-                                    return False
-                            else:
-                                print_message(f'{_remainder_} more {item_name} required. Consume {_remainder_} (FIR) instead? (Y/N)')
-                                _confirmation_ = input('> ').lower()
-
-                                if (_confirmation_ == 'y'):
-                                    database = del_item_fir(database, _remainder_, guid = item_guid)
-                                    database = add_item_nir(database, _remainder_, guid = item_guid)
-
-                                    if (not database):
-                                        return False
-                                else:
-                                    print_error('Aborted')
-                                    return False
-                                
-                        consumer_table[item_guid] = {
-                            'count': need_nir,
-                            'type': 'nir'
-                        }
+                        else:
+                            print_error('All item changes for this task have been aborted')
+                            return False
+                
+                database['items'][item_guid]['consumed_nir'] = database['items'][item_guid]['consumed_nir'] + need_nir
             
-            for item_guid in consumer_table.keys():
-                if (consumer_table[item_guid]['type'] == 'fir'):
-                    database['inventory'][item_guid]['consumed_fir'] = database['inventory'][item_guid]['consumed_fir'] + consumer_table[item_guid]['count']
-                else:
-                    database['inventory'][item_guid]['consumed_nir'] = database['inventory'][item_guid]['consumed_nir'] + consumer_table[item_guid]['count']
-            
-            task['status'] = 'complete'
-            print_message(f'{task["name"]} completed')
-            break
-    else:
-        print_error(f'Could not find {guid}')
-
+    database['tasks'][guid]['status'] = 'complete'
+    print_message(f'{task["name"]} completed')
     return database
 
 def complete_recursive_task(database, guid, tasks = []):
-    for task in database['tasks']:
-        if (task['id'] == guid):
-            for prereq in task['taskRequirements']:
-                tasks.append(prereq['task']['id'])
-                tasks =  complete_recursive_task(database, prereq['task']['id'], tasks)
+    tasks = []
+    
+    for prereq in database['tasks'][guid]['taskRequirements']:
+        tasks.append(prereq['task']['id'])
+        tasks = complete_recursive_task(database, prereq['task']['id'], tasks)
     
     return tasks
 
 def complete_station(database, guid, force):
-    for station in database['hideout']:
-        for level in station['levels']:
-            if (level['id'] == guid):
-                if (level['status'] == 'complete'):
-                    print_message(f'{level["normalizedName"]} is already complete')
+    station = database['hideout'][guid]
+
+    if (station['status'] == 'complete'):
+        print_message(f'{station["normalizedName"]} is already complete')
+        return False
+
+    if (not station['tracked'] and not force):
+        print_error(f'{station["normalizedName"]} is not tracked')
+        return False
+
+    _return_ = verify_station(database, station)
+
+    if (type(_return_) is str and not force):
+        print_error(_return_)
+        return False
+
+    for requirement in station['itemRequirements']:
+        item_guid = requirement['item']['id']
+        item_name = database['items'][item_guid]['shortName']
+        available_fir = database['items'][item_guid]['have_fir'] - database['items'][item_guid]['consumed_fir']
+        available_nir = database['items'][item_guid]['have_nir'] - database['items'][item_guid]['consumed_nir']
+        need_nir = requirement['count']
+        _remainder_ = need_nir - available_nir
+
+        if (_remainder_ > 0):
+            if (available_fir < _remainder_ and not force):
+                print_error(f'{_remainder_} more {item_name} required')
+                return False
+            elif (force):
+                database = add_item_nir(database, _remainder_, guid = item_guid)
+
+                if (not database):
+                    print_error(f'Encountered an error. All item changes for this hideout station have been aborted')
                     return False
+            else:
+                print_message(f'{_remainder_} more {item_name} required. Consume {_remainder_} (FIR) instead? (Y/N)')
+                _confirmation_ = input('> ').lower()
 
-                if (not level['tracked'] and not force):
-                    print_error(f'{level["normalizedName"]} is not tracked')
+                if (_confirmation_ == 'y'):
+                    database = del_item_fir(database, _remainder_, guid = item_guid)
+                    database = add_item_nir(database, _remainder_, guid = item_guid)
+
+                    if (not database):
+                        print_error(f'Encountered an error. All item changes for this hideout station have been aborted')
+                        return False
+                else:
+                    print_error('All item changes for this hideout station have been aborted')
                     return False
-
-                _return_ = verify_hideout_level(database, level)
-                consumer_table = {}
-
-                if (type(_return_) is str and not force):
-                    print_error(_return_)
-                    return False
-
-                for requirement in level['itemRequirements']:
-                    item_guid = requirement['item']['id']
-                    item_name = find(item_guid, database, type = GUID, object = ITEM)['normalizedName']
-                    available_fir = get_fir_count_by_guid(database, item_guid)
-                    available_nir = get_nir_count_by_guid(database, item_guid)
-                    need_nir = requirement['count']
-                    _remainder_ = need_nir - available_nir
-
-                    if (_remainder_ > 0):
-                        if (available_fir < _remainder_ and not force):
-                            print_error(f'{_remainder_} more {item_name} required')
-                            return False
-                        elif (force):
-                            database = add_item_nir(database, _remainder_, guid = item_guid)
-
-                            if (not database):
-                                return False
-                        else:
-                            print_message(f'{_remainder_} more {item_name} required. Consume {_remainder_} (FIR) instead? (Y/N)')
-                            _confirmation_ = input('> ').lower()
-
-                            if (_confirmation_ == 'y'):
-                                database = del_item_fir(database, _remainder_, guid = item_guid)
-                                database = add_item_nir(database, _remainder_, guid = item_guid)
-
-                                if (not database):
-                                    return False
-                            else:
-                                print_error('Aborted')
-                                return False
-                                
-                    consumer_table[item_guid] = need_nir
-                
-                for item_guid in consumer_table.keys():
-                    database['inventory'][item_guid]['consumed_nir'] = database['inventory'][item_guid]['consumed_nir'] + consumer_table[item_guid]
-                
-                level['status'] = 'complete'
-                print_message(f'{level["normalizedName"]} completed')
-                break
-        else:
-            continue
-        break
-    else:
-        print_error(f'Could not find {guid}')
-
+            
+        database['items'][item_guid]['consumed_nir'] = database['items'][item_guid]['consumed_nir'] + need_nir
+    
+    database['hideout'][guid]['status'] = 'complete'
+    print_message(f'{station["normalizedName"]} completed')
     return database
 
 def complete_barter(database, guid, force):
-    for barter in database['barters']:
-        if (barter['id'] == guid):
-            if (barter['status'] == 'complete'):
-                print_message(f'{barter["id"]} is already complete')
+    barter = database['barters'][guid]
+
+    if (barter['status'] == 'complete'):
+        print_message(f'{barter["id"]} is already complete')
+        return False
+    
+    if (not barter['tracked'] and not force):
+        print_error(f'{barter["id"]} is not tracked')
+        return False
+
+    _return_ = verify_barter(database, guid)
+
+    if (type(_return_) is str and not force):
+        print_error(_return_)
+        return False
+
+    for requirement in barter['requiredItems']:
+        item_guid = requirement['item']['id']
+        item_name = database['items'][item_guid]['shortName']
+        available_fir = database['items'][item_guid]['have_fir'] - database['items'][item_guid]['consumed_fir']
+        available_nir = database['items'][item_guid]['have_nir'] - database['items'][item_guid]['consumed_nir']
+        need_nir = requirement['count']
+        _remainder_ = need_nir - available_nir
+
+        if (_remainder_ > 0):
+            if (available_fir < _remainder_ and not force):
+                print_error(f'{_remainder_} more {item_name} required')
                 return False
-            
-            if (not barter['tracked'] and not force):
-                print_error(f'{barter["id"]} is not tracked')
-                return False
+            elif (force):
+                database = add_item_nir(database, _remainder_, guid = item_guid)
 
-            _return_ = verify_barter(barter)
-            consumer_table = {}
+                if (not database):
+                    print_error(f'Encountered an error. All item changes for this barter have been aborted')
+                    return False
+            else:
+                print_message(f'{_remainder_} more {item_name} required. Consume {available_fir} (FIR) instead? (Y/N)')
+                _confirmation_ = input('> ').lower()
 
-            if (type(_return_) is str and not force):
-                print_error(_return_)
-                return False
+                if (_confirmation_ == 'y'):
+                    database = del_item_fir(database, _remainder_, guid = item_guid)
+                    database = add_item_nir(database, _remainder_, guid = item_guid)
 
-            for requirement in barter['requiredItems']:
-                item_guid = requirement['item']['id']
-                item_name = find(item_guid, database, type = GUID, object = ITEM)['normalizedName']
-                available_fir = get_fir_count_by_guid(database, item_guid)
-                available_nir = get_nir_count_by_guid(database, item_guid)
-                need_nir = requirement['count']
-                _remainder_ = need_nir - available_nir
-
-                if (_remainder_ > 0):
-                    if (available_fir < _remainder_ and not force):
-                        print_error(f'{_remainder_} more {item_name} required')
+                    if (not database):
+                        print_error(f'Encountered an error. All item changes for this barter have been aborted')
                         return False
-                    elif (force):
-                        database = add_item_nir(database, _remainder_, guid = item_guid)
-
-                        if (not database):
-                            return False
-                    else:
-                        print_message(f'{_remainder_} more {item_name} required. Consume {available_fir} (FIR) instead? (Y/N)')
-                        _confirmation_ = input('> ').lower()
-
-                        if (_confirmation_ == 'y'):
-                            database = del_item_fir(database, _remainder_, guid = item_guid)
-                            database = add_item_nir(database, _remainder_, guid = item_guid)
-
-                            if (not database):
-                                return False
-                        else:
-                            print_error('Aborted')
-                            return False
-                            
-                consumer_table[item_guid] = need_nir
-            
-            for item_guid in consumer_table.keys():
-                database['inventory'][item_guid]['consumed_nir'] = database['inventory'][item_guid]['consumed_nir'] + consumer_table[item_guid]
-            
-            barter['status'] = 'complete'
-            print_message(f'{barter["id"]} completed')
-            break
-    else:
-        return None
-
+                else:
+                    print_error('All item changes for this barter have been aborted')
+                    return False
+        
+        database['items'][item_guid]['consumed_nir'] = database['items'][item_guid]['consumed_nir'] + need_nir
+    
+    database['barters'][guid]['status'] = 'complete'
+    print_message(f'{barter["id"]} completed')
     return database
 
 def complete_craft(database, guid, force):
-    for craft in database['crafts']:
-        if (craft['id'] == guid):
-            if (craft['status'] == 'complete'):
-                print_message(f'{craft["id"]} is already complete')
+    craft = database['crafts'][guid]
+
+    if (craft['status'] == 'complete'):
+        print_message(f'{craft["id"]} is already complete')
+        return False
+    
+    if (not craft['tracked'] and not force):
+        print_error(f'{craft["id"]} is not tracked')
+        return False
+
+    _return_ = verify_craft(database, guid)
+
+    if (type(_return_) is str and not force):
+        print_error(_return_)
+        return False
+
+    for requirement in craft['requiredItems']:
+        item_guid = requirement['item']['id']
+        item_name = database['items'][item_guid]['shortName']
+        available_fir = database['items'][item_guid]['have_fir'] - database['items'][item_guid]['consumed_fir']
+        available_nir = database['items'][item_guid]['have_nir'] - database['items'][item_guid]['consumed_nir']
+        need_nir = requirement['count']
+        _remainder_ = need_nir - available_nir
+
+        if (_remainder_ > 0):
+            if (available_fir < _remainder_ and not force):
+                print_error(f'{_remainder_} more {item_name} required')
                 return False
-            
-            if (not craft['tracked'] and not force):
-                print_error(f'{craft["id"]} is not tracked')
-                return False
+            elif (force):
+                database = add_item_nir(database, _remainder_, guid = item_guid)
 
-            _return_ = verify_craft(craft)
-            consumer_table = {}
+                if (not database):
+                    print_error(f'Encountered an error. All item changes for this craft have been aborted')
+                    return False
+            else:
+                print_message(f'{_remainder_} more {item_name} required. Consume {available_fir} (FIR) instead? (Y/N)')
+                _confirmation_ = input('> ').lower()
 
-            if (type(_return_) is str and not force):
-                print_error(_return_)
-                return False
+                if (_confirmation_ == 'y'):
+                    database = del_item_fir(database, _remainder_, guid = item_guid)
+                    database = add_item_nir(database, _remainder_, guid = item_guid)
 
-            for requirement in craft['requiredItems']:
-                item_guid = requirement['item']['id']
-                item_name = find(item_guid, database, type = GUID, object = ITEM)['normalizedName']
-                available_fir = get_fir_count_by_guid(database, item_guid)
-                available_nir = get_nir_count_by_guid(database, item_guid)
-                need_nir = requirement['count']
-                _remainder_ = need_nir - available_nir
-
-                if (_remainder_ > 0):
-                    if (available_fir < _remainder_ and not force):
-                        print_error(f'{_remainder_} more {item_name} required')
+                    if (not database):
+                        print_error(f'Encountered an error. All item changes for this craft have been aborted')
                         return False
-                    elif (force):
-                        database = add_item_nir(database, _remainder_, guid = item_guid)
-
-                        if (not database):
-                            return False
-                    else:
-                        print_message(f'{_remainder_} more {item_name} required. Consume {available_fir} (FIR) instead? (Y/N)')
-                        _confirmation_ = input('> ').lower()
-
-                        if (_confirmation_ == 'y'):
-                            database = del_item_fir(database, _remainder_, guid = item_guid)
-                            database = add_item_nir(database, _remainder_, guid = item_guid)
-
-                            if (not database):
-                                return False
-                        else:
-                            print_error('Aborted')
-                            return False
-                            
-                consumer_table[item_guid] = need_nir
-            
-            for item_guid in consumer_table.keys():
-                database['inventory'][item_guid]['consumed_nir'] = database['inventory'][item_guid]['consumed_nir'] + consumer_table[item_guid]
-            
-            craft['status'] = 'complete'
-            print_message(f'{craft["id"]} completed')
-            break
-    else:
-        return None
-
+                else:
+                    print_error('All item changes for this craft have been aborted')
+                    return False
+        
+        database['items'][item_guid]['consumed_nir'] = database['items'][item_guid]['consumed_nir'] + need_nir
+    
+    database['crafts'][guid]['status'] = 'complete'
+    print_message(f'{craft["id"]} completed')
     return database
 
 # Import functions
@@ -3169,41 +3128,34 @@ def complete(tracker_file, argument, force, recurse):
         print_error('No database file found')
         return False
     
-    if (is_guid(argument)):
-        guid = argument
-        _copy_ = database
-        database = complete_barter(database, guid, force)
+    guid = find_completable(argument, database)
 
-        if (database is None):
-            database = complete_craft(_copy_, guid, force)
-
-            if (database is None):
-                print_error(f'Could not find {argument}')
-    else:
-        guid = task_to_guid(database, argument)
-
-        if (guid and not recurse):
+    if (not guid):
+        print_error(f'Could not find {argument} to complete')
+        return False
+    
+    if (guid in database['tasks'].keys()):
+        if (not recurse):
             database = complete_task(database, guid, force)
-        elif (guid and recurse):
+        else:
             tasks = complete_recursive_task(database, guid)
             tasks.insert(0, guid)
 
-            for task in tasks:
-                database = complete_task(database, task, True)
-        else:
-            guid = station_to_guid(database, argument)
+            for guid in tasks:
+                if (database):
+                    database = complete_task(database, guid, force)
 
-            if (guid):
-                database = complete_station(database, guid, force)
-            else:
-                print_error('Invalid argument')
-                return False
-    
+    elif (guid in database['hideout'].keys()):
+        database = complete_station(database, guid, force)
+    elif (guid in database['barters'].keys()):
+        database = complete_barter(database, guid, force)
+    else:
+        database = complete_craft(database, guid, force)
+
     if (database):
         write_database(tracker_file, database)
-        return True
 
-    return False
+    return True
 
 # Restart
 def restart_barter_or_craft(tracker_file, argument):

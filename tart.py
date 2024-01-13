@@ -738,6 +738,42 @@ def create_filter(text, database):
         print_warning(f'Found {len(filters)} filter matches for {text}. Please choose one')
         return disambiguate(filters)
 
+def find_completable(text, database):
+    guid = find_task(text, database)
+
+    if (guid):
+        return guid
+    
+    guid = find_station(text, database)
+
+    if (guid):
+        return guid
+    
+    guid = find_barter(text, database)
+
+    if (guid):
+        return guid
+    
+    guid = find_craft(text, database)
+
+    if (guid):
+        return guid
+    
+    return False
+
+def find_restartable(text, database):
+    guid = find_barter(text, database)
+
+    if (guid):
+        return guid
+    
+    guid = find_craft(text, database)
+
+    if (guid):
+        return guid
+    
+    return False
+
 # String functions
 def normalize(text):
     unwanted_strings = ['', '.', '(', ')', '+', '=', '\'', '"', ',', '\\', '/', '?', '#', '$', '&', '!', '@', '[', ']', '{', '}', '-', '_']
@@ -3130,8 +3166,6 @@ def track(tracker_file, argument):
         print_error('No database file found')
         return False
     
-    type = string_to_type(argument)
-
     if (is_guid(argument)):
         guid = argument
         database, found = track_barter(database, guid)

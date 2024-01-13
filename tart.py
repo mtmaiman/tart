@@ -1219,7 +1219,7 @@ def get_barters(database):
     barters = {}
 
     for guid, barter in database['barters'].items():
-        if (verify_barter(barter) == True):
+        if (verify_barter(database, guid) == True):
             print_debug(f'Found available barter >> {guid} <<')
             barters[guid] = barter
 
@@ -1231,7 +1231,7 @@ def get_barters_filtered(database, argument):
     filter = find_trader(argument, database)
 
     for guid, barter in database['barters'].items():
-        if (verify_barter(barter) != True):
+        if (verify_barter(database, guid) != True):
             continue
 
         if (not filter):
@@ -1248,7 +1248,7 @@ def get_crafts(database):
     crafts = {}
 
     for guid, craft in database['crafts'].items():
-        if (verify_craft(craft) == True):
+        if (verify_craft(database, guid) == True):
             print_debug(f'Found available craft >> {guid} <<')
             crafts.append(craft)
 

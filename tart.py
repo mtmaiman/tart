@@ -2226,6 +2226,10 @@ def import_hideout(database, headers):
                 print_message('Completed stash-1 automatically')
 
             database['hideout'][guid] = level
+        
+        guid = station['id']
+        del station['id']
+        database['hideout'][guid] = station
 
     print_message(f'Successfully loaded hideout data into the database!')
     return database

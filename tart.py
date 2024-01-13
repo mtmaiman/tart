@@ -783,7 +783,6 @@ def normalize(text):
         normalized = normalized.replace(string, '')
     
     normalized = re.sub(' +', ' ', normalized)
-    print_debug(f'Normalized >> {text} << to >> {normalized} <<')
     return normalized
 
 def string_compare(comparable, comparator):
@@ -791,10 +790,8 @@ def string_compare(comparable, comparator):
     comparator_words = normalize(comparator).split(' ')
 
     for comparable_word in comparable_words:
-        for comparator_word in comparator_words:
-            if (comparable_word not in comparator_word):
-                print_debug(f'>> {comparable_words} << != >> {comparator_words} <<')
-                return False
+        if (comparable_word not in comparator_words):
+            return False
 
     print_debug(f'>> {comparable_words} << == >> {comparator_words} <<')
     return True
@@ -976,7 +973,7 @@ def display_bool(bool_value):
     
 def print_debug(message):
     if (DEBUG):
-        #print(f'>> (DEBUG) {message}')
+        print(f'>> (DEBUG) {message}')
         return True
     
     return False

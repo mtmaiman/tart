@@ -2779,11 +2779,11 @@ def display_crafts(database, crafts):
     print_message(f'\n{display}')
     return True
 
-def display_untracked(untracked):
+def display_untracked(database, untracked):
     display = UNTRACKED_HEADER + BUFFER
 
     for guid, entry in untracked.items():
-        if (entry['id'] == 'task'):
+        if (guid in database['tasks'].keys()):
             display = display + '{:<40} {:<20} {:<20} {:<20}\n'.format(entry['name'], 'task', display_bool(entry['tracked']), display_bool(entry['kappaRequired']))
         else:
             display = display + '{:<40} {:<20} {:<20}\n'.format(entry['normalizedName'], 'hideout station', display_bool(entry['tracked']))
@@ -3042,7 +3042,7 @@ def list_untracked(tracker_file, ignore_kappa):
     elif (len(untracked) == 0):
         print_message('No untracked items (excluding Kappa tasks) found')
     else:
-        display_untracked(untracked)
+        display_untracked(database, untracked)
 
     return True
 
@@ -3083,10 +3083,20 @@ def search(tracker_file, argument, ignore_barters, ignore_crafts):
     maps = search_maps(argument, database)
 
     if (not ignore_barters):
-        barters = barters | search_barters_by_item(argument, database)
+        _barters_ = search_barters_by_item(argument, database)
+
+        if (barters and _barters_):
+            barters = barters | _barters_
+        elif (not barters and _barters_):
+            barters = _barters_
 
     if (not ignore_crafts):
-        crafts = crafts | search_crafts_by_item(argument, database)
+        _crafts_ = search_crafts_by_item(argument, database)
+
+        if (barters and _crafts_):
+            crafts = crafts | _crafts_
+        elif (not crafts and _crafts_):
+            crafts = _crafts_
 
     display_search(database, tasks, hideout, barters, crafts, items, traders, maps)
     return True

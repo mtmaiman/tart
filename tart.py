@@ -190,7 +190,7 @@ def parser(tracker_file, command):
             inventory_tasks(tracker_file)
         elif (command[1] == 'stations' or command[1] == 'hideout'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
-            inventory_stations(tracker_file)
+            inventory_hideout(tracker_file)
         elif (command[1] == 'barters'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
             inventory_barters(tracker_file)
@@ -726,7 +726,13 @@ def create_filter(text, database):
         if (string_compare(text, trader['normalizedName']) or guid == text):
             filters[guid] = trader
 
-    return disambiguate(filters)
+    if (len(filters) == 0):
+        return False
+    elif (len(filters) == 1):
+        return filters.keys()[0]
+    else:
+        print_warning(f'Found {len(filters)} filter matches for {text}. Please choose one')
+        return disambiguate(filters)
 
 # String functions
 def normalize(text):
@@ -755,7 +761,7 @@ def string_compare(comparable, comparator):
 
 def alphabetize_items(items):
     print_debug(f'Alphabetizing dict of size >> {len(items)} <<')
-    return {_key_: _value_ for _key_, _value_ in sorted(items.items(), key = lambda item: item['shortName'])}
+    return {guid: item for guid, item in sorted(items.items(), key = lambda item: item[1]['shortName'])}
 
 def format_price(price, currency):
     currency = currency.lower()
@@ -928,7 +934,7 @@ def display_bool(bool_value):
     
 def print_debug(message):
     if (DEBUG):
-        #print(f'? DEBUG ? {message}')
+        #print(f'>> (DEBUG) {message}')
         return True
     
     return False
@@ -938,11 +944,11 @@ def print_message(message):
     return True
 
 def print_warning(message):
-    print(f'! WARNING ! {message}')
+    print(f'>> (WARNING) {message}')
     return True
 
 def print_error(message):
-    print(f'X ERROR X {message}!')
+    print(f'>> (ERROR) {message}!')
     return True
 
 
@@ -2150,7 +2156,7 @@ def import_tasks(database, headers):
 
     for task in response.json()['data']['tasks']:
         guid = task['id']
-        task['id'] = 'task'
+        del task['id']
         task['status'] = 'incomplete'
         task['tracked'] = True
         
@@ -2207,8 +2213,8 @@ def import_hideout(database, headers):
     for station in hideout:
         for level in station['levels']:
             guid = level['id']
+            del level['id']
             level['normalizedName'] = station['normalizedName'] + '-' + str(level['level'])
-            level['id'] = 'station'
             level['status'] = 'incomplete'
             level['tracked'] = True
 
@@ -2265,7 +2271,7 @@ def import_barters(database, headers):
 
     for barter in barters:
         guid = barter['id']
-        barter['id'] = 'barter'
+        del barter['id']
         barter['status'] = 'incomplete'
         barter['tracked'] = False
         database['barters'][guid] = barter
@@ -2318,7 +2324,7 @@ def import_crafts(database, headers):
 
     for craft in crafts:
         guid = craft['id']
-        craft['id'] = 'craft'
+        del craft['id']
         craft['status'] = 'incomplete'
         craft['tracked'] = False
         database['crafts'][guid] = craft
@@ -2381,7 +2387,7 @@ def import_items(database, headers):
 
     for item in items:
         guid = item['id']
-        item['id'] = 'item'
+        del item['id']
         sell_price = 0
         sell_price_roubles = 0
         sell_trader = ''
@@ -2514,7 +2520,7 @@ def import_maps(database, headers):
 
     for map in maps:
         guid = map['id']
-        map['id'] = 'map'
+        del map['id']
 
         if (map['normalizedName'] == 'streets-of-tarkov'):
             map['normalizedName'] = 'streets'
@@ -2552,7 +2558,7 @@ def import_traders(database, headers):
 
     for trader in traders:
         guid = trader['id']
-        trader['id'] = 'trader'
+        del trader['id']
 
         if (trader['normalizedName'] == 'btr-driver'):
             trader['normalizedName'] = 'btr'
@@ -2660,7 +2666,7 @@ def display_tasks(database, tasks):
             if (objective['type'] == 'giveItem'):
                 item_guid = objective['item']['id']
 
-                if (guid in database['inventory']):
+                if (guid in database['items']):
                     have_available_fir = database['items'][item_guid]['have_fir'] - database['items'][item_guid]['consumed_fir']
                     have_available_nir = database['items'][item_guid]['have_nir'] - database['items'][item_guid]['consumed_nir']
                 else:
@@ -2791,11 +2797,11 @@ def display_items(items):
     display = ITEM_HEADER + BUFFER
     items = alphabetize_items(items)
 
-    for item in items:
+    for guid, item in items.items():
         item_display = f'{item["have_nir"]}/{item["need_nir"]} ({item["have_fir"]}/{item["need_fir"]})'
         sell_price = f'{format_price(item["sell_trade"], item["sell_trade_currency"])} / {format_price(item["sell_flea"], item["sell_flea_currency"])}'
         buy_price = f'{format_price(item["buy_trade"], item["buy_trade_currency"])} / {format_price(item["buy_flea"], item["buy_flea_currency"])}'
-        display = display + '{:<25} {:<60} {:<25} {:<15} {:<12} {:<20} {:<12} {:<20}\n'.format(item['shortName'], item['normalizedName'], item['id'], item_display, item['sell_to'], sell_price, item['buy_from'], buy_price)
+        display = display + '{:<25} {:<60} {:<25} {:<15} {:<12} {:<20} {:<12} {:<20}\n'.format(item['shortName'], item['normalizedName'], guid, item_display, item['sell_to'], sell_price, item['buy_from'], buy_price)
 
     display = display + '\n\n'
     print_message(f'\n{display}')
@@ -2804,8 +2810,8 @@ def display_items(items):
 def display_maps(maps):
     display = MAP_HEADER + BUFFER
 
-    for map in maps:
-        display = display + '{:<30} {:<20}\n'.format(map['normalizedName'], map['id'])
+    for guid, map in maps.items():
+        display = display + '{:<30} {:<20}\n'.format(map['normalizedName'], guid)
 
     display = display + '\n\n'
     print_message(f'\n{display}')
@@ -2814,8 +2820,8 @@ def display_maps(maps):
 def display_traders(traders):
     display = TRADER_HEADER + BUFFER
 
-    for trader in traders:
-        display = display + '{:<30} {:<20}\n'.format(trader['normalizedName'], trader['id'])
+    for guid, trader in traders.items():
+        display = display + '{:<30} {:<20}\n'.format(trader['normalizedName'], guid)
 
     display = display + '\n\n'
     print_message(f'\n{display}')
@@ -3369,7 +3375,8 @@ def import_data(tracker_file, delta_import):
         'maps': {},
         'traders': {},
         'player_level': 1,
-        'refresh': -1
+        'refresh': -1,
+        'version': 'pineapple'
     }
     headers = {
         'Content-Type': 'application/json'
@@ -3731,6 +3738,11 @@ def main(args):
     else:
         print_message('Welcome to the TARkov Tracker (TART)! Type help for usage')
         tracker_file = 'database.json'
+
+    database = open_database(tracker_file)
+
+    if ('version' not in database.keys() or database['version'] != 'pineapple'):
+        print_warning('You must migrate your database to the newest version before continuing! Type migrate')
 
     while(True):
         command = input('> ')

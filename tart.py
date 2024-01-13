@@ -809,7 +809,7 @@ def verify_station(database, station):
 
     for prereq in station['stationLevelRequirements']:
         if (database['hideout'][prereq['station']['id'] + '-' + str(prereq['level'])]['status'] != 'complete'):
-            return f'{database['hideout'][prereq['id']]['normalizedName']} must be completed first'
+            return f'{database['hideout'][prereq['station']['id']]['normalizedName']} must be completed first'
         
     print_debug(f'Verified station >> {station["normalizedName"]} <<')
     return True

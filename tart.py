@@ -605,7 +605,7 @@ def find_task(text, database):
     tasks = {}
 
     for guid, task in database['tasks'].items():
-        if (string_compare(text, task['normalizedName']) or guid == text):
+        if (string_compare(text, task['normalizedName']) or string_compare(text, task['name']) or guid == text):
             print_debug(f'Found matching task >> {task['normalizedName']} <<')
             tasks[guid] = task
 

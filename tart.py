@@ -195,7 +195,7 @@ def parser(tracker_file, command):
             inventory_crafts(tracker_file)
         elif (command[1] == 'have'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
-            inventory_have(tracker_file)
+            inventory_owned(tracker_file)
         elif (command[1] == 'need'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
             inventory_need(tracker_file)
@@ -823,7 +823,7 @@ def string_compare(comparable, comparator):
 
 def alphabetize_items(items):
     print_debug(f'Alphabetizing dict of size >> {len(items)} <<')
-    return sorted(items, key = lambda item: item['shortName'].lower())
+    return {_key_: _value_ for _key_, _value_ in sorted(items.items(), key = lambda item: item['shortName'])}
 
 def format_price(price, currency):
     currency = currency.lower()
@@ -994,189 +994,116 @@ def del_item_nir(database, count, guid = ''):
     return database
 
 # Get functions
-def get_items(database):
-    items = []
+def get_inventory(database):
     print_debug('Compiling inventory')
+    items = {}
 
-    for guid in database['inventory'].keys():
-        items.append({
-            'need_fir': database['inventory'][guid]['need_fir'],
-            'need_nir': database['inventory'][guid]['need_nir'],
-            'have_fir': database['inventory'][guid]['have_fir'],
-            'have_nir': database['inventory'][guid]['have_nir'],
-            'id': guid,
-            'shortName': find(guid, database, type = GUID, object = ITEM)['shortName']
-        })
+    for guid, item in database['items'].items():
+        if (item['need_nir'] > 0 or item['need_fir'] > 0 or item['have_fir'] > 0 or item['have_nir'] > 0):
+            items[guid] = item
 
     return items
 
-def get_items_needed_for_tasks(database):
-    items = []
+def get_inventory_owned(database):
+    print_debug('Compiling owned inventory')
+    items = {}
+
+    for guid, item in database['items'].items():
+        if (item['have_fir'] > 0 or item['have_nir'] > 0):
+            items[guid] = item
+
+    return items
+
+def get_inventory_need(database):
+    print_debug('Compiling needed inventory')
+    items = {}
+
+    for guid, item in database['items'].items():
+        if (item['need_fir'] > 0 or item['need_nir'] > 0):
+            items[guid] = item
+
+    return items
+
+def get_inventory_tasks(database):
     print_debug('Compiling inventory for tasks')
+    items = {}
 
     for task in database['tasks']:
         for objective in task['objectives']:
             if (task['tracked']):
                 if (objective['type'] == 'giveItem'):
-                    guid = objective['item']['id']
+                    item_guid = objective['item']['id']
                     fir = objective['foundInRaid']
-                    item = {
-                        'need_fir': 0,
-                        'need_nir': 0,
-                        'have_fir': 0,
-                        'have_nir': 0,
-                        'id': guid,
-                        'shortName': find(guid, database, type = GUID, object = ITEM)['shortName']
-                    }
+
+                    if (item_guid not in items.keys()):
+                        items[item_guid] = database['items'][item_guid]
+                        items[item_guid]['need_fir'] = 0
+                        items[item_guid]['need_nir'] = 0
 
                     if (fir):
-                        item['need_fir'] = objective['count']
+                        items[item_guid]['need_fir'] = items[item_guid]['need_fir'] + objective['count']
                     else:
-                        item['need_nir'] = objective['count']
-
-                    if (guid in database['inventory'].keys()):
-                        item['have_fir'] = database['inventory'][guid]['have_fir']
-                        item['have_nir'] = database['inventory'][guid]['have_nir']
-
-                    for seen_item in items:
-                        if (seen_item['id'] == guid):
-                            if (fir):
-                                seen_item['need_fir'] = seen_item['need_fir'] + objective['count']
-                            else:
-                                seen_item['need_nir'] = seen_item['need_nir'] + objective['count']
-                            
-                            break
-                    else:
-                        items.append(item)
+                        items[item_guid]['need_nir'] = items[item_guid]['need_nir'] + objective['count']
 
     return items
 
-def get_items_needed_for_stations(database):
-    items = []
-    print_debug('Compiling inventory for hideout')
+def get_inventory_hideout(database):
+    print_debug('Compiling inventory for stations')
+    items = {}
 
     for station in database['hideout']:
-        for level in station['levels']:
-            if (level['tracked']):
-                for requirement in level['itemRequirements']:
-                    guid = requirement['item']['id']
-                    item = {
-                        'need_fir': 0,
-                        'need_nir': 0,
-                        'have_fir': 0,
-                        'have_nir': 0,
-                        'id': guid,
-                        'shortName': find(guid, database, type = GUID, object = ITEM)['shortName']
-                    }
-                    item['need_nir'] = requirement['count']
+        if (not station['tracked']):
+            continue
 
-                    if (guid in database['inventory'].keys()):
-                        item['have_fir'] = database['inventory'][guid]['have_fir']
-                        item['have_nir'] = database['inventory'][guid]['have_nir']
+        for requirement in station['itemRequirements']:
+            item_guid = requirement['item']['id']
 
-                    for seen_item in items:
-                        if (seen_item['id'] == guid):
-                            seen_item['need_nir'] = seen_item['need_nir'] + requirement['count']
-                            break
-                    else:
-                        items.append(item)
+            if (item_guid not in items.keys()):
+                items[item_guid] = database['items'][item_guid]
+                items[item_guid]['need_fir'] = 0
+                items[item_guid]['need_nir'] = 0
+
+            items[item_guid]['need_nir'] = items[item_guid]['need_nir'] + requirement['count']
 
     return items
 
-def get_items_needed_for_barters(database):
-    items = []
+def get_inventory_barters(database):
     print_debug('Compiling inventory for barters')
+    items = {}
 
     for barter in database['barters']:
-        if (barter['tracked']):
-            for requirement in barter['requiredItems']:
-                guid = requirement['item']['id']
-                item = {
-                    'need_fir': 0,
-                    'need_nir': 0,
-                    'have_fir': 0,
-                    'have_nir': 0,
-                    'id': guid,
-                    'shortName': find(guid, database, type = GUID, object = ITEM)['shortName']
-                }
-                item['need_nir'] = requirement['count']
+        if (not barter['tracked']):
+            continue
 
-                if (guid in database['inventory'].keys()):
-                    item['have_fir'] = database['inventory'][guid]['have_fir']
-                    item['have_nir'] = database['inventory'][guid]['have_nir']
+        for requirement in barter['requiredItems']:
+            item_guid = requirement['item']['id']
 
-                for seen_item in items:
-                    if (seen_item['id'] == guid):
-                        seen_item['need_nir'] = seen_item['need_nir'] + requirement['count']
-                        break
-                else:
-                    items.append(item)
+            if (item_guid not in items.keys()):
+                items[item_guid] = database['items'][item_guid]
+                items[item_guid]['need_fir'] = 0
+                items[item_guid]['need_nir'] = 0
+
+            items[item_guid]['need_nir'] = items[item_guid]['need_nir'] + requirement['count']
 
     return items
 
-def get_items_needed_for_crafts(database):
-    items = []
+def get_inventory_crafts(database):
     print_debug('Compiling inventory for crafts')
+    items = {}
 
     for craft in database['crafts']:
-        if (craft['tracked']):
-            for requirement in craft['requiredItems']:
-                guid = requirement['item']['id']
-                item = {
-                    'need_fir': 0,
-                    'need_nir': 0,
-                    'have_fir': 0,
-                    'have_nir': 0,
-                    'id': guid,
-                    'shortName': find(guid, database, type = GUID, object = ITEM)['shortName']
-                }
-                item['need_nir'] = requirement['count']
+        if (not craft['tracked']):
+            continue
 
-                if (guid in database['inventory'].keys()):
-                    item['have_fir'] = database['inventory'][guid]['have_fir']
-                    item['have_nir'] = database['inventory'][guid]['have_nir']
+        for requirement in craft['requiredItems']:
+            item_guid = requirement['item']['id']
 
-                for seen_item in items:
-                    if (seen_item['id'] == guid):
-                        seen_item['need_nir'] = seen_item['need_nir'] + requirement['count']
-                        break
-                else:
-                    items.append(item)
+            if (item_guid not in items.keys()):
+                items[item_guid] = database['items'][item_guid]
+                items[item_guid]['need_fir'] = 0
+                items[item_guid]['need_nir'] = 0
 
-    return items
-
-def get_items_owned(database):
-    items = []
-    print_debug('Compiling owned inventory')
-
-    for guid in database['inventory'].keys():
-        if (database['inventory'][guid]['have_fir'] > 0 or database['inventory'][guid]['have_nir'] > 0):
-            items.append({
-                'have_fir': database['inventory'][guid]['have_fir'],
-                'have_nir': database['inventory'][guid]['have_nir'],
-                'id': guid,
-                'shortName': find(guid, database, type = GUID, object = ITEM)['shortName']
-            })
-
-    return items
-
-def get_items_needed(database):
-    items = []
-    print_debug('Compiling needed inventory')
-
-    for guid in database['inventory'].keys():
-        if (database['inventory'][guid]['need_fir'] > 0 or database['inventory'][guid]['need_nir'] > 0):
-            item = {
-                'need_fir': database['inventory'][guid]['need_fir'] - database['inventory'][guid]['have_fir'],
-                'need_nir': database['inventory'][guid]['need_nir'] - database['inventory'][guid]['have_nir'],
-                'id': guid,
-                'shortName': find(guid, database, type = GUID, object = ITEM)['shortName']
-            }
-
-            if (item['need_fir'] == 0 and item['need_nir'] == 0):
-                continue
-            
-            items.append(item)
+            items[item_guid]['need_nir'] = items[item_guid]['need_nir'] + requirement['count']
 
     return items
 
@@ -2505,58 +2432,58 @@ def print_bool(bool_value):
     else:
         return 'false'
 
-def print_inventory_generic(items, inv):
+def print_inventory(items, output_type = 'inv'):
     items = alphabetize_items(items)
 
-    if (inv == 'inv'):
+    if (output_type == 'inv'):
         display = INVENTORY_HEADER + BUFFER
-    elif (inv == 'have'):
+    elif (output_type == 'have'):
         display = INVENTORY_HAVE_HEADER + BUFFER
     else:
         display = INVENTORY_NEED_HEADER + BUFFER
     
     _row_ = 1
     
-    for item in items:
+    for guid, item in items.items():
         nir, fir = None, None
-        _done_ = 0
-        _over_ = False
+        _completed_ = 0
+        _overstock_ = False
         prefix = ''
 
-        if (inv == 'have' or item['need_nir'] > 0):
-            if (inv == 'need'):
+        if (output_type == 'have' or item['need_nir'] > 0):
+            if (output_type == 'need'):
                 nir = item['need_nir']
-            elif (inv == 'have'):
+            elif (output_type == 'have'):
                 nir = item['have_nir']
             else:
                 if (item['have_nir'] >= item['need_nir']):
-                    _done_ = 1
+                    _completed_ = 1
 
                     if (item['have_nir'] > item['need_nir']):
-                        _over_ = True
+                        _overstock_ = True
 
                 nir = f'{item["have_nir"]}/{item["need_nir"]}'
         
-        if (inv == 'have' or item['need_fir'] > 0):
-            if (inv == 'need'):
+        if (output_type == 'have' or item['need_fir'] > 0):
+            if (output_type == 'need'):
                 fir = item['need_fir']
-            elif (inv == 'have'):
+            elif (output_type == 'have'):
                 fir = item['have_fir']
             else:
                 if (item['have_fir'] >= item['need_fir']):
-                    _done_ = _done_ + 2
+                    _completed_ = _completed_ + 2
                     
                     if (item['have_fir'] > item['need_fir']):
-                        _over_ = True
+                        _overstock_ = True
 
                 fir = f'{item["have_fir"]}/{item["need_fir"]}'
 
-        if ((_done_ == 1 and item['need_fir'] == 0) or (_done_ == 2 and item['need_nir'] == 0) or _done_ == 3):
-            if (_over_):
+        if ((_completed_ == 1 and item['need_fir'] == 0) or (_completed_ == 2 and item['need_nir'] == 0) or _completed_ == 3):
+            if (_overstock_):
                 prefix = '[!][*] '
             else:
                 prefix = '[*] '
-        elif (_over_):
+        elif (_overstock_):
             prefix = '[!] '
 
         if (nir and fir):
@@ -2832,26 +2759,23 @@ def inventory(tracker_file):
     database = open_database(tracker_file)
 
     if (not database):
-        print_error('No database file found')
         return False
 
-    inventory = get_items(database)
-    print_inventory_generic(inventory, 'inv')
+    print_inventory(get_inventory(database))
     return True
 
 def inventory_tasks(tracker_file):
     database = open_database(tracker_file)
 
     if (not database):
-        print_error('No database file found')
         return False
     
-    task_items = get_items_needed_for_tasks(database)
+    task_items = get_inventory_tasks(database)
 
     if (not bool(task_items)):
         print_message('No items are required for tasks')
     else:
-        print_inventory_generic(task_items, 'inv')
+        print_inventory(task_items)
 
     return True
 
@@ -2859,15 +2783,14 @@ def inventory_stations(tracker_file):
     database = open_database(tracker_file)
 
     if (not database):
-        print_error('No database file found')
         return False
     
-    station_items = get_items_needed_for_stations(database)
+    station_items = get_inventory_hideout(database)
 
     if (not bool(station_items)):
         print_message('No items are required for the hideout')
     else:
-        print_inventory_generic(station_items, 'inv')
+        print_inventory(station_items)
 
     return True
 
@@ -2875,15 +2798,14 @@ def inventory_barters(tracker_file):
     database = open_database(tracker_file)
 
     if (not database):
-        print_error('No database file found')
         return False
     
-    barter_items = get_items_needed_for_barters(database)
+    barter_items = get_inventory_barters(database)
 
     if (not bool(barter_items)):
         print_message('No items are required for barters')
     else:
-        print_inventory_generic(barter_items, 'inv')
+        print_inventory(barter_items)
 
     return True
 
@@ -2891,49 +2813,46 @@ def inventory_crafts(tracker_file):
     database = open_database(tracker_file)
 
     if (not database):
-        print_error('No database file found')
         return False
     
-    craft_items = get_items_needed_for_crafts(database)
+    craft_items = get_inventory_crafts(database)
 
     if (not bool(craft_items)):
         print_message('No items are required for crafts')
     else:
-        print_inventory_generic(craft_items, 'inv')
+        print_inventory(craft_items)
 
     return True
 
-def inventory_have(tracker_file):
+def inventory_owned(tracker_file):
     database = open_database(tracker_file)
 
     if (not database):
-        print_error('No database file found')
         return False
     
-    owned_items = get_items_owned(database)
+    owned_items = get_inventory_owned(database)
     
     if (not bool(owned_items)):
         print_message('You have not collected any items')
     else:
-        print_inventory_generic(owned_items, 'have')
+        print_inventory(owned_items, output_type = 'have')
 
-    return
+    return True
 
 def inventory_need(tracker_file):
     database = open_database(tracker_file)
 
     if (not database):
-        print_error('No database file found')
         return False
     
-    needed_items = get_items_needed(database)
+    needed_items = get_inventory_need(database)
     
     if (not bool(needed_items)):
         print_message('No items needed. CONGRATULATIONS!')
     else:
-        print_inventory_generic(needed_items, 'need')
+        print_inventory(needed_items, output_type = 'need')
 
-    return
+    return True
 
 # List
 def list_tasks(tracker_file, argument):

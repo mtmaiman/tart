@@ -14,6 +14,11 @@ except ModuleNotFoundError as exception:
 
 
 DEBUG = False
+
+INV = 0
+HAVE = 1
+NEED = 2
+
 USAGE = '''
 tart.py {debug}\n
 A lightweight python CLI for tracking tasks, hideout stations, barters, and items inventory for Escape From Tarkov. Use the "import" command if this is your first time! Using "debug" as a positional argument enters debug mode.\n
@@ -163,10 +168,9 @@ UNTRACKED_HEADER = '{:<40} {:<20} {:<20} {:<20}\n'.format('Entity Name', 'Type',
 BUFFER = '-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n'
 
 
-#TODO: When canceling a craft or barter it should say that no items are consumed
 ###################################################
 #                                                 #
-# UTIL FUNCTIONS (DEBUGGED)                       #
+# UTILITY                                         #
 #                                                 #
 ###################################################
 
@@ -195,7 +199,7 @@ def parser(tracker_file, command):
             inventory_crafts(tracker_file)
         elif (command[1] == 'have'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
-            inventory_owned(tracker_file)
+            inventory_have(tracker_file)
         elif (command[1] == 'need'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
             inventory_need(tracker_file)
@@ -573,228 +577,156 @@ def write_database(file_path, data):
         print_debug(f'Wrote file >> {file_path} <<')
     return
 
-# Find functions (GUID wrap)
+# Find unique functions (return GUID)
 def disambiguate(matches):
-    for index, match in enumerate(matches):
-        print_message(f'[{index + 1}] ({match[1]}) {match[0]['normalizedName']}')
+    options = []
+    index = 0
+
+    for guid, match in matches.items():
+        options.append(guid)
+        print_message(f'[{index + 1}] {match['normalizedName']} ({guid})')
     
     _choice_ = input('> ')
 
-    if (_choice_.isdigit() and int(_choice_) > 0 and int(_choice_) < len(matches + 1)):
-        selection = matches[int(_choice_) - 1]
-        print_debug(f'Selected item >> {selection}')
-        return selection
+    if (_choice_.isdigit() and int(_choice_) > 0 and int(_choice_) <= len(matches)):
+        guid = options[_choice_ - 1]
+        print_debug(f'Selected item >> {matches[guid]['normalizedName']}')
+        return guid
     
     print_error('Invalid selection')
     return False
 
-def find_task(text, database, disambiguous):
+def find_task(text, database):
     print_debug(f'Searching for task >> {text} <<')
-    tasks = []
+    tasks = {}
 
-    for task in database['tasks']:
-        if (string_compare(text, task['normalizedName'])):
+    for guid, task in database['tasks'].items():
+        if (string_compare(text, task['normalizedName']) or guid == text):
             print_debug(f'Found matching task >> {task['normalizedName']} <<')
-            tasks.append(task)
+            tasks[guid] = task
 
     if (len(tasks) == 0):
         return False
     elif (len(tasks) == 1):
-        return tasks[0]
-    elif (disambiguous):
+        return tasks.keys()[0]
+    else:
         print_warning(f'Found {len(tasks)} tasks for {text}. Please choose one')
         return disambiguate(tasks)
-    else:
-        return tasks
 
-def find_station(text, database, disambiguous):
+def find_station(text, database):
     print_debug(f'Searching for hideout station >> {text} <<')
-    stations = []
+    stations = {}
 
-    for station in database['hideout']:
-        for level in station['levels']:
-            if (string_compare(text, level['normalizedName'])):
-                print_debug(f'Found matching station >> {level['normalizedName']} <<')
-                stations.append(level)
+    for guid, station in database['hideout'].items():
+        if (string_compare(text, station['normalizedName']) or guid == text):
+            print_debug(f'Found matching station >> {station['normalizedName']} <<')
+            stations[guid] = station
 
     if (len(stations) == 0):
         return False
     elif (len(stations) == 1):
-        return stations[0]
-    elif (disambiguous):
+        return stations.keys()[0]
+    else:
         print_warning(f'Found {len(stations)} hideout stations for {text}. Please choose one')
         return disambiguate(stations)
-    else:
-        return stations
 
 def find_barter(text, database):
-    print_debug(f'Searching for barters with items >> {text} <<')
-    barters = []
+    print_debug(f'Searching for hideout station >> {text} <<')
+    barters = {}
 
-    for barter in database['barters']:
-        for requirement in barter['requiredItems']:
-            item = guid_to_item(requirement['item']['id'], database)
+    for guid, barter in database['barters'].items():
+        if (guid == text):
+            print_debug(f'Found matching barter >> {guid} <<')
+            barters[guid] = barter
 
-            if (string_compare(text, item['shortName']) or string_compare(text, item['normalizedName'])):
-                print_debug(f'Found matching barter >> {barter['id']} <<')
-                barters.append(barter)
-
-        for reward in barter['rewardItems']:
-            item = guid_to_item(reward['item']['id'], database)
-
-            if (string_compare(text, item['shortName']) or string_compare(text, item['normalizedName'])):
-                print_debug(f'Found matching barter >> {barter['id']} <<')
-                barters.append(barter)
-    
-    return barters
+    if (len(barters) == 0):
+        return False
+    elif (len(barters) == 1):
+        return barters.keys()[0]
+    else:
+        print_warning(f'Found {len(barters)} barters for {text}. Please choose one')
+        return disambiguate(barters)
 
 def find_craft(text, database):
-    print_debug(f'Searching for crafts with items >> {text} <<')
-    crafts = []
+    print_debug(f'Searching for craft >> {text} <<')
+    crafts = {}
 
-    for craft in database['crafts']:
-        for requirement in craft['requiredItems']:
-            item = guid_to_item(requirement['item']['id'], database)
+    for guid, craft in database['crafts'].items():
+        if (guid == text):
+            print_debug(f'Found matching craft >> {guid} <<')
+            crafts[guid] = craft
 
-            if (string_compare(text, item['shortName']) or string_compare(text, item['normalizedName'])):
-                print_debug(f'Found matching barter >> {craft['id']} <<')
-                crafts.append(craft)
+    if (len(crafts) == 0):
+        return False
+    elif (len(crafts) == 1):
+        return crafts.keys()[0]
+    else:
+        print_warning(f'Found {len(crafts)} crafts for {text}. Please choose one')
+        return disambiguate(crafts)
 
-        for reward in craft['rewardItems']:
-            item = guid_to_item(reward['item']['id'], database)
-
-            if (string_compare(text, item['shortName']) or string_compare(text, item['normalizedName'])):
-                print_debug(f'Found matching barter >> {craft['id']} <<')
-                crafts.append(craft)
-    
-    return crafts
-
-def find_item(text, database, disambiguous):
+def find_item(text, database):
     print_debug(f'Searching for item >> {text} <<')
-    items = []
+    items = {}
 
-    for item in database['all_items']:
-        if (string_compare(text, item['normalizedName']) or string_compare(text, item['shortName'])):
+    for guid, item in database['items'].items():
+        if (string_compare(text, item['normalizedName']) or string_compare(text, item['shortName']) or guid == text):
             print_debug(f'Found matching item >> {item['normalizedName']} <<')
-            items.append(item)
+            items[guid] = item
 
     if (len(items) == 0):
         return False
     elif (len(items) == 1):
-        return items[0]
-    elif (disambiguous):
+        return items.keys()[0]
+    else:
         print_warning(f'Found {len(items)} items for {text}. Please choose one')
         return disambiguate(items)
+
+def find_map(text, database):
+    print_debug(f'Searching for map >> {text} <<')
+    maps = {}
+
+    for guid, map in database['maps'].items():
+        if (string_compare(text, map['normalizedName']) or guid == text):
+            print_debug(f'Found matching map >> {map['normalizedName']} <<')
+            maps[guid] = map
+
+    if (len(maps) == 0):
+        return False
+    elif (len(maps) == 1):
+        return maps.keys()[0]
     else:
-        return items
+        print_warning(f'Found {len(maps)} maps for {text}. Please choose one')
+        return disambiguate(maps)
 
-def find_filter(text, database):
-    maps = []
-    traders = []
+def find_trader(text, database):
+    print_debug(f'Searching for trader >> {text} <<')
+    traders = {}
 
-    for map in database['maps']:
-        if (string_compare(text, map['normalizedName'])):
-            map['type'] = 'map'
-            maps.append(map)
+    for guid, trader in database['traders'].items():
+        if (string_compare(text, trader['normalizedName']) or guid == text):
+            print_debug(f'Found matching trader >> {trader['normalizedName']} <<')
+            traders[guid] = trader
 
-    for trader in database['traders']:
-        if (string_compare(text, map['normalizedName'])):
-            trader['type'] = 'trader'
-            traders.append(trader)
+    if (len(traders) == 0):
+        return False
+    elif (len(traders) == 1):
+        return traders
+    else:
+        print_warning(f'Found {len(traders)} traders for {text}. Please choose one')
+        return disambiguate(traders)
 
-    return disambiguate(maps + traders)
+def create_filter(text, database):
+    filters = {}
 
-# GUID unwrap
-def guid_to_task(guid, database):
-    print_debug(f'Searching task >> {guid} <<')
-    
-    for task in database['tasks']:
-        if (task['id'] == guid):
-            print_debug(f'Found task matching >> {guid} <<')
-            return task
+    for guid, map in database['maps'].items():
+        if (string_compare(text, map['normalizedName']) or guid == text):
+            filters[guid] = map
 
-def guid_to_station(guid, database):
-    print_debug(f'Searching station >> {guid} <<')
-    for station in database['hideout']:
-        for level in station['levels']:
-            if (level['id'] == guid):
-                print_debug(f'Found hideout station matching >> {guid} <<')
-                return level
+    for guid, trader in database['traders'].items():
+        if (string_compare(text, trader['normalizedName']) or guid == text):
+            filters[guid] = trader
 
-def guid_to_barter(guid, database):
-    print_debug(f'Searching barter >> {guid} <<')
-
-    for barter in database['barters']:
-        if (barter['id'] == guid):
-            print_debug(f'Found barter matching >> {guid} <<')
-            return barter
-
-def guid_to_craft(guid, database):
-    print_debug(f'Searching craft >> {guid} <<')
-
-    for craft in database['crafts']:
-        if (craft['id'] == guid):
-            print_debug(f'Found craft matching >> {guid} <<')
-            return craft
-
-def guid_to_item(guid, database):
-    print_debug(f'Searching item >> {guid} <<')
-    for item in database['all_items']:
-        if (item['id'] == guid):
-            print_debug(f'Found item matching >> {guid} <<')
-            return item
-
-def guid_to_any(guid, database):
-    object = guid_to_barter(guid, database)
-
-    if (object):
-        return object
-
-    object = guid_to_craft(guid, database)
-
-    if (object):
-        return object
-
-    object = guid_to_task(guid, database)
-
-    if (object):
-        return object
-
-    object = guid_to_station(guid, database)
-
-    if (object):
-        return object
-
-    object = guid_to_item(guid, database)
-
-    if (object):
-        return object
-
-    if (not object):
-        print_error(f'Could not find GUID {guid}')
-
-    return object
-
-# Inventory functions
-def get_fir_count_by_guid(database, guid):
-    print_debug(f'Searching item (FIR) >> {guid} <<')
-
-    for this_guid in database['inventory'].keys():
-        if (this_guid == guid):
-            print_debug(f'Found item (FIR) >> {guid} <<')
-            return database['inventory'][this_guid]['have_fir'] - database['inventory'][this_guid]['consumed_fir']
-    
-    return False
-
-def get_nir_count_by_guid(database, guid):
-    print_debug(f'Searching item (NIR) >> {guid} <<')
-
-    for this_guid in database['inventory'].keys():
-        if (this_guid == guid):
-            print_debug(f'Found item (FIR) >> {guid} <<')
-            return database['inventory'][this_guid]['have_nir'] - database['inventory'][this_guid]['consumed_nir']
-    
-    return False
+    return disambiguate(filters)
 
 # String functions
 def normalize(text):
@@ -836,7 +768,7 @@ def format_price(price, currency):
         return '₽{:,}'.format(price)
 
 # Verify functions
-def verify_task(database, task, task_table):
+def verify_task(database, task):
     if (task['status'] == 'complete'):
         return f'Task {task["name"]} is complete'
     
@@ -852,76 +784,70 @@ def verify_task(database, task, task_table):
         else:
             id = prereq['task']['id']
 
-        if (task_table[id] == 'incomplete'):
-            return f'{find(id, database, type = GUID, object = TASK)['normalizedName']} must be completed first'
+        if (database['tasks'][id] == 'incomplete'):
+            return f'{database['tasks'][id]['name']} must be completed first'
     
     print_debug(f'Verified task >> {task["name"]} <<')
     return True
 
-def verify_hideout_level(database, level):
-    if (level['status'] == 'complete'):
-        return f'Hideout station {level["normalizedName"]} is complete'
+def verify_station(database, station):
+    if (station['status'] == 'complete'):
+        return f'Hideout station {station["normalizedName"]} is complete'
     
-    if (not level['tracked']):
-        return f'Hideout station {level["normalizedName"]} is not tracked'
+    if (not station['tracked']):
+        return f'Hideout station {station["normalizedName"]} is not tracked'
 
-    station_table = {}
-
-    for index, _station_ in enumerate(database['hideout']):
-        station_table[_station_['id']] = index
-
-    for prereq in level['stationLevelRequirements']:
-        for prereq_level in database['hideout'][station_table[prereq['station']['id']]]['levels']:
-            if (prereq_level['level'] == prereq['level'] and prereq_level['status'] != 'complete'):
-                return f'{prereq_level["normalizedName"]} must be completed first'
+    for prereq in station['stationLevelRequirements']:
+        if (database['hideout'][prereq['id'] + '-' + prereq[['level']]]['status'] != 'complete'):
+            return f'{database['hideout'][prereq['id']]['normalizedName']} must be completed first'
         
-    print_debug(f'Verified station >> {level["normalizedName"]} <<')
+    print_debug(f'Verified station >> {station["normalizedName"]} <<')
     return True
 
-def verify_barter(barter):
-    if (barter['status'] == 'complete'):
-        return f'Barter {barter["id"]} is complete'
+def verify_barter(database, guid):
+    if (database['barters'][guid]['status'] == 'complete'):
+        return f'Barter {guid} is complete'
     
-    if (not barter['tracked']):
-        return f'Barter {barter["id"]} is not tracked'
+    if (not database['barters'][guid]['tracked']):
+        return f'Barter {guid} is not tracked'
     
-    print_debug(f'Barter verified >> {barter["id"]} <<')
+    print_debug(f'Barter verified >> {guid} <<')
     return True
 
-def verify_craft(craft):
-    if (craft['status'] == 'complete'):
-        return f'Barter {craft["id"]} is complete'
+def verify_craft(database, guid):
+    if (database['crafts'][guid]['status'] == 'complete'):
+        return f'Barter {guid} is complete'
     
-    if (not craft['tracked']):
-        return f'Barter {craft["id"]} is not tracked'
+    if (not database['crafts'][guid]['tracked']):
+        return f'Barter {guid} is not tracked'
     
-    print_debug(f'Barter verified >> {craft["id"]} <<')
+    print_debug(f'Barter verified >> {guid} <<')
     return True
 
 # Add Items
 def add_item_fir(database, count, guid):
-    item_name = find(guid, database, type = GUID, object = ITEM)['normalizedName']
+    item_name = database['items'][guid]['normalizedName']
 
-    if (guid not in database['inventory'].keys()):
-        print_error(f'{item_name} is not needed')
+    if (database['items'][guid]['need_nir'] == 0 and database['items'][guid]['need_fir'] == 0):
+        print_message(f'{item_name} is not needed')
         return False
 
-    if (database['inventory'][guid]['need_fir'] == 0):
+    if (database['items'][guid]['need_fir'] == 0):
         print_message(f'{item_name} (FIR) is not needed')
         database = add_item_nir(database, count, guid = guid)
-    elif (database['inventory'][guid]['have_fir'] == database['inventory'][guid]['need_fir']):
+    elif (database['items'][guid]['have_fir'] == database['items'][guid]['need_fir']):
         print_message(f'{item_name} (FIR) already found')
         database = add_item_nir(database, count, guid = guid)
-    elif (database['inventory'][guid]['have_fir'] + count > database['inventory'][guid]['need_fir']):
-        _remainder_ = database['inventory'][guid]['have_fir'] + count - database['inventory'][guid]['need_fir']
+    elif (database['items'][guid]['have_fir'] + count > database['items'][guid]['need_fir']):
+        _remainder_ = database['items'][guid]['have_fir'] + count - database['items'][guid]['need_fir']
         print_message(f'Added {count - _remainder_} {item_name} (FIR) (COMPLETED)')
         database = add_item_nir(database, count, guid = guid)
-        database['inventory'][guid]['have_fir'] = database['inventory'][guid]['need_fir']
-    elif (database['inventory'][guid]['have_fir'] + count == database['inventory'][guid]['need_fir']):
-        database['inventory'][guid]['have_fir'] = database['inventory'][guid]['need_fir']
+        database['items'][guid]['have_fir'] = database['items'][guid]['need_fir']
+    elif (database['items'][guid]['have_fir'] + count == database['items'][guid]['need_fir']):
+        database['items'][guid]['have_fir'] = database['items'][guid]['need_fir']
         print_message(f'Added {count} {item_name} (FIR) (COMPLETED)')
     else:
-        database['inventory'][guid]['have_fir'] = database['inventory'][guid]['have_fir'] + count
+        database['items'][guid]['have_fir'] = database['items'][guid]['have_fir'] + count
         print_message(f'Added {count} {item_name} (FIR)')
 
     if (not database):
@@ -931,25 +857,25 @@ def add_item_fir(database, count, guid):
     return database
 
 def add_item_nir(database, count, guid = ''):    
-    item_name = find(guid, database, type = GUID, object = ITEM)['normalizedName']
+    item_name = database['items'][guid]['normalizedName']
 
-    if (guid not in database['inventory'].keys()):
-        print_error(f'{item_name} is not needed')
+    if (database['items'][guid]['need_nir'] == 0 and database['items'][guid]['need_fir'] == 0):
+        print_message(f'{item_name} is not needed')
         return False
 
-    if (database['inventory'][guid]['need_nir'] == 0):
+    if (database['items'][guid]['need_nir'] == 0):
         print_message(f'{item_name} (NIR) is not needed')
-    elif (database['inventory'][guid]['have_nir'] == database['inventory'][guid]['need_nir']):
+    elif (database['items'][guid]['have_nir'] == database['items'][guid]['need_nir']):
         print_message(f'{item_name} (NIR) already found')
-    elif (database['inventory'][guid]['have_nir'] + count > database['inventory'][guid]['need_nir']):
-        _remainder_ = database['inventory'][guid]['have_nir'] + count - database['inventory'][guid]['need_nir']
-        database['inventory'][guid]['have_nir'] = database['inventory'][guid]['need_nir']
+    elif (database['items'][guid]['have_nir'] + count > database['items'][guid]['need_nir']):
+        _remainder_ = database['items'][guid]['have_nir'] + count - database['items'][guid]['need_nir']
+        database['items'][guid]['have_nir'] = database['items'][guid]['need_nir']
         print_message(f'Added {count - _remainder_} {item_name} (NIR) (COMPLETED). Skipped {_remainder_} items')
-    elif (database['inventory'][guid]['have_nir'] + count == database['inventory'][guid]['need_nir']):
-        database['inventory'][guid]['have_nir'] = database['inventory'][guid]['need_nir']
+    elif (database['items'][guid]['have_nir'] + count == database['items'][guid]['need_nir']):
+        database['items'][guid]['have_nir'] = database['items'][guid]['need_nir']
         print_message(f'Added {count} {item_name} (NIR) (COMPLETED)')
     else:
-        database['inventory'][guid]['have_nir'] = database['inventory'][guid]['have_nir'] + count
+        database['items'][guid]['have_nir'] = database['items'][guid]['have_nir'] + count
         print_message(f'Added {count} {item_name} (NIR)')
 
     if (not database):
@@ -960,314 +886,69 @@ def add_item_nir(database, count, guid = ''):
 
 # Delete Items
 def del_item_fir(database, count, guid = ''):    
-    item_name = find(guid, database, type = GUID, object = ITEM)['normalizedName']
+    item_name = database['items'][guid]['normalizedName']
     
-    if (guid not in database['inventory'].keys()):
-        print_error(f'{item_name} is not in the inventory')
+    if (database['items'][guid]['have_fir'] == 0):
+        print_error(f'Nothing to delete for {item_name} (FIR)')
         return False
 
-    if (database['inventory'][guid]['have_fir'] - count < 0):
-        count = database['inventory'][guid]['have_fir']
-        database['inventory'][guid]['have_fir'] = 0
+    if (database['items'][guid]['have_fir'] - count < 0):
+        count = database['items'][guid]['have_fir']
+        database['items'][guid]['have_fir'] = 0
     else:
-        database['inventory'][guid]['have_fir'] = database['inventory'][guid]['have_fir'] - count
+        database['items'][guid]['have_fir'] = database['items'][guid]['have_fir'] - count
 
-    remaining = database['inventory'][guid]['have_fir']
+    remaining = database['items'][guid]['have_fir']
     print_message(f'Removed {count} {item_name} (FIR) ({remaining} remaining FIR)')
     return database
 
 def del_item_nir(database, count, guid = ''):
-    item_name = find(guid, database, type = GUID, object = ITEM)['normalizedName']
+    item_name = database['items'][guid]['normalizedName']
     
-    if (guid not in database['inventory'].keys()):
-        print_error(f'{item_name} is not in the inventory')
+    if (database['items'][guid]['have_nir'] == 0):
+        print_error(f'Nothing to delete for {item_name} (NIR)')
         return False
 
-    if (database['inventory'][guid]['have_nir'] - count < 0):
-        count = database['inventory'][guid]['have_nir']
-        database['inventory'][guid]['have_nir'] = 0
+    if (database['items'][guid]['have_nir'] - count < 0):
+        count = database['items'][guid]['have_nir']
+        database['items'][guid]['have_nir'] = 0
     else:
-        database['inventory'][guid]['have_nir'] = database['inventory'][guid]['have_nir'] - count
+        database['items'][guid]['have_nir'] = database['items'][guid]['have_nir'] - count
 
-    remaining = database['inventory'][guid]['have_nir']
+    remaining = database['items'][guid]['have_nir']
     print_message(f'Removed {count} {item_name} (NIR) ({remaining} remaining NIR)')
     return database
 
-# Get functions
-def get_inventory(database):
-    print_debug('Compiling inventory')
-    items = {}
-
-    for guid, item in database['items'].items():
-        if (item['need_nir'] > 0 or item['need_fir'] > 0 or item['have_fir'] > 0 or item['have_nir'] > 0):
-            items[guid] = item
-
-    return items
-
-def get_inventory_owned(database):
-    print_debug('Compiling owned inventory')
-    items = {}
-
-    for guid, item in database['items'].items():
-        if (item['have_fir'] > 0 or item['have_nir'] > 0):
-            items[guid] = item
-
-    return items
-
-def get_inventory_need(database):
-    print_debug('Compiling needed inventory')
-    items = {}
-
-    for guid, item in database['items'].items():
-        if (item['need_fir'] > 0 or item['need_nir'] > 0):
-            items[guid] = item
-
-    return items
-
-def get_inventory_tasks(database):
-    print_debug('Compiling inventory for tasks')
-    items = {}
-
-    for task in database['tasks']:
-        for objective in task['objectives']:
-            if (task['tracked']):
-                if (objective['type'] == 'giveItem'):
-                    item_guid = objective['item']['id']
-                    fir = objective['foundInRaid']
-
-                    if (item_guid not in items.keys()):
-                        items[item_guid] = database['items'][item_guid]
-                        items[item_guid]['need_fir'] = 0
-                        items[item_guid]['need_nir'] = 0
-
-                    if (fir):
-                        items[item_guid]['need_fir'] = items[item_guid]['need_fir'] + objective['count']
-                    else:
-                        items[item_guid]['need_nir'] = items[item_guid]['need_nir'] + objective['count']
-
-    return items
-
-def get_inventory_hideout(database):
-    print_debug('Compiling inventory for stations')
-    items = {}
-
-    for station in database['hideout']:
-        if (not station['tracked']):
-            continue
-
-        for requirement in station['itemRequirements']:
-            item_guid = requirement['item']['id']
-
-            if (item_guid not in items.keys()):
-                items[item_guid] = database['items'][item_guid]
-                items[item_guid]['need_fir'] = 0
-                items[item_guid]['need_nir'] = 0
-
-            items[item_guid]['need_nir'] = items[item_guid]['need_nir'] + requirement['count']
-
-    return items
-
-def get_inventory_barters(database):
-    print_debug('Compiling inventory for barters')
-    items = {}
-
-    for barter in database['barters']:
-        if (not barter['tracked']):
-            continue
-
-        for requirement in barter['requiredItems']:
-            item_guid = requirement['item']['id']
-
-            if (item_guid not in items.keys()):
-                items[item_guid] = database['items'][item_guid]
-                items[item_guid]['need_fir'] = 0
-                items[item_guid]['need_nir'] = 0
-
-            items[item_guid]['need_nir'] = items[item_guid]['need_nir'] + requirement['count']
-
-    return items
-
-def get_inventory_crafts(database):
-    print_debug('Compiling inventory for crafts')
-    items = {}
-
-    for craft in database['crafts']:
-        if (not craft['tracked']):
-            continue
-
-        for requirement in craft['requiredItems']:
-            item_guid = requirement['item']['id']
-
-            if (item_guid not in items.keys()):
-                items[item_guid] = database['items'][item_guid]
-                items[item_guid]['need_fir'] = 0
-                items[item_guid]['need_nir'] = 0
-
-            items[item_guid]['need_nir'] = items[item_guid]['need_nir'] + requirement['count']
-
-    return items
-
-def get_available_tasks(database):
-    tasks = []
-    task_table = {}
-    print_debug('Compiling available tasks')
-
-    for task in database['tasks']:
-        task_table[task['id']] = task['status']
-
-    for task in database['tasks']:
-        if (verify_task(database, task, task_table) == True):
-            print_debug(f'Found available task >> {task["name"]} <<')
-            tasks.append(task)
-
-    return tasks
-
-def get_available_tasks_filtered(database, argument):
-    print_debug(f'Compiling available tasks with filter >> {argument} <<')
-    task_map = []
-    tasks = []
-
-    for task in database['tasks']:
-        task_map[task['id']] = task['status']
-
-    for task in database['tasks']:
-        if (verify_task(database, task, task_map) != True):
-            continue
-
-        filter = find_filter(argument, database)
-
-        if (filter['type'] == 'map'):
-            invalid = False
-            potential = False
-
-            for objective in task['objectives']:
-                if (len(objective['maps']) == 0):
-                    print_debug(f'Found task >> {task["name"]} << for map >> {argument} <<')
-                    potential = True
-
-                for map in objective['maps']:
-                    if (map['id'] == argument):
-                        print_debug(f'Found task >> {task["name"]} << for map >> {argument} <<')
-                        tasks.append(task)
-                        break
-                    else:
-                        invalid = True
-                else:
-                    continue
-                break
-            else:
-                if (potential and not invalid):
-                    tasks.append(task)
-            continue
-
-        else:
-            for task in database['tasks']:
-                if (task['trader']['id'] == argument):
-                    tasks.append(task)
-
-    return tasks
-
-def get_hideout_stations(database):
-    hideout_stations = []
-    print_debug('Compiling available stations')
-
-    for station in database['hideout']:
-        for level in station['levels']:
-            if (verify_hideout_level(database, level) == True):
-                print_debug(f'Found available station >> {level["normalizedName"]} <<')
-                hideout_stations.append(level)
-    
-    return hideout_stations
-
-def get_available_barters(database):
-    barters = []
-    print_debug('Compiling available barters')
-
-    for barter in database['barters']:
-        if (verify_barter(barter) == True):
-            print_debug(f'Found available barter >> {barter["id"]} <<')
-            barters.append(barter)
-
-    return barters
-
-def get_available_barters_by_trader(database, guid):
-    barters = []
-    print_debug(f'Compiling barters for trader >> {guid} <<')
-
-    for barter in database['barters']:
-        if (verify_barter(barter) == True and barter['trader']['id'] == guid):
-            print_debug(f'Found barter >> {barter["id"]} << for trader ?> {guid} <<')
-            barters.append(barter)
-
-    return barters
-
-def get_crafts(database):
-    crafts = []
-    print_debug('Compiling available crafts')
-
-    for craft in database['crafts']:
-        if (verify_craft(craft) == True):
-            print_debug(f'Found available craft >> {craft["id"]} <<')
-            crafts.append(craft)
-
-    return crafts
-
-def get_untracked(database, ignore_kappa):
-    untracked = []
-    print_debug(f'Compiling untracked entities for Kappa >> ({print_bool(ignore_kappa)}) <<')
-
-    for task in database['tasks']:
-        if (not task['tracked']):
-            if (not task['kappaRequired'] and not ignore_kappa):
-                continue
-
-            print_debug(f'Found untracked task >> {task["name"]} <<')
-            untracked.append({
-                'type': 'task',
-                'entity': task
-            })
-
-    for station in database['hideout']:
-        for level in station['levels']:
-            if (not level['tracked']):
-                print_debug(f'Found untracked station >> {level["normalizedName"]} <<')
-                untracked.append({
-                    'type': 'hideout',
-                    'entity': level
-                })
-    
-    return untracked
-
-def get_saves(file):
-    files = listdir()
-    saves = []
-    print_debug(f'Compiling save files for >> {file} <<')
-
-    if (f'{file}.curr.bak' in files):
-        print_debug(f'Found current autosave >> {file}.curr.bak <<')
-        saves.append(f'{file}.curr.bak')
+# Console output
+def display_bool(bool_value):
+    if (bool_value):
+        return 'true'
     else:
-        print_debug('Current autosave not found')
-        saves.append('')
-
-    if (f'{file}.prev.bak' in files):
-        print_debug(f'Found previous autosave >> {file}.prev.bak <<')
-        saves.append(f'{file}.prev.bak')
-    else:
-        print_debug('Previous autosave not found')
-        saves.append('')
-
-    for save in files:
-        if (file in save and save != f'{file}.json' and save != f'{file}.curr.bak' and save != f'{file}.prev.bak'):
-            print_debug(f'Found save >> {save} <<')
-            saves.append(save)
+        return 'false'
     
-    return saves
+def print_debug(message):
+    if (DEBUG):
+        #print(f'? DEBUG ? {message}')
+        return True
+    
+    return False
+
+def print_message(message):
+    print(f'{message}')
+    return True
+
+def print_warning(message):
+    print(f'! WARNING ! {message}')
+    return True
+
+def print_error(message):
+    print(f'X ERROR X {message}!')
+    return True
 
 
 ###################################################
 #                                                 #
-# WORKER (SUB) FUNCTIONS                          #
+# WORKER                                          #
 #                                                 #
 ###################################################
 
@@ -1339,6 +1020,462 @@ def calculate_inventory(database):
 
     print_message('Added all items required for tracked crafts to the database')
     return database
+
+def get_inventory(database):
+    print_debug('Compiling inventory')
+    items = {}
+
+    for guid, item in database['items'].items():
+        if (item['need_nir'] > 0 or item['need_fir'] > 0 or item['have_fir'] > 0 or item['have_nir'] > 0):
+            items[guid] = item
+
+    return items
+
+def get_inventory_have(database):
+    print_debug('Compiling have inventory')
+    items = {}
+
+    for guid, item in database['items'].items():
+        if (item['have_fir'] > 0 or item['have_nir'] > 0):
+            items[guid] = item
+
+    return items
+
+def get_inventory_need(database):
+    print_debug('Compiling need inventory')
+    items = {}
+
+    for guid, item in database['items'].items():
+        if (item['need_fir'] - item['have_fir'] > 0 or item['need_nir'] - item['have_nir'] > 0):
+            item['need_fir'] = item['need_fir'] - item['have_fir']
+            item['need_nir'] = item['need_nir'] - item['have_nir']
+            items[guid] = item
+
+    return items
+
+def get_inventory_tasks(database):
+    print_debug('Compiling inventory for tasks')
+    items = {}
+
+    for guid, task in database['tasks'].items():
+        for objective in task['objectives']:
+            if (task['tracked']):
+                if (objective['type'] == 'giveItem'):
+                    item_guid = objective['item']['id']
+                    fir = objective['foundInRaid']
+
+                    if (item_guid not in items.keys()):
+                        items[item_guid] = database['items'][item_guid]
+                        items[item_guid]['need_fir'] = 0
+                        items[item_guid]['need_nir'] = 0
+
+                    if (fir):
+                        items[item_guid]['need_fir'] = items[item_guid]['need_fir'] + objective['count']
+                    else:
+                        items[item_guid]['need_nir'] = items[item_guid]['need_nir'] + objective['count']
+
+    return items
+
+def get_inventory_hideout(database):
+    print_debug('Compiling inventory for stations')
+    items = {}
+
+    for guid, station in database['hideout'].items():
+        if (not station['tracked']):
+            continue
+
+        for requirement in station['itemRequirements']:
+            item_guid = requirement['item']['id']
+
+            if (item_guid not in items.keys()):
+                items[item_guid] = database['items'][item_guid]
+                items[item_guid]['need_fir'] = 0
+                items[item_guid]['need_nir'] = 0
+
+            items[item_guid]['need_nir'] = items[item_guid]['need_nir'] + requirement['count']
+
+    return items
+
+def get_inventory_barters(database):
+    print_debug('Compiling inventory for barters')
+    items = {}
+
+    for guid, barter in database['barters'].items():
+        if (not barter['tracked']):
+            continue
+
+        for requirement in barter['requiredItems']:
+            item_guid = requirement['item']['id']
+
+            if (item_guid not in items.keys()):
+                items[item_guid] = database['items'][item_guid]
+                items[item_guid]['need_fir'] = 0
+                items[item_guid]['need_nir'] = 0
+
+            items[item_guid]['need_nir'] = items[item_guid]['need_nir'] + requirement['count']
+
+    return items
+
+def get_inventory_crafts(database):
+    print_debug('Compiling inventory for crafts')
+    items = {}
+
+    for guid, craft in database['crafts'].items():
+        if (not craft['tracked']):
+            continue
+
+        for requirement in craft['requiredItems']:
+            item_guid = requirement['item']['id']
+
+            if (item_guid not in items.keys()):
+                items[item_guid] = database['items'][item_guid]
+                items[item_guid]['need_fir'] = 0
+                items[item_guid]['need_nir'] = 0
+
+            items[item_guid]['need_nir'] = items[item_guid]['need_nir'] + requirement['count']
+
+    return items
+
+# List functions
+def get_tasks(database):
+    print_debug('Compiling available tasks')
+    tasks = {}
+
+    for guid, task in database['tasks'].items():
+        if (verify_task(database, task) == True):
+            print_debug(f'Found available task >> {task["name"]} <<')
+            tasks[guid] = task
+
+    return tasks
+
+def get_tasks_filtered(database, argument):
+    print_debug(f'Compiling available tasks with filter >> {argument} <<')
+    tasks = {}
+
+    for guid, task in database['tasks'].items():
+        if (verify_task(database, task) != True):
+            continue
+
+        filter = create_filter(argument, database)
+
+        if (not filter):
+            return {}
+
+        if (filter in database['maps'].keys()):
+            invalid = False
+            potential = False
+
+            for objective in task['objectives']:
+                if (len(objective['maps']) == 0):
+                    print_debug(f'Found task >> {task["name"]} << for map >> {argument} <<')
+                    potential = True
+
+                for map in objective['maps']:
+                    if (map['id'] == filter):
+                        print_debug(f'Found task >> {task["name"]} << for map >> {argument} <<')
+                        tasks[guid] = task
+                        break
+                    else:
+                        invalid = True
+                else:
+                    continue
+                break
+            else:
+                if (potential and not invalid):
+                    tasks[guid] = task
+            continue
+
+        else:
+            for task in database['tasks']:
+                if (task['trader']['id'] == filter):
+                    print_debug(f'Found task >> {task["name"]} << for trader >> {argument} <<')
+                    tasks[guid] = task
+
+    return tasks
+
+def get_hideout(database):
+    print_debug('Compiling available stations')
+    stations = {}
+
+    for guid, station in database['hideout'].items():
+        if (verify_station(database, station) == True):
+            print_debug(f'Found available station >> {station["normalizedName"]} <<')
+            stations[guid] = station
+    
+    return stations
+
+def get_barters(database):
+    print_debug('Compiling available barters')
+    barters = {}
+
+    for guid, barter in database['barters'].items():
+        if (verify_barter(barter) == True):
+            print_debug(f'Found available barter >> {guid} <<')
+            barters[guid] = barter
+
+    return barters
+
+def get_barters_filtered(database, argument):
+    print_debug(f'Compiling barters for trader >> {argument} <<')
+    barters = {}
+
+    for guid, barter in database['barters'].items():
+        if (verify_barter(barter) != True):
+            continue
+
+        filter = find_trader(argument, database)
+
+        if (not filter):
+            return {}
+
+        if (barter['trader']['id'] == filter):
+            print_debug(f'Found barter >> {guid} << for trader ?> {argument} <<')
+            barters[guid] = barter
+
+    return barters
+
+def get_crafts(database):
+    print_debug('Compiling available crafts')
+    crafts = {}
+
+    for guid, craft in database['crafts'].items():
+        if (verify_craft(craft) == True):
+            print_debug(f'Found available craft >> {guid} <<')
+            crafts.append(craft)
+
+    return crafts
+
+def get_untracked(database, ignore_kappa):
+    print_debug(f'Compiling untracked entities for Kappa >> ({display_bool(ignore_kappa)}) <<')
+    untracked = {}
+
+    for guid, task in database['tasks'].items():
+        if (not task['tracked']):
+            if (not task['kappaRequired'] and not ignore_kappa):
+                continue
+
+            print_debug(f'Found untracked task >> {task["name"]} <<')
+            untracked[guid] = task
+
+    for guid, station in database['hideout'].items():
+        if (not station['tracked']):
+            print_debug(f'Found untracked station >> {station["normalizedName"]} <<')
+            untracked[guid] = station
+    
+    return untracked
+
+def get_saves(file):
+    files = listdir()
+    saves = []
+    print_debug(f'Compiling save files for >> {file} <<')
+
+    if (f'{file}.curr.bak' in files):
+        print_debug(f'Found current autosave >> {file}.curr.bak <<')
+        saves.append(f'{file}.curr.bak')
+    else:
+        print_debug('Current autosave not found')
+        saves.append('')
+
+    if (f'{file}.prev.bak' in files):
+        print_debug(f'Found previous autosave >> {file}.prev.bak <<')
+        saves.append(f'{file}.prev.bak')
+    else:
+        print_debug('Previous autosave not found')
+        saves.append('')
+
+    for save in files:
+        if (file in save and save != f'{file}.json' and save != f'{file}.curr.bak' and save != f'{file}.prev.bak'):
+            print_debug(f'Found save >> {save} <<')
+            saves.append(save)
+    
+    return saves
+
+# Search functions (return dict)
+def search_tasks(text, database):
+    print_debug(f'Searching for tasks matching >> {text} <<')
+    tasks = {}
+
+    for guid, task in database['tasks'].items():
+        if (string_compare(text, task['normalizedName']) or guid == text):
+            print_debug(f'Found matching task >> {task['normalizedName']} <<')
+            tasks[guid] = task
+
+    if (len(tasks) == 0):
+        return False
+        
+    return tasks
+
+def search_hideout(text, database):
+    print_debug(f'Searching for hideout stations matching >> {text} <<')
+    stations = {}
+
+    for guid, station in database['hideout'].items():
+        if (string_compare(text, station['normalizedName']) or guid == text):
+            print_debug(f'Found matching station >> {station['normalizedName']} <<')
+            stations[guid] = station
+
+    if (len(stations) == 0):
+        return False
+
+    return stations
+
+def search_barters(text, database):
+    print_debug(f'Searching for barters matching >> {text} <<')
+    barters = {}
+
+    for guid, barter in database['barters'].items():
+        if (guid == text):
+            print_debug(f'Found matching barter >> {guid} <<')
+            barters[guid] = barter
+
+    if (len(barters) == 0):
+        return False
+
+    return barters
+
+def search_crafts(text, database):
+    print_debug(f'Searching for crafts matching >> {text} <<')
+    crafts = {}
+
+    for guid, craft in database['crafts'].items():
+        if (guid == text):
+            print_debug(f'Found matching craft >> {guid} <<')
+            crafts[guid] = craft
+
+    if (len(crafts) == 0):
+        return False
+
+    return crafts
+
+def search_items(text, database):
+    print_debug(f'Searching for items matching >> {text} <<')
+    items = {}
+
+    for guid, item in database['items'].items():
+        if (string_compare(text, item['normalizedName']) or string_compare(text, item['shortName']) or guid == text):
+            print_debug(f'Found matching item >> {item['normalizedName']} <<')
+            items[guid] = item
+
+    if (len(items) == 0):
+        return False
+
+    return items
+
+def search_maps(text, database):
+    print_debug(f'Searching for maps matching >> {text} <<')
+    maps = {}
+
+    for guid, map in database['maps'].items():
+        if (string_compare(text, map['normalizedName']) or guid == text):
+            print_debug(f'Found matching map >> {map['normalizedName']} <<')
+            maps[guid] = map
+
+    if (len(maps) == 0):
+        return False
+
+    return maps
+
+def search_traders(text, database):
+    print_debug(f'Searching for traders matching >> {text} <<')
+    traders = {}
+
+    for guid, trader in database['traders'].items():
+        if (string_compare(text, trader['normalizedName']) or guid == text):
+            print_debug(f'Found matching trader >> {trader['normalizedName']} <<')
+            traders[guid] = trader
+
+    if (len(traders) == 0):
+        return False
+
+    return traders
+
+def search_tasks_by_item(text, database):
+    tasks = {}
+
+    for guid, task in database['tasks'].items():
+        for objective in task['objectives']:
+            if (objective['type'] == 'giveItem'):
+                item_guid = objective['item']['id']
+
+                if (string_compare(text, database['items'][item_guid]['normalizedName']) or string_compare(text, database['items'][item_guid]['shortName']) or item_guid == text):
+                    tasks[guid] = task
+                    break
+
+        if (task['neededKeys'] is not None):
+            for _key_ in task['neededKeys']:
+                for key in _key_['keys']:
+                    item_guid = key['id']
+
+                    if (string_compare(text, database['items'][item_guid]['normalizedName']) or string_compare(text, database['items'][item_guid]['shortName']) or item_guid == text):
+                        task[guid] = task
+                        break
+                else:
+                    continue
+                break
+    
+    if (len(tasks) == 0):
+        return False
+
+    return tasks
+
+def search_hideout_by_item(text, database):
+    hideout = {}
+
+    for guid, station in database['hideout'].items():
+        for requirement in station['itemRequirements']:
+            item_guid = requirement['item']['id']
+
+            if (string_compare(text, database['items'][item_guid]['normalizedName']) or string_compare(text, database['items'][item_guid]['shortName']) or item_guid == text):
+                hideout[guid] = station
+    
+    if (len(hideout) == 0):
+        return False
+
+    return hideout
+
+def search_barters_by_item(text, database, required_only = False):
+    barters = {}
+
+    for guid, barter in database['barters'].items():
+        for item_guid in barter['requiredItems']:
+            item_guid = item_guid['item']['id']
+
+            if (string_compare(text, database['items'][item_guid]['normalizedName']) or string_compare(text, database['items'][item_guid]['shortName']) or item_guid == text):
+                barters[guid] = barter
+
+        if (not required_only):
+            for item_guid in barter['rewardItems']:
+                item_guid = item_guid['item']['id']
+
+                if (string_compare(text, database['items'][item_guid]['normalizedName']) or string_compare(text, database['items'][item_guid]['shortName']) or item_guid == text):
+                    barters[guid] = barter
+    
+    if (len(barters) == 0):
+        return False
+        
+    return barters
+
+def search_crafts_by_item(text, database, required_only = False):
+    crafts = {}
+
+    for guid, craft in database['crafts'].items():
+        for item_guid in craft['requiredItems']:
+            item_guid = item_guid['item']['id']
+
+            if (string_compare(text, database['items'][item_guid]['normalizedName']) or string_compare(text, database['items'][item_guid]['shortName']) or item_guid == text):
+                crafts[guid] = craft
+
+        if (not required_only):
+            for item_guid in craft['rewardItems']:
+                item_guid = item_guid['item']['id']
+
+                if (string_compare(text, database['items'][item_guid]['normalizedName']) or string_compare(text, database['items'][item_guid]['shortName']) or item_guid == text):
+                    crafts[guid] = craft
+    
+    if (len(crafts) == 0):
+        return False
+        
+    return crafts
 
 # Track functions
 def track_task(database, guid):
@@ -2013,7 +2150,7 @@ def import_tasks(database, headers):
 
     for task in response.json()['data']['tasks']:
         guid = task['id']
-        del task['id']
+        task['id'] = 'task'
         task['status'] = 'incomplete'
         task['tracked'] = True
         
@@ -2071,7 +2208,7 @@ def import_hideout(database, headers):
         for level in station['levels']:
             guid = level['id']
             level['normalizedName'] = station['normalizedName'] + '-' + str(level['level'])
-            del level['id']
+            level['id'] = 'station'
             level['status'] = 'incomplete'
             level['tracked'] = True
 
@@ -2128,7 +2265,7 @@ def import_barters(database, headers):
 
     for barter in barters:
         guid = barter['id']
-        del barter['id']
+        barter['id'] = 'barter'
         barter['status'] = 'incomplete'
         barter['tracked'] = False
         database['barters'][guid] = barter
@@ -2181,7 +2318,7 @@ def import_crafts(database, headers):
 
     for craft in crafts:
         guid = craft['id']
-        del craft['id']
+        craft['id'] = 'craft'
         craft['status'] = 'incomplete'
         craft['tracked'] = False
         database['crafts'][guid] = craft
@@ -2244,7 +2381,7 @@ def import_items(database, headers):
 
     for item in items:
         guid = item['id']
-        del item['id']
+        item['id'] = 'item'
         sell_price = 0
         sell_price_roubles = 0
         sell_trader = ''
@@ -2377,7 +2514,7 @@ def import_maps(database, headers):
 
     for map in maps:
         guid = map['id']
-        del map['id']
+        map['id'] = 'map'
 
         if (map['normalizedName'] == 'streets-of-tarkov'):
             map['normalizedName'] = 'streets'
@@ -2415,7 +2552,7 @@ def import_traders(database, headers):
 
     for trader in traders:
         guid = trader['id']
-        del trader['id']
+        trader['id'] = 'trader'
 
         if (trader['normalizedName'] == 'btr-driver'):
             trader['normalizedName'] = 'btr'
@@ -2425,19 +2562,13 @@ def import_traders(database, headers):
     print_message(f'Successfully loaded trader data into the database!')
     return database
 
-# Print functions
-def print_bool(bool_value):
-    if (bool_value):
-        return 'true'
-    else:
-        return 'false'
-
-def print_inventory(items, output_type = 'inv'):
+# Display
+def display_inventory(items, output_type = INV):
     items = alphabetize_items(items)
 
-    if (output_type == 'inv'):
+    if (output_type == INV):
         display = INVENTORY_HEADER + BUFFER
-    elif (output_type == 'have'):
+    elif (output_type == HAVE):
         display = INVENTORY_HAVE_HEADER + BUFFER
     else:
         display = INVENTORY_NEED_HEADER + BUFFER
@@ -2450,8 +2581,8 @@ def print_inventory(items, output_type = 'inv'):
         _overstock_ = False
         prefix = ''
 
-        if (output_type == 'have' or item['need_nir'] > 0):
-            if (output_type == 'need'):
+        if (output_type == HAVE or item['need_nir'] > 0):
+            if (output_type == NEED):
                 nir = item['need_nir']
             elif (output_type == 'have'):
                 nir = item['have_nir']
@@ -2464,10 +2595,10 @@ def print_inventory(items, output_type = 'inv'):
 
                 nir = f'{item["have_nir"]}/{item["need_nir"]}'
         
-        if (output_type == 'have' or item['need_fir'] > 0):
-            if (output_type == 'need'):
+        if (output_type == HAVE or item['need_fir'] > 0):
+            if (output_type == NEED):
                 fir = item['need_fir']
-            elif (output_type == 'have'):
+            elif (output_type == HAVE):
                 fir = item['have_fir']
             else:
                 if (item['have_fir'] >= item['need_fir']):
@@ -2505,18 +2636,18 @@ def print_inventory(items, output_type = 'inv'):
     print_message(f'\n{display}')
     return
 
-def print_tasks(database, tasks):
+def display_tasks(database, tasks):
     display = TASK_HEADER + BUFFER
     # There are some duplicate tasks for USEC and BEAR (i.e., Textile Part 1 and 2)
-    observed_tasks = []
+    guids = []
     
-    for task in tasks:
-        if (task['name'] in observed_tasks):
+    for guid, task in tasks.items():
+        if (guid in guids):
             print_debug(f'>> {task["name"]} << has already been seen and will be skipped during printing')
             continue
 
-        observed_tasks.append(task['name'])
-        display = display + '{:<40} {:<20} {:<20} {:<20} {:<20} {:<40}\n'.format(task['name'], find(task['trader']['id'], database, type = GUID, object = TRADER)['normalizedName'], task['status'], print_bool(task['tracked']), print_bool(task['kappaRequired']), task['id'])
+        guids.append(guid)
+        display = display + '{:<40} {:<20} {:<20} {:<20} {:<20} {:<40}\n'.format(task['name'], database['traders'][task['trader']['id']]['normalizedName'], task['status'], display_bool(task['tracked']), display_bool(task['kappaRequired']), guid)
 
         for objective in task['objectives']:
             objective_string = '-->'
@@ -2527,11 +2658,11 @@ def print_tasks(database, tasks):
             objective_string = objective_string + ' ' + objective['description']
 
             if (objective['type'] == 'giveItem'):
-                guid = objective['item']['id']
+                item_guid = objective['item']['id']
 
                 if (guid in database['inventory']):
-                    have_available_fir = database['inventory'][guid]['have_fir'] - database['inventory'][guid]['consumed_fir']
-                    have_available_nir = database['inventory'][guid]['have_nir'] - database['inventory'][guid]['consumed_nir']
+                    have_available_fir = database['items'][item_guid]['have_fir'] - database['items'][item_guid]['consumed_fir']
+                    have_available_nir = database['items'][item_guid]['have_nir'] - database['items'][item_guid]['consumed_nir']
                 else:
                     have_available_fir = 0
                     have_available_nir = 0
@@ -2554,17 +2685,14 @@ def print_tasks(database, tasks):
             display = display + objective_string
         
         if (task['neededKeys'] is not None and len(task['neededKeys']) > 0):
-            for key_object in task['neededKeys']:
-                for key in key_object['keys']:
+            for _key_ in task['neededKeys']:
+                for key in _key_['keys']:
                     key_string = '-->'
                     key_guid = key['id']
-
-                    for item in database['all_items']:
-                        if (item['id'] == key_guid):
-                            key_string = key_string + f' Acquire {item["shortName"]} key'
+                    key_string = key_string + f' Acquire {database['items'][key_guid]['shortName']} key'
                         
-                            if (database['inventory'][key_guid]['have_nir'] - database['inventory'][key_guid]['consumed_nir'] > 0):
-                                key_string = key_string + ' (have)'
+                    if (database['items'][key_guid]['have_nir'] - database['items'][key_guid]['consumed_nir'] > 0):
+                        key_string = key_string + ' (have)'
                     
                     key_string = key_string + '\n'
                     display = display + key_string
@@ -2574,16 +2702,16 @@ def print_tasks(database, tasks):
     print_message(f'\n{display}')
     return True
 
-def print_hideout_stations(database, stations):
+def display_hideout(database, stations):
     display = HIDEOUT_HEADER + BUFFER
 
-    for level in stations:
-        display = display + '{:<40} {:<20} {:<20} {:<40}\n'.format(level['normalizedName'], level['status'], print_bool(level['tracked']), level['id'])
+    for guid, station in stations.items():
+        display = display + '{:<40} {:<20} {:<20} {:<40}\n'.format(station['normalizedName'], station['status'], display_bool(station['tracked']), guid)
 
-        for item in level['itemRequirements']:
-            guid = item['item']['id']
-            have_available_nir = database['inventory'][guid]['have_nir'] - database['inventory'][guid]['consumed_nir']
-            short_name = find(guid, database, type = GUID, object = ITEM)['shortName']
+        for item in station['itemRequirements']:
+            item_guid = item['item']['id']
+            have_available_nir = database['items'][guid]['have_nir'] - database['items'][guid]['consumed_nir']
+            short_name = database['items'][item_guid]['shortName']
             count = item['count']
             display = display + f'--> {have_available_nir}/{count} {short_name} available\n'
         
@@ -2592,64 +2720,54 @@ def print_hideout_stations(database, stations):
     print_message(f'\n{display}')
     return True
 
-def print_barters(database, barters):
+def display_barters(database, barters):
     display = BARTER_HEADER + BUFFER
 
-    for barter in barters:
-        display = display + '{:<40} {:<20} {:<20} {:<20}\n'.format(barter['id'], find(barter['trader']['id'], database, type = GUID, object = TRADER)['normalizedName'], barter['level'], print_bool(barter['tracked']))
+    for guid, barter in barters.items():
+        display = display + '{:<40} {:<20} {:<20} {:<20}\n'.format(guid, database['traders'][barter['trader']['id']]['normalizedName'], barter['level'], display_bool(barter['tracked']))
 
         for item in barter['requiredItems']:
-            guid = item['item']['id']
-            item_name = find(guid, database, type = GUID, object = ITEM)['normalizedName']
-
-            if (guid in database['inventory'].keys()):
-                have_available_nir = database['inventory'][guid]['have_nir'] - database['inventory'][guid]['consumed_nir']
-            else:
-                have_available_nir = 0
-                
+            item_guid = item['item']['id']
+            item_name = database['items'][item_guid]['shortName']
+            have_available_nir = database['inventory'][item_guid]['have_nir'] - database['inventory'][item_guid]['consumed_nir']
             count = item['count']
             display = display + f'--> Give {have_available_nir}/{count} {item_name} available\n'
 
         for item in barter['rewardItems']:
-            guid = item['item']['id']
-            item_name = find(guid, database, type = GUID, object = ITEM)['normalizedName']
+            item_guid = item['item']['id']
+            item_name = database['items'][item_guid]['shortName']
             count = item['count']
             display = display + f'--> Receive {count} {item_name}\n'
 
         if (barter['taskUnlock'] is not None):
-            display = display + f'--> Requires task {find(barter["taskUnlock"]["id"], database, type = GUID, object = TASK)['name']}\n'
+            display = display + f'--> Requires task {database['tasks'][barter["taskUnlock"]["id"]]['name']}\n'
 
         display = display + '\n\n'
 
     print_message(f'\n{display}')
     return True
 
-def print_crafts(database, crafts):
+def display_crafts(database, crafts):
     display = CRAFT_HEADER + BUFFER
 
-    for craft in crafts:
-        display = display + '{:<40} {:<20} {:<30} {:<20}\n'.format(craft['id'], find(craft['station']['id'], database, type = GUID, object = STATION)['normalizedName'], craft['level'], print_bool(craft['tracked']))
+    for guid, craft in crafts.items():
+        display = display + '{:<40} {:<20} {:<30} {:<20}\n'.format(guid, find(craft['station']['id'], database, type = GUID, object = STATION)['normalizedName'], craft['level'], print_bool(craft['tracked']))
 
         for item in craft['requiredItems']:
-            guid = item['item']['id']
-            item_name = find(guid, database, type = GUID, object = ITEM)['normalizedName']
-
-            if (guid in database['inventory'].keys()):
-                have_available_nir = database['inventory'][guid]['have_nir'] - database['inventory'][guid]['consumed_nir']
-            else:
-                have_available_nir = 0
-                
+            item_guid = item['item']['id']
+            item_name = database['items'][item_guid]['shortName']
+            have_available_nir = database['inventory'][item_guid]['have_nir'] - database['inventory'][item_guid]['consumed_nir']
             count = item['count']
             display = display + f'--> Give {have_available_nir}/{count} {item_name} available\n'
 
         for item in craft['rewardItems']:
-            guid = item['item']['id']
-            item_name = find(guid, database, type = GUID, object = ITEM)['normalizedName']
+            item_guid = item['item']['id']
+            item_name = database['items'][item_guid]['shortName']
             count = item['count']
             display = display + f'--> Receive {count} {item_name}\n'
 
         if (craft['taskUnlock'] is not None):
-            display = display + f'--> Requires task {find(craft["taskUnlock"]["id"], database, type = GUID, object = TASK)['name']}\n'
+            display = display + f'--> Requires task {database['tasks'][craft["taskUnlock"]["id"]]['name']}\n'
 
         display = display + f'--> Takes {str(timedelta(seconds = craft["duration"]))} to complete\n'
         display = display + '\n\n'
@@ -2657,19 +2775,19 @@ def print_crafts(database, crafts):
     print_message(f'\n{display}')
     return True
 
-def print_untracked(untracked):
+def display_untracked(untracked):
     display = UNTRACKED_HEADER + BUFFER
 
-    for untracked_object in untracked:
-        if (untracked_object['type'] == 'task'):
-            display = display + '{:<40} {:<20} {:<20} {:<20}\n'.format(untracked_object['entity']['name'], 'task', print_bool(untracked_object['entity']['tracked']), print_bool(untracked_object['entity']['kappaRequired']))
+    for guid, entry in untracked.items():
+        if (entry['id'] == 'task'):
+            display = display + '{:<40} {:<20} {:<20} {:<20}\n'.format(entry['name'], 'task', display_bool(entry['tracked']), display_bool(entry['kappaRequired']))
         else:
-            display = display + '{:<40} {:<20} {:<20}\n'.format(untracked_object['entity']['normalizedName'], 'hideout station', print_bool(untracked_object['entity']['tracked']))
+            display = display + '{:<40} {:<20} {:<20}\n'.format(entry['normalizedName'], 'hideout station', display_bool(entry['tracked']))
         
     print_message(f'\n{display}')
     return True
 
-def print_items(items):
+def display_items(items):
     display = ITEM_HEADER + BUFFER
     items = alphabetize_items(items)
 
@@ -2683,7 +2801,7 @@ def print_items(items):
     print_message(f'\n{display}')
     return True
 
-def print_maps(maps):
+def display_maps(maps):
     display = MAP_HEADER + BUFFER
 
     for map in maps:
@@ -2693,7 +2811,7 @@ def print_maps(maps):
     print_message(f'\n{display}')
     return True
 
-def print_traders(traders):
+def display_traders(traders):
     display = TRADER_HEADER + BUFFER
 
     for trader in traders:
@@ -2703,53 +2821,34 @@ def print_traders(traders):
     print_message(f'\n{display}')
     return True
 
-def print_search(database, tasks, stations, barters, crafts, items, traders, maps):
-    if (len(tasks) > 0):
-        print_tasks(database, tasks)
+def display_search(database, tasks, hideout, barters, crafts, items, traders, maps):
+    if (tasks):
+        display_tasks(database, tasks)
     
-    if (len(stations) > 0):
-        print_hideout_stations(database, stations)
+    if (hideout):
+        display_hideout(database, hideout)
 
-    if (len(barters) > 0):
-        print_barters(database, barters)
+    if (barters):
+        display_barters(database, barters)
 
-    if (len(crafts) > 0):
-        print_crafts(database, crafts)
+    if (crafts):
+        display_crafts(database, crafts)
 
-    if (len(items) > 0):
-        print_items(items)
+    if (items):
+        display_items(items)
 
-    if (len(traders) > 0):
-        print_traders(traders)
+    if (traders):
+        display_traders(traders)
 
-    if (len(maps) > 0):
-        print_maps(maps)
+    if (maps):
+        display_maps(maps)
 
-    return True
-
-def print_debug(message):
-    if (DEBUG):
-        #print(f'? DEBUG ? {message}')
-        return True
-    
-    return False
-
-def print_message(message):
-    print(f'{message}')
-    return True
-
-def print_warning(message):
-    print(f'! WARNING ! {message}')
-    return True
-
-def print_error(message):
-    print(f'X ERROR X {message}!')
     return True
 
 
 ###################################################
 #                                                 #
-# WRITABLE FUNCTIONS                              #
+# WRITABLE                                        #
 #                                                 #
 ###################################################
 
@@ -2761,7 +2860,7 @@ def inventory(tracker_file):
     if (not database):
         return False
 
-    print_inventory(get_inventory(database))
+    display_inventory(get_inventory(database))
     return True
 
 def inventory_tasks(tracker_file):
@@ -2772,25 +2871,25 @@ def inventory_tasks(tracker_file):
     
     task_items = get_inventory_tasks(database)
 
-    if (not bool(task_items)):
+    if (len(task_items) == 0):
         print_message('No items are required for tasks')
     else:
-        print_inventory(task_items)
+        display_inventory(task_items)
 
     return True
 
-def inventory_stations(tracker_file):
+def inventory_hideout(tracker_file):
     database = open_database(tracker_file)
 
     if (not database):
         return False
     
-    station_items = get_inventory_hideout(database)
+    hideout_items = get_inventory_hideout(database)
 
-    if (not bool(station_items)):
+    if (len(hideout_items) == 0):
         print_message('No items are required for the hideout')
     else:
-        print_inventory(station_items)
+        display_inventory(hideout_items)
 
     return True
 
@@ -2802,10 +2901,10 @@ def inventory_barters(tracker_file):
     
     barter_items = get_inventory_barters(database)
 
-    if (not bool(barter_items)):
+    if (len(barter_items) == 0):
         print_message('No items are required for barters')
     else:
-        print_inventory(barter_items)
+        display_inventory(barter_items)
 
     return True
 
@@ -2817,25 +2916,25 @@ def inventory_crafts(tracker_file):
     
     craft_items = get_inventory_crafts(database)
 
-    if (not bool(craft_items)):
+    if (len(craft_items) == 0):
         print_message('No items are required for crafts')
     else:
-        print_inventory(craft_items)
+        display_inventory(craft_items)
 
     return True
 
-def inventory_owned(tracker_file):
+def inventory_have(tracker_file):
     database = open_database(tracker_file)
 
     if (not database):
         return False
     
-    owned_items = get_inventory_owned(database)
+    have_items = get_inventory_have(database)
     
-    if (not bool(owned_items)):
+    if (len(have_items) == 0):
         print_message('You have not collected any items')
     else:
-        print_inventory(owned_items, output_type = 'have')
+        display_inventory(have_items, output_type = HAVE)
 
     return True
 
@@ -2845,12 +2944,12 @@ def inventory_need(tracker_file):
     if (not database):
         return False
     
-    needed_items = get_inventory_need(database)
+    need_items = get_inventory_need(database)
     
-    if (not bool(needed_items)):
+    if (len(need_items) == 0):
         print_message('No items needed. CONGRATULATIONS!')
     else:
-        print_inventory(needed_items, output_type = 'need')
+        display_inventory(need_items, output_type = NEED)
 
     return True
 
@@ -2863,15 +2962,15 @@ def list_tasks(tracker_file, argument):
         return False
     
     if (argument == 'all'):
-        tasks = get_available_tasks(database)
+        tasks = get_tasks(database)
     else:
-        tasks = get_available_tasks_filtered(database, argument)
+        tasks = get_tasks_filtered(database, argument)
 
     if (len(tasks) == 0):
         print_message('No available or tracked tasks found')
         return False
     
-    print_tasks(database, tasks)
+    display_tasks(database, tasks)
     return True
 
 def list_stations(tracker_file):
@@ -2881,12 +2980,12 @@ def list_stations(tracker_file):
         print_error('No database file found')
         return False
     
-    stations = get_hideout_stations(database)
+    stations = get_hideout(database)
 
     if (len(stations) == 0):
         print_message('No available or tracked hideout stations found')
     else:
-        print_hideout_stations(database, stations)
+        display_hideout(database, stations)
     
     return True
 
@@ -2898,16 +2997,15 @@ def list_barters(tracker_file, argument):
         return False
     
     if (argument == 'all'):
-        barters = get_available_barters(database)
+        barters = get_barters(database)
     else:
-        filter = find_filter(argument, database)
-        barters = get_available_barters_by_trader(database, filter['id'])
+        barters = get_barters_filtered(database, argument)
 
     if (len(barters) == 0):
         print_message('No tracked barters found')
         return False
     
-    print_barters(database, barters)
+    display_barters(database, barters)
     return True
 
 def list_crafts(tracker_file):
@@ -2922,7 +3020,7 @@ def list_crafts(tracker_file):
     if (len(crafts) == 0):
         print_message('No tracked crafts found')
     else:
-        print_crafts(database, crafts)
+        display_crafts(database, crafts)
     
     return True
 
@@ -2940,7 +3038,7 @@ def list_untracked(tracker_file, ignore_kappa):
     elif (len(untracked) == 0):
         print_message('No untracked items (excluding Kappa tasks) found')
     else:
-        print_untracked(untracked)
+        display_untracked(untracked)
 
     return True
 
@@ -2951,7 +3049,7 @@ def list_maps(tracker_file):
         print_error('No database file found')
         return False
     
-    maps = ', '.join(map['normalizedName'] for map in database['maps']).strip(', ')
+    maps = ', '.join(map['normalizedName'] for guid, map in database['maps'].items()).strip(', ')
     print_message(f'Accepted map names are: {maps}')
 
 def list_traders(tracker_file):
@@ -2961,293 +3059,53 @@ def list_traders(tracker_file):
         print_error('No database file found')
         return False
     
-    traders = ', '.join(trader['normalizedName'] for trader in database['traders']).strip(', ')
+    traders = ', '.join(trader['normalizedName'] for guid, trader in database['traders'].items()).strip(', ')
     print_message(f'Accepted trader names are: {traders}')
 
-#TODO: Start here
 # Search
 def search(tracker_file, argument, ignore_barters, ignore_crafts):
     database = open_database(tracker_file)
-    tasks = []
-    stations = []
-    barters = []
-    crafts = []
-    items = []
-    traders = []
-    maps = []
 
     if (not database):
         print_error('No database file found')
         return False
 
-    for task in database['tasks']:
-        if (not guid):
-            if (string_compare(argument, task['name']) or string_compare(argument, task['normalizedName'])):
-                tasks.append(task)
-        elif (task['id'] == argument):
-            tasks.append(task)
-
-    for station in database['hideout']:
-        for level in station['levels']:
-            if (not guid):
-                if (string_compare(argument, level['normalizedName'])):
-                    stations.append(level)
-            elif (level['id'] == argument):
-                stations.append(level)
+    tasks = search_tasks(argument, database)
+    hideout = search_hideout(argument, database)
+    barters = search_barters(argument, database)
+    crafts = search_crafts(argument, database)
+    items = search_items(argument, database)
+    traders = search_traders(argument, database)
+    maps = search_maps(argument, database)
 
     if (not ignore_barters):
-        unknowns = 0
-
-        for barter in database['barters']:
-            if (not guid):
-                for requirement in barter['requiredItems']:
-                    item = guid_to_item_object(database, requirement['item']['id'])
-
-                    if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
-                        barters.append(barter)
-                for reward in barter['rewardItems']:
-                    item = guid_to_item_object(database, reward['item']['id'])
-
-                    if (not item):
-                        unknowns = unknowns + 1
-                        continue
-
-                    if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
-                        barters.append(barter)
-            elif (barter['id'] == argument):
-                barters.append(barter)
-
-        if (unknowns > 0):
-            print_warning(f'Skipped {unknowns} unknown items in barter trades')
+        barters = barters | search_barters_by_item(argument, database)
 
     if (not ignore_crafts):
-        unknowns = 0
+        crafts = crafts | search_crafts_by_item(argument, database)
 
-        for craft in database['crafts']:
-            if (not guid):
-                for requirement in craft['requiredItems']:
-                    item = guid_to_item_object(database, requirement['item']['id'])
-
-                    if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
-                        crafts.append(craft)
-                for reward in craft['rewardItems']:
-                    item = guid_to_item_object(database, reward['item']['id'])
-
-                    if (not item):
-                        unknowns = unknowns + 1
-                        continue
-
-                    if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
-                        crafts.append(craft)
-            elif (craft['id'] == argument):
-                crafts.append(craft)
-
-        if (unknowns > 0):
-            print_warning(f'Skipped {unknowns} unknown items in crafts')
-
-    for item in database['all_items']:
-        if (datetime.fromisoformat(database['last_price_refresh']) < (datetime.now() - timedelta(hours = 24))):
-            print_message('Item price data is over 24 hours old. Refreshing...')
-            database = import_all_items(database, {
-                'Content-Type': 'application/json'
-            })
-            write_database(tracker_file, database)
-            print_message('Item price data has been refreshed')
-        
-        if (not guid):
-            if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
-                if (item['id'] in database['inventory'].keys()):
-                    items.append({
-                        'need_fir': database['inventory'][item['id']]['need_fir'],
-                        'need_nir': database['inventory'][item['id']]['need_nir'],
-                        'have_fir': database['inventory'][item['id']]['have_fir'],
-                        'have_nir': database['inventory'][item['id']]['have_nir'],
-                        'id': item['id'],
-                        'shortName': item['shortName'],
-                        'normalizedName': item['normalizedName'],
-                        'sell_flea': int(item['sell_flea']),
-                        'sell_flea_currency': item['sell_flea_currency'],
-                        'sell_trader': item['sell_trader'],
-                        'sell_trade': int(item['sell_trade']),
-                        'sell_trade_currency': item['sell_trade_currency'],
-                        'buy_flea': int(item['buy_flea']),
-                        'buy_flea_currency': item['buy_flea_currency'],
-                        'buy_trader': item['buy_trader'],
-                        'buy_trade': int(item['buy_trade']),
-                        'buy_trade_currency': item['buy_trade_currency'],
-                        'sell_to': item['sell_to'],
-                        'buy_from': item['buy_from']
-                    })
-                else:
-                    items.append({
-                        'need_fir': 0,
-                        'need_nir': 0,
-                        'have_fir': 0,
-                        'have_nir': 0,
-                        'id': item['id'],
-                        'shortName': item['shortName'],
-                        'normalizedName': item['normalizedName'],
-                        'sell_flea': int(item['sell_flea']),
-                        'sell_flea_currency': item['sell_flea_currency'],
-                        'sell_trader': item['sell_trader'],
-                        'sell_trade': int(item['sell_trade']),
-                        'sell_trade_currency': item['sell_trade_currency'],
-                        'buy_flea': int(item['buy_flea']),
-                        'buy_flea_currency': item['buy_flea_currency'],
-                        'buy_trader': item['buy_trader'],
-                        'buy_trade': int(item['buy_trade']),
-                        'buy_trade_currency': item['buy_trade_currency'],
-                        'sell_to': item['sell_to'],
-                        'buy_from': item['buy_from']
-                    })
-        elif (item['id'] == argument):
-            if (item['id'] in database['inventory'].keys()):
-                items.append({
-                    'need_fir': database['inventory'][item['id']]['need_fir'],
-                    'need_nir': database['inventory'][item['id']]['need_nir'],
-                    'have_fir': database['inventory'][item['id']]['have_fir'],
-                    'have_nir': database['inventory'][item['id']]['have_nir'],
-                    'id': item['id'],
-                    'shortName': item['shortName'],
-                    'normalizedName': item['normalizedName'],
-                    'sell_flea': int(item['sell_flea']),
-                    'sell_flea_currency': item['sell_flea_currency'],
-                    'sell_trader': item['sell_trader'],
-                    'sell_trade': int(item['sell_trade']),
-                    'sell_trade_currency': item['sell_trade_currency'],
-                    'buy_flea': int(item['buy_flea']),
-                    'buy_flea_currency': item['buy_flea_currency'],
-                    'buy_trader': item['buy_trader'],
-                    'buy_trade': int(item['buy_trade']),
-                    'buy_trade_currency': item['buy_trade_currency'],
-                    'sell_to': item['sell_to'],
-                    'buy_from': item['buy_from']
-                })
-            else:
-                items.append({
-                    'need_fir': 0,
-                    'need_nir': 0,
-                    'have_fir': 0,
-                    'have_nir': 0,
-                    'id': item['id'],
-                    'shortName': item['shortName'],
-                    'normalizedName': item['normalizedName'],
-                    'sell_flea': int(item['sell_flea']),
-                    'sell_flea_currency': item['sell_flea_currency'],
-                    'sell_trader': item['sell_trader'],
-                    'sell_trade': int(item['sell_trade']),
-                    'sell_trade_currency': item['sell_trade_currency'],
-                    'buy_flea': int(item['buy_flea']),
-                    'buy_flea_currency': item['buy_flea_currency'],
-                    'buy_trader': item['buy_trader'],
-                    'buy_trade': int(item['buy_trade']),
-                    'buy_trade_currency': item['buy_trade_currency'],
-                    'sell_to': item['sell_to'],
-                    'buy_from': item['buy_from']
-                })
-    
-    for trader in database['traders']:
-        if (not guid):
-            if (string_compare(argument, trader['normalizedName'])):
-                traders.append(trader)
-        elif (trader['id'] == argument):
-            traders.append(trader)
-
-    for map in database['maps']:
-        if (not guid):
-            if (string_compare(argument, map['normalizedName'])):
-                maps.append(map)
-        elif (map['id'] == argument):
-            maps.append(map)
-
-    print_search(database, tasks, stations, barters, crafts, items, traders, maps)
+    display_search(database, tasks, hideout, barters, crafts, items, traders, maps)
     return True
 
 def required_search(tracker_file, argument, ignore_barters, ignore_crafts):
     database = open_database(tracker_file)
-    guid = False
-    tasks = []
-    stations = []
-    barters = []
-    crafts = []
-    items, traders, maps = [], [], []
 
     if (not database):
         print_error('No database file found')
         return False
     
-    if (is_guid(argument)):
-        guid = True
-
-    for task in database['tasks']:
-        for objective in task['objectives']:
-            if (objective['type'] == 'giveItem'):
-                if (not guid):
-                    item = guid_to_item_object(database, objective['item']['id'])
-
-                    if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
-                        tasks.append(task)
-                        break
-                elif (objective['item']['id'] == argument):
-                    tasks.append(task)
-                    break
-        
-        if (task['neededKeys'] is not None):
-            for needed_key in task['neededKeys']:
-                for key in needed_key['keys']:
-                    if (not guid):
-                        key = guid_to_item_object(database, key['id'])
-
-                        if (string_compare(argument, key['shortName']) or string_compare(argument, key['normalizedName'])):
-                            tasks.append(task)
-                            break
-                    elif (key['id'] == argument):
-                        tasks.append(task)
-                        break
-                else:
-                    continue
-                break
-
-    for station in database['hideout']:
-        for level in station['levels']:
-            for requirement in level['itemRequirements']:
-                if (not guid):
-                    item = guid_to_item_object(database, requirement['item']['id'])
-
-                    if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
-                        stations.append(level)
-                        break
-                elif (requirement['item']['id'] == argument):
-                    stations.append(level)
-                    break
+    tasks = search_tasks_by_item(argument, database)
+    hideout = search_hideout_by_item(argument, database)
+    barters = False
+    crafts = False
 
     if (not ignore_barters):
-        for barter in database['barters']:
-            for requirement in barter['requiredItems']:
-                if (not guid):
-                    item = guid_to_item_object(database, requirement['item']['id'])
-
-                    if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
-                        barters.append(barter)
-                        break
-                elif (requirement['item']['id'] == argument):
-                    barters.append(barter)
-                    break
+        barters = search_barters_by_item(argument, database, required_only = True)
 
     if (not ignore_crafts):
-        for craft in database['crafts']:
-            for requirement in craft['requiredItems']:
-                if (not guid):
-                    item = guid_to_item_object(database, requirement['item']['id'])
+        crafts = search_crafts_by_item(argument, database, required_only = True)
 
-                    if (string_compare(argument, item['shortName']) or string_compare(argument, item['normalizedName'])):
-                        crafts.append(craft)
-                        break
-                elif (requirement['item']['id'] == argument):
-                    crafts.append(craft)
-                    break
-
-    print_search(database, tasks, stations, barters, crafts, items, traders, maps)
+    display_search(database, tasks, hideout, barters, crafts, False, False, False)
     return True
 
 # Track

@@ -476,7 +476,7 @@ def parser(tracker_file, command):
             _confirmation_ = input('> ').lower()
 
             if (_confirmation_ == 'y'):
-                import_data(tracker_file)
+                import_data(tracker_file, delta_import = False)
             else:
                 print_debug(f'Abort >> {command[0]} << because >> {_confirmation_} <<')
                 print_message('Aborted')
@@ -486,7 +486,7 @@ def parser(tracker_file, command):
         elif (command[1] == 'prices'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
             database = open_database(tracker_file)
-            database = import_all_items(database, {
+            database = import_items(database, {
                 'Content-Tyoe': 'application/json'
             })
             print_message('Price data refreshed')
@@ -496,7 +496,7 @@ def parser(tracker_file, command):
             _confirmation_ = input('> ').lower()
 
             if (_confirmation_ == 'y'):
-                delta_import(tracker_file)
+                import_data(tracker_file, delta_import = True)
             else:
                 print_debug(f'Abort >> {command[0]} << because >> {_confirmation_} <<')
                 print_message('Aborted')
@@ -1346,6 +1346,19 @@ def get_saves(file):
 
 
 # Inventory functions
+def stage_inventory(database):
+    for guid, item in database['items'].items():
+        item['need_fir'] = 0
+        item['need_nir'] = 0
+        item['have_fir'] = 0
+        item['have_nir'] = 0
+        item['consumed_fir'] = 0
+        item['consumed_nir'] = 0
+        database['items'][guid] = item
+
+    print_message('Inventory staged')
+    return database
+
 def calculate_inventory(database):
     for guid, task in database['tasks'].items():
         if (not task['tracked']):
@@ -2075,6 +2088,7 @@ def import_tasks(database, headers):
         guid = task['id']
         del task['id']
         task['status'] = 'incomplete'
+        task['tracked'] = True
         
         if (not task['kappaRequired']):
             task['tracked'] = False
@@ -2136,7 +2150,7 @@ def import_hideout(database, headers):
 
             if (level['normalizedName'] == 'stash-1'):
                 level['status'] = 'complete'
-                print_message('Complete stash-1 automatically')
+                print_message('Completed stash-1 automatically')
 
             database['hideout'][guid] = level
 
@@ -2479,7 +2493,7 @@ def import_traders(database, headers):
         if (trader['normalizedName'] == 'btr-driver'):
             trader['normalizedName'] = 'btr'
 
-        database['maps'][guid] = trader
+        database['traders'][guid] = trader
 
     print_message(f'Successfully loaded trader data into the database!')
     return database
@@ -2788,7 +2802,7 @@ def print_search(database, tasks, stations, barters, crafts, items, traders, map
 
 def print_debug(message):
     if (DEBUG):
-        print(f'? DEBUG ? {message}')
+        #print(f'? DEBUG ? {message}')
         return True
     
     return False
@@ -3625,6 +3639,7 @@ def import_data(tracker_file, delta_import):
         print_error('Encountered error while importing traders. Import aborted')
         return False
     
+    database = stage_inventory(database)
     database = calculate_inventory(database)
 
     if (delta_import):

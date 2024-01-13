@@ -1534,7 +1534,7 @@ def track_task(database, guid):
     for objective in task['objectives']:
         if (objective['type'] == 'giveItem'):
             item_guid = objective['item']['id']
-            item_name = database['items'][guid]['shortName']
+            item_name = database['items'][item_guid]['shortName']
             count = objective['count']
             print_debug(f'Adding >> {count} << of >> {item_guid} << for objective >> {objective["description"]} <<')
 

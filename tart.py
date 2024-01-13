@@ -1525,133 +1525,91 @@ def search_crafts_by_item(text, database, required_only = False):
 # Track functions
 def track_task(database, guid):
     print_debug(f'Tracking task >> {guid} <<')
+    task = database['tasks'][guid]
 
-    for task in database['tasks']:
-        if (task['id'] == guid):
-            if (task['tracked']):
-                print_message(f'Already tracking {task["name"]}')
-                return database
-            
-            for objective in task['objectives']:
-                if (objective['type'] == 'giveItem'):
-                    item_guid = objective['item']['id']
-                    item_name = find(item_guid, database, type = GUID, object = ITEM)['normalizedName']
-                    count = objective['count']
-                    print_debug(f'Adding >> {count} << of >> {item_guid} << for objective >> {objective["description"]} <<')
+    if (task['tracked']):
+        print_message(f'Already tracking {task["name"]}')
+        return database
+    
+    for objective in task['objectives']:
+        if (objective['type'] == 'giveItem'):
+            item_guid = objective['item']['id']
+            item_name = database['items'][guid]['shortName']
+            count = objective['count']
+            print_debug(f'Adding >> {count} << of >> {item_guid} << for objective >> {objective["description"]} <<')
 
-                    if (objective['foundInRaid']):
-                        print_debug('FIR')
-                        database['inventory'][item_guid]['need_fir'] = database['inventory'][item_guid]['need_fir'] + count
-                        print_message(f'{count} more {item_name} (FIR) now needed')
-                    else:
-                        print_debug('NIR')
-                        database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] + count
-                        print_message(f'{count} more {item_name} (NIR) now needed')
+            if (objective['foundInRaid']):
+                print_debug('FIR')
+                database['inventory'][item_guid]['need_fir'] = database['inventory'][item_guid]['need_fir'] + count
+                print_message(f'{count} more {item_name} (FIR) now needed')
+            else:
+                print_debug('NIR')
+                database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] + count
+                print_message(f'{count} more {item_name} (NIR) now needed')
 
-            task['tracked'] = True
-            print_message(f'Tracked {task["name"]}')
-                
+    database['tasks'][guid]['tracked'] = True
+    print_message(f'Tracked {task["name"]}')
     return database
 
 def track_station(database, guid):
     print_debug(f'Tracking station >> {guid} <<')
+    station = database['hideout'][guid]
 
-    for station in database['hideout']:
-        for level in station['levels']:
-            if (level['id'] == guid):
-                if (level['tracked']):
-                    print_message(f'Already tracking {level["normalizedName"]}')
-                    return database
-                
-                for requirement in level['itemRequirements']:
-                    item_guid = requirement['item']['id']
-                    item_name = find(item_guid, database, type = GUID, object = ITEM)['normalizedName']
-                    count = requirement['count']
-                    print_debug(f'Adding >> {count} << of >> {item_guid} << for requirement >> {requirement["id"]} <<')
-                    database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] + count
-                    print_message(f'{count} more {item_name} (NIR) now needed')
+    if (station['tracked']):
+        print_message(f'Already tracking {station["normalizedName"]}')
+        return database
+    
+    for requirement in station['itemRequirements']:
+        item_guid = requirement['item']['id']
+        item_name = database['items'][item_guid]
+        count = requirement['count']
+        print_debug(f'Adding >> {count} << of >> {item_guid} << for requirement >> {requirement["id"]} <<')
+        database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] + count
+        print_message(f'{count} more {item_name} (NIR) now needed')
 
-                level['tracked'] = True
-                print_message(f'Tracked {level["normalizedName"]}')
-                
+    database['hideout'][guid]['tracked'] = True
+    print_message(f'Tracked {station["normalizedName"]}')
     return database
 
 def track_barter(database, guid):
     print_debug(f'Tracking barter >> {guid} <<')
-    write_database('test.json', database)
+    barter = database['barters'][guid]
 
-    for barter in database['barters']:
-        if (barter['id'] == guid):
-            print_debug(f'Found >> {guid} <<')
+    if (barter['tracked']):
+        print_message(f'Already tracking {barter["id"]}')
+        return database
+    
+    for requirement in barter['requiredItems']:
+        item_guid = requirement['item']['id']
+        item_name = database['items'][item_guid]
+        count = requirement['count']
+        database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] + count
+        print_debug(f'Adding >> {count} << of >> {item_guid} << for requirement')
+        print_message(f'{count} more {item_name} (NIR) now needed')
 
-            if (barter['tracked']):
-                print_message(f'Already tracking {barter["id"]}')
-                return database, True
-            
-            for requirement in barter['requiredItems']:
-                item_guid = requirement['item']['id']
-                item_name = find(item_guid, database, type = GUID, object = ITEM)['normalizedName']
-                count = requirement['count']
-                
-                if (item_guid not in database['inventory'].keys()):
-                    database['inventory'][item_guid] = {
-                        'need_fir': 0,
-                        'need_nir': count,
-                        'have_fir': 0,
-                        'have_nir': 0,
-                        'consumed_fir': 0,
-                        'consumed_nir': 0
-                    }
-                else:
-                    database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] + count
-                
-                print_debug(f'Adding >> {count} << of >> {item_guid} << for requirement')
-                print_message(f'{count} more {item_name} (NIR) now needed')
-
-            barter['tracked'] = True
-            print_message(f'Tracked {barter["id"]}')
-            break
-    else:
-        return database, False
-                
-    return database, True
+    database['barters'][guid]['tracked'] = True
+    print_message(f'Tracked {barter["id"]}')          
+    return database
 
 def track_craft(database, guid):
     print_debug(f'Tracking craft >> {guid} <<')
+    craft = database['crafts'][guid]
 
-    for craft in database['crafts']:
-        if (craft['id'] == guid):
-            if (craft['tracked']):
-                print_message(f'Already tracking {craft["id"]}')
-                return database, True
-            
-            for requirement in craft['requiredItems']:
-                item_guid = requirement['item']['id']
-                item_name = find(item_guid, database, type = GUID, object = ITEM)['normalizedName']
-                count = requirement['count']
-                
-                if (item_guid not in database['inventory'].keys()):
-                    database['inventory'][item_guid] = {
-                        'need_fir': 0,
-                        'need_nir': count,
-                        'have_fir': 0,
-                        'have_nir': 0,
-                        'consumed_fir': 0,
-                        'consumed_nir': 0
-                    }
-                else:
-                    database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] + count
-                
-                print_debug(f'Adding >> {count} << of >> {item_guid} << for requirement')
-                print_message(f'{count} more {item_name} (NIR) now needed')
+    if (craft['tracked']):
+        print_message(f'Already tracking {craft["id"]}')
+        return database
+    
+    for requirement in craft['requiredItems']:
+        item_guid = requirement['item']['id']
+        item_name = database['items'][item_guid]
+        count = requirement['count']
+        database['inventory'][item_guid]['need_nir'] = database['inventory'][item_guid]['need_nir'] + count
+        print_debug(f'Adding >> {count} << of >> {item_guid} << for requirement')
+        print_message(f'{count} more {item_name} (NIR) now needed')
 
-            craft['tracked'] = True
-            print_message(f'Tracked {craft["id"]}')
-            break
-    else:
-        return database, False
-                
-    return database, False
+    database['crafts'][guid]['tracked'] = True
+    print_message(f'Tracked {craft["id"]}')          
+    return database
 
 def untrack_task(database, guid):
     for task in database['tasks']:
@@ -3166,28 +3124,20 @@ def track(tracker_file, argument):
         print_error('No database file found')
         return False
     
-    if (is_guid(argument)):
-        guid = argument
-        database, found = track_barter(database, guid)
-        
-        if (not found):
-            database, found = track_craft(database, guid)
-        
-            if (not found):
-                print_error(f'Could not find {argument}')
+    guid = find_completable(argument, database)
+
+    if (not guid):
+        print_error(f'Could not find {argument} to complete')
+        return False
+    
+    if (guid in database['tasks'].keys()):
+        database = track_task(database, guid)
+    elif (guid in database['hideout'].keys()):
+        database = track_station(database, guid)
+    elif (guid in database['barters'].keys()):
+        database = track_barter(database, guid)
     else:
-        guid = task_to_guid(database, argument)
-
-        if (guid):
-            database = track_task(database, guid)
-        else:
-            guid = station_to_guid(database, argument)
-
-            if (guid):
-                database = track_station(database, guid)
-            else:
-                print_error('Invalid argument')
-                return False
+        database = track_craft(database, guid)
     
     write_database(tracker_file, database)
     return True

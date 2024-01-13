@@ -809,7 +809,7 @@ def verify_station(database, station):
 
     for prereq in station['stationLevelRequirements']:
         prereq_guid = prereq['station']['id'] + '-' + str(prereq['level'])
-        
+
         if (database['hideout'][prereq_guid]['status'] != 'complete'):
             return f'{database['hideout'][prereq_guid]['normalizedName']} must be completed first'
         
@@ -2668,13 +2668,8 @@ def display_tasks(database, tasks):
 
             if (objective['type'] == 'giveItem'):
                 item_guid = objective['item']['id']
-
-                if (guid in database['items']):
-                    have_available_fir = database['items'][item_guid]['have_fir'] - database['items'][item_guid]['consumed_fir']
-                    have_available_nir = database['items'][item_guid]['have_nir'] - database['items'][item_guid]['consumed_nir']
-                else:
-                    have_available_fir = 0
-                    have_available_nir = 0
+                have_available_fir = database['items'][item_guid]['have_fir'] - database['items'][item_guid]['consumed_fir']
+                have_available_nir = database['items'][item_guid]['have_nir'] - database['items'][item_guid]['consumed_nir']
 
                 if ('foundInRaid' in objective and objective['foundInRaid']):
                     objective_string = objective_string + f' ({have_available_fir}/{objective["count"]} FIR available)'
@@ -2719,7 +2714,7 @@ def display_hideout(database, stations):
 
         for item in station['itemRequirements']:
             item_guid = item['item']['id']
-            have_available_nir = database['items'][guid]['have_nir'] - database['items'][guid]['consumed_nir']
+            have_available_nir = database['items'][item_guid]['have_nir'] - database['items'][item_guid]['consumed_nir']
             short_name = database['items'][item_guid]['shortName']
             count = item['count']
             display = display + f'--> {have_available_nir}/{count} {short_name} available\n'

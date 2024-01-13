@@ -589,10 +589,13 @@ def disambiguate(matches):
     
     _choice_ = input('> ')
 
-    if (_choice_.isdigit() and int(_choice_) > 0 and int(_choice_) <= len(matches)):
-        guid = options[_choice_ - 1]
-        print_debug(f'Selected item >> {matches[guid]['normalizedName']}')
-        return guid
+    if (_choice_.isdigit()):
+        _choice_ = int(_choice_)
+
+        if (_choice_ > 0 and _choice_ <= len(matches)):
+            guid = options[_choice_ - 1]
+            print_debug(f'Selected item >> {matches[guid]['normalizedName']}')
+            return guid
     
     print_error('Invalid selection')
     return False

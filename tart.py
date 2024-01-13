@@ -1161,12 +1161,11 @@ def get_tasks(database):
 def get_tasks_filtered(database, argument):
     print_debug(f'Compiling available tasks with filter >> {argument} <<')
     tasks = {}
+    filter = create_filter(argument, database)
 
     for guid, task in database['tasks'].items():
         if (verify_task(database, task) != True):
             continue
-
-        filter = create_filter(argument, database)
 
         if (not filter):
             return {}
@@ -1228,12 +1227,11 @@ def get_barters(database):
 def get_barters_filtered(database, argument):
     print_debug(f'Compiling barters for trader >> {argument} <<')
     barters = {}
+    filter = find_trader(argument, database)
 
     for guid, barter in database['barters'].items():
         if (verify_barter(barter) != True):
             continue
-
-        filter = find_trader(argument, database)
 
         if (not filter):
             return {}

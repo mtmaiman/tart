@@ -2733,7 +2733,7 @@ def display_barters(database, barters):
         for item in barter['requiredItems']:
             item_guid = item['item']['id']
             item_name = database['items'][item_guid]['shortName']
-            have_available_nir = database['inventory'][item_guid]['have_nir'] - database['inventory'][item_guid]['consumed_nir']
+            have_available_nir = database['items'][item_guid]['have_nir'] - database['items'][item_guid]['consumed_nir']
             count = item['count']
             display = display + f'--> Give {have_available_nir}/{count} {item_name} available\n'
 
@@ -2760,7 +2760,7 @@ def display_crafts(database, crafts):
         for item in craft['requiredItems']:
             item_guid = item['item']['id']
             item_name = database['items'][item_guid]['shortName']
-            have_available_nir = database['inventory'][item_guid]['have_nir'] - database['inventory'][item_guid]['consumed_nir']
+            have_available_nir = database['items'][item_guid]['have_nir'] - database['items'][item_guid]['consumed_nir']
             count = item['count']
             display = display + f'--> Give {have_available_nir}/{count} {item_name} available\n'
 

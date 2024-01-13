@@ -163,7 +163,7 @@ INVENTORY_NEED_HEADER = '{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20}
 TASK_HEADER = '{:<40} {:<20} {:<20} {:<20} {:<20} {:<40}\n'.format('Task Title', 'Task Giver', 'Task Status', 'Tracked', 'Kappa?', 'Task GUID')
 HIDEOUT_HEADER = '{:<40} {:<20} {:<20} {:<40}\n'.format('Station Name', 'Station Status', 'Tracked', 'Station GUID')
 BARTER_HEADER = '{:<40} {:<20} {:<20} {:<20}\n'.format('Barter GUID', 'Trader', 'Loyalty Level', 'Tracked')
-CRAFT_HEADER = '{:<40} {:<20} {:<30} {:<20}\n'.format('Craft Recipe GUID', 'Station', 'Station Level', 'Tracked')
+CRAFT_HEADER = '{:<40} {:<30} {:<20}\n'.format('Craft Recipe GUID', 'Station', 'Tracked')
 UNTRACKED_HEADER = '{:<40} {:<20} {:<20} {:<20}\n'.format('Entity Name', 'Type', 'Tracked', 'Kappa?')
 BUFFER = '-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n'
 
@@ -2755,7 +2755,7 @@ def display_crafts(database, crafts):
     display = CRAFT_HEADER + BUFFER
 
     for guid, craft in crafts.items():
-        display = display + '{:<40} {:<20} {:<30} {:<20}\n'.format(guid, database['hideout'][craft['station']['id'] + '-' + '1']['normalizedName'].split('-')[0], craft['level'], display_bool(craft['tracked']))
+        display = display + '{:<40} {:<30} {:<20}\n'.format(guid, database['hideout'][craft['station']['id'] + '-' + craft['level']]['normalizedName'], display_bool(craft['tracked']))
 
         for item in craft['requiredItems']:
             item_guid = item['item']['id']

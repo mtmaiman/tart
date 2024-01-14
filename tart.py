@@ -160,7 +160,7 @@ TRADER_HEADER = '{:<30} {:<20}\n'.format('Trader Normalized Name', 'Trader GUID'
 INVENTORY_HEADER = '{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} \n'.format('Item', 'Inv (FIR)', 'Item', 'Inv (FIR)', 'Item', 'Inv (FIR)', 'Item', 'Inv (FIR)')
 INVENTORY_HAVE_HEADER = '{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} \n'.format('Item', 'Have (FIR)', 'Item', 'Have (FIR)', 'Item', 'Have (FIR)', 'Item', 'Have (FIR)')
 INVENTORY_NEED_HEADER = '{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} \n'.format('Item', 'Need (FIR)', 'Item', 'Need (FIR)', 'Item', 'Need (FIR)', 'Item', 'Need (FIR)')
-TASK_HEADER = '{:<40} {:<20} {:<20} {:<20} {:<20} {:<40}\n'.format('Task Title', 'Task Giver', 'Task Status', 'Tracked', 'Kappa?', 'Task GUID')
+TASK_HEADER = '{:<40} {:<20} {:<20} {:<20} {:<20} {:<20} {:<40}\n'.format('Task Title', 'Task Giver', 'Task Status', 'Tracked', 'Kappa?', 'Map', 'Task GUID')
 HIDEOUT_HEADER = '{:<40} {:<20} {:<20} {:<40}\n'.format('Station Name', 'Station Status', 'Tracked', 'Station GUID')
 BARTER_HEADER = '{:<40} {:<20} {:<20} {:<20}\n'.format('Barter GUID', 'Trader', 'Loyalty Level', 'Tracked')
 CRAFT_HEADER = '{:<40} {:<30} {:<20}\n'.format('Craft Recipe GUID', 'Station', 'Tracked')
@@ -175,7 +175,7 @@ BUFFER = '----------------------------------------------------------------------
 ###################################################
 
 
-#TODO: Fix searching for hyphenated and S P A C E D things (i.e., a-2607 and S I C C)
+#TODO: Fix map display (a lot show multi rn)
 # Command parsing
 def parser(tracker_file, command):
     command = command.lower().split(' ')
@@ -501,7 +501,7 @@ def parser(tracker_file, command):
             _confirmation_ = input('> ').lower()
 
             if (_confirmation_ == 'y'):
-                import_data(tracker_file, delta_import = True)
+                delta(tracker_file)
             else:
                 print_debug(f'Abort >> {command[0]} << because >> {_confirmation_} <<')
                 print_message('Aborted')
@@ -775,6 +775,19 @@ def find_restartable(text, database):
     
     return False
 
+def task_to_map(task):
+    maps = []
+
+    for objective in task['objectives']:
+        for map in objective['maps']:
+            if (map['id'] not in maps):
+                maps.append(map['id'])
+
+    if (len(maps) == 0):
+        return 'any'
+
+    return maps
+
 # String functions
 def normalize(text):
     unwanted_strings = ['', '.', '(', ')', '+', '=', '\'', '"', ',', '\\', '/', '?', '#', '$', '&', '!', '@', '[', ']', '{', '}', '-', '_']
@@ -801,6 +814,10 @@ def string_compare(comparable, comparator: str):
 def alphabetize_items(items):
     print_debug(f'Alphabetizing dict of size >> {len(items)} <<')
     return {guid: item for guid, item in sorted(items.items(), key = lambda item: item[1]['shortName'].lower())}
+
+def alphabetize_tasks(tasks):
+    print_debug(f'Alphabetizing dict of size >> {len(tasks)} <<')
+    return {guid: task for guid, task in sorted(tasks.items(), key = lambda item: item[1]['map'].lower())}
 
 def format_price(price, currency):
     currency = currency.lower()
@@ -1207,30 +1224,8 @@ def get_tasks_filtered(database, argument):
         if (not filter):
             return {}
 
-        if (filter in database['maps'].keys()):
-            invalid = False
-            potential = False
-
-            for objective in task['objectives']:
-                if (len(objective['maps']) == 0):
-                    print_debug(f'Found task >> {task["name"]} << for map >> {argument} <<')
-                    potential = True
-
-                for map in objective['maps']:
-                    if (map['id'] == filter):
-                        print_debug(f'Found task >> {task["name"]} << for map >> {argument} <<')
-                        tasks[guid] = task
-                        break
-                    else:
-                        invalid = True
-                else:
-                    continue
-                break
-            else:
-                if (potential and not invalid):
-                    tasks[guid] = task
-            continue
-
+        if (filter in database['maps'].keys() and (filter in task['maps'] or '0' in task['maps'])):
+            tasks[guid] = task
         else:
             if (task['trader']['id'] == filter):
                 print_debug(f'Found task >> {task["name"]} << for trader >> {argument} <<')
@@ -2157,8 +2152,17 @@ def import_tasks(database, headers):
     for task in response.json()['data']['tasks']:
         guid = task['id']
         del task['id']
+        task['maps'] = []
+        del task['map']
         task['status'] = 'incomplete'
         task['tracked'] = True
+        maps = task_to_map(task)
+        
+        if (maps == 'any'):
+            task['maps'] = ['0']
+        else:
+            for map in maps:
+                task['maps'].append(map)
         
         if (not task['kappaRequired']):
             task['tracked'] = False
@@ -2646,6 +2650,19 @@ def display_tasks(database, tasks):
     display = TASK_HEADER + BUFFER
     # There are some duplicate tasks for USEC and BEAR (i.e., Textile Part 1 and 2)
     duplicates = []
+
+    # Setting up the map display
+    for guid, task in tasks.items():
+        if (len(task['maps']) > 1):
+            map = 'multi'
+        elif (task['maps'][0] == '0'):
+            map = 'any'
+        else:
+            map = database['maps'][task['maps'][0]]['normalizedName']
+        
+        task['map'] = map
+
+    tasks = alphabetize_tasks(tasks)
     
     for guid, task in tasks.items():
         if (task['name'] in duplicates):
@@ -2653,7 +2670,7 @@ def display_tasks(database, tasks):
             continue
 
         duplicates.append(task['name'])
-        display = display + '{:<40} {:<20} {:<20} {:<20} {:<20} {:<40}\n'.format(task['name'], database['traders'][task['trader']['id']]['normalizedName'], task['status'], display_bool(task['tracked']), display_bool(task['kappaRequired']), guid)
+        display = display + '{:<40} {:<20} {:<20} {:<20} {:<20} {:<20} {:<40}\n'.format(task['name'], database['traders'][task['trader']['id']]['normalizedName'], task['status'], display_bool(task['tracked']), display_bool(task['kappaRequired']), task['map'], guid)
 
         for objective in task['objectives']:
             objective_string = '-->'
@@ -3359,7 +3376,7 @@ def clear():
     return True
 
 # Import
-def import_data(tracker_file, delta_import = False):
+def import_data(tracker_file):
     database = {
         'tasks': {},
         'hideout': {},
@@ -3375,6 +3392,18 @@ def import_data(tracker_file, delta_import = False):
     headers = {
         'Content-Type': 'application/json'
     }
+    database = import_maps(database, headers)
+
+    if (not database):
+        print_error('Encountered error while importing maps. Import aborted')
+        return False
+
+    database = import_traders(database, headers)
+
+    if (not database):
+        print_error('Encountered error while importing traders. Import aborted')
+        return False
+
     database = import_tasks(database, headers)
 
     if (not database):
@@ -3404,27 +3433,11 @@ def import_data(tracker_file, delta_import = False):
     if (not database):
         print_error('Encountered error while importing items. Import aborted')
         return False
-
-    database = import_maps(database, headers)
-
-    if (not database):
-        print_error('Encountered error while importing maps. Import aborted')
-        return False
-
-    database = import_traders(database, headers)
-
-    if (not database):
-        print_error('Encountered error while importing traders. Import aborted')
-        return False
     
     database = stage_inventory(database)
     database = calculate_inventory(database)
     write_database(tracker_file, database)
     print_message(f'Finished importing game data and saved to {tracker_file}')
-
-    if (delta_import):
-        delta(tracker_file)
-
     return True
 
 def delta(tracker_file):

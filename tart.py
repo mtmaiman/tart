@@ -3563,8 +3563,8 @@ def delta(tracker_file):
     print_message('Completed crafts delta import')
 
     # Inventory
-    for guid, item in database['items'].items():
-        if (guid not in previous['items'].keys()):
+    for guid, item in previous['items'].items():
+        if (guid not in database['items'].keys()):
             print_warning(f'Item {item["shortName"]} cannot be found in the new inventory. Data will be lost. Acknowledge? (Y/N)')
             _confirmation_ = input('> ').lower()
             
@@ -3575,17 +3575,17 @@ def delta(tracker_file):
             write_database(tracker_file, previous)
             return False
         
-        if (database['items'][item]['have_nir'] != previous['items'][item]['have_nir']):
-            database['items'][item]['have_nir'] = previous['items'][item]['have_nir']
+        if (database['items'][guid]['have_nir'] != item['have_nir']):
+            database['items'][guid]['have_nir'] = item['have_nir']
 
-        if (database['items'][item]['have_fir'] != previous['items'][item]['have_fir']):
-            database['items'][item]['have_fir'] = previous['items'][item]['have_fir']
+        if (database['items'][guid]['have_fir'] != item['have_fir']):
+            database['items'][guid]['have_fir'] = item['have_fir']
 
-        if (database['items'][item]['consumed_nir'] != previous['items'][item]['consumed_nir']):
-            database['items'][item]['consumed_nir'] = previous['items'][item]['consumed_nir']
+        if (database['items'][guid]['consumed_nir'] != item['consumed_nir']):
+            database['items'][guid]['consumed_nir'] = item['consumed_nir']
         
-        if (database['items'][item]['consumed_fir'] != previous['items'][item]['consumed_fir']):
-            database['items'][item]['consumed_fir'] = previous['items'][item]['consumed_fir']
+        if (database['items'][guid]['consumed_fir'] != item['consumed_fir']):
+            database['items'][guid]['consumed_fir'] = item['consumed_fir']
     
     print_message('Completed items delta import')
     database['player_level'] = previous['player_level']

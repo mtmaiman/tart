@@ -778,6 +778,7 @@ def find_restartable(text, database):
 def normalize(text):
     unwanted_strings = ['', '.', '(', ')', '+', '=', '\'', '"', ',', '\\', '/', '?', '#', '$', '&', '!', '@', '[', ']', '{', '}', '-', '_']
     normalized = text.lower()
+    normalized = re.sub('-', ' ', normalized)
 
     for string in unwanted_strings:
         normalized = normalized.replace(string, '')
@@ -973,7 +974,7 @@ def display_bool(bool_value):
     
 def print_debug(message):
     if (DEBUG):
-        #print(f'>> (DEBUG) {message}')
+        print(f'>> (DEBUG) {message}')
         return True
     
     return False
@@ -1772,11 +1773,12 @@ def complete_task(database, guid, force):
     return database
 
 def complete_recursive_task(database, guid, tasks = []):
-    tasks = []
-    
+    if (len(database['tasks'][guid]['taskRequirements']) == 0):
+        tasks.append(guid)
+
     for prereq in database['tasks'][guid]['taskRequirements']:
-        tasks.append(prereq['task']['id'])
-        tasks = complete_recursive_task(database, prereq['task']['id'], tasks)
+        tasks = complete_recursive_task(database, prereq['task']['id'], tasks = tasks)
+        tasks.append(guid)
     
     return tasks
 
@@ -1946,6 +1948,53 @@ def complete_craft(database, guid, force):
     
     database['crafts'][guid]['status'] = 'complete'
     print_message(f'{craft["id"]} completed')
+    return database
+
+# Restart functions
+def restart_barter(database, guid):
+    barter = database['barters'][guid]
+
+    if (barter['status'] == 'incomplete'):
+        print_message(f'{barter["id"]} is not complete')
+        return False
+    
+    if (not barter['tracked']):
+        print_error(f'{barter["id"]} is not tracked')
+        return False
+
+    for requirement in barter['requiredItems']:
+        item_guid = requirement['item']['id']
+        item_name = database['items'][item_guid]['shortName']
+        need_nir = requirement['count']
+        database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_nir'] + need_nir
+        print_debug(f'Adding >> {need_nir} << of >> {item_guid} << for requirement')
+        print_message(f'{need_nir} more {item_name} (NIR) now needed')
+    
+    database['barters'][guid]['status'] = 'incomplete'
+    print_message(f'{barter["id"]} restarted')
+    return database
+
+def restart_craft(database, guid):
+    craft = database['crafts'][guid]
+
+    if (craft['status'] == 'incomplete'):
+        print_message(f'{craft["id"]} is not complete')
+        return False
+    
+    if (not craft['tracked']):
+        print_error(f'{craft["id"]} is not tracked')
+        return False
+
+    for requirement in craft['requiredItems']:
+        item_guid = requirement['item']['id']
+        item_name = database['items'][item_guid]['shortName']
+        need_nir = requirement['count']
+        database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_nir'] + need_nir
+        print_debug(f'Adding >> {need_nir} << of >> {item_guid} << for requirement')
+        print_message(f'{need_nir} more {item_name} (NIR) now needed')
+    
+    database['crafts'][guid]['status'] = 'incomplete'
+    print_message(f'{craft["id"]} restarted')
     return database
 
 # Import functions
@@ -3139,7 +3188,6 @@ def complete(tracker_file, argument, force, recurse):
             database = complete_task(database, guid, force)
         else:
             tasks = complete_recursive_task(database, guid)
-            tasks.insert(0, guid)
 
             for guid in tasks:
                 if (database):
@@ -3154,58 +3202,33 @@ def complete(tracker_file, argument, force, recurse):
 
     if (database):
         write_database(tracker_file, database)
-
-    return True
+        return True
+    
+    return False
 
 # Restart
-def restart_barter_or_craft(tracker_file, argument):
+def restart(tracker_file, argument):
     database = open_database(tracker_file)
 
     if (not database):
         print_error('No database file found')
         return False
-
-    for barter in database['barters']:
-        if (barter['id'] == argument):
-            if (not barter['tracked']):
-                print_error(f'Barter {argument} is not currently tracked and therefore cannot be restarted')
-                return False
-            
-            if (barter['status'] == 'complete'):
-                barter['status'] = 'incomplete'
-            else:
-                print_error(f'Barter {argument} is not yet completed and therefore cannot be restarted')
-                return False
-            
-            for requirement in barter['requiredItems']:
-                guid = requirement['item']['id']
-                count = requirement['count']
-                database['inventory'][guid]['need_nir'] = database['inventory'][guid]['need_nir'] + count
-                print_message(f'{count} more {guid_to_item(database, guid)} (NIR) needed')
-            
-            return True
-        
-    for craft in database['crafts']:
-        if (craft['id'] == argument):
-            if (not craft['tracked']):
-                print_error(f'Craft recipe {argument} is not currently tracked and therefore cannot be restarted')
-                return False
-            
-            if (craft['status'] == 'complete'):
-                craft['status'] = 'incomplete'
-            else:
-                print_error(f'Craft recipe {argument} is not yet completed and therefore cannot be restarted')
-                return False
-            
-            for requirement in craft['requiredItems']:
-                guid = requirement['item']['id']
-                count = requirement['count']
-                database['inventory'][guid]['need_nir'] = database['inventory'][guid]['need_nir'] + count
-                print_message(f'{count} more {guid_to_item(database, guid)} (NIR) needed')
-            
-            return True
     
-    print_error(f'Could not find a match for {argument}')
+    guid = find_restartable(argument, database)
+
+    if (not guid):
+        print_error(f'Could not find {argument} to complete')
+        return False
+    
+    if (guid in database['barters'].keys()):
+        database = restart_barter(database, guid)
+    else:
+        database = restart_craft(database, guid)
+
+    if (database):
+        write_database(tracker_file, database)
+        return True
+    
     return False
 
 # Add

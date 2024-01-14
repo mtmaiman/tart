@@ -833,7 +833,7 @@ def verify_task(database, task):
         else:
             id = prereq['task']['id']
 
-        if (database['tasks'][id] == 'incomplete'):
+        if (database['tasks'][id]['status'] != 'complete'):
             return f'{database['tasks'][id]['name']} must be completed first'
     
     print_debug(f'Verified task >> {task["name"]} <<')

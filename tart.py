@@ -379,7 +379,7 @@ def parser(tracker_file, command):
             print_error('Command not recognized')
         elif (command[1]):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
-            restart_barter_or_craft(tracker_file, command[1])
+            restart(tracker_file, command[1])
         elif (command[1] == 'help' or command[1] == 'h'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
             print_message(RESTART_HELP)
@@ -790,6 +790,10 @@ def string_compare(comparable, comparator):
     comparable_words = normalize(comparable).split(' ')
     comparator_words = normalize(comparator).split(' ')
 
+    if (re.sub('-', '', comparator) == 'sicc' or comparator == 's i c c'):
+        print(comparable_words)
+        print(comparator_words)
+
     for comparable_word in comparable_words:
         if (comparable_word not in comparator_words):
             return False
@@ -880,14 +884,14 @@ def add_item_fir(database, count, guid):
 
     if (database['items'][guid]['need_fir'] == 0):
         print_message(f'{item_name} (FIR) is not needed')
-        database = add_item_nir(database, count, guid = guid)
+        database = add_item_nir(database, count, guid)
     elif (database['items'][guid]['have_fir'] == database['items'][guid]['need_fir']):
         print_message(f'{item_name} (FIR) already found')
-        database = add_item_nir(database, count, guid = guid)
+        database = add_item_nir(database, count, guid)
     elif (database['items'][guid]['have_fir'] + count > database['items'][guid]['need_fir']):
         _remainder_ = database['items'][guid]['have_fir'] + count - database['items'][guid]['need_fir']
         print_message(f'Added {count - _remainder_} {item_name} (FIR) (COMPLETED)')
-        database = add_item_nir(database, count, guid = guid)
+        database = add_item_nir(database, _remainder_, guid)
         database['items'][guid]['have_fir'] = database['items'][guid]['need_fir']
     elif (database['items'][guid]['have_fir'] + count == database['items'][guid]['need_fir']):
         database['items'][guid]['have_fir'] = database['items'][guid]['need_fir']
@@ -902,7 +906,7 @@ def add_item_fir(database, count, guid):
 
     return database
 
-def add_item_nir(database, count, guid = ''):    
+def add_item_nir(database, count, guid):    
     item_name = database['items'][guid]['normalizedName']
 
     if (database['items'][guid]['need_nir'] == 0 and database['items'][guid]['need_fir'] == 0):
@@ -931,7 +935,7 @@ def add_item_nir(database, count, guid = ''):
     return database
 
 # Delete Items
-def del_item_fir(database, count, guid = ''):    
+def del_item_fir(database, count, guid):    
     item_name = database['items'][guid]['normalizedName']
     
     if (database['items'][guid]['have_fir'] == 0):
@@ -948,7 +952,7 @@ def del_item_fir(database, count, guid = ''):
     print_message(f'Removed {count} {item_name} (FIR) ({remaining} remaining FIR)')
     return database
 
-def del_item_nir(database, count, guid = ''):
+def del_item_nir(database, count, guid):
     item_name = database['items'][guid]['normalizedName']
     
     if (database['items'][guid]['have_nir'] == 0):
@@ -1891,7 +1895,7 @@ def complete_barter(database, guid, force):
         database['items'][item_guid]['consumed_nir'] = database['items'][item_guid]['consumed_nir'] + need_nir
     
     database['barters'][guid]['status'] = 'complete'
-    print_message(f'{barter["id"]} completed')
+    print_message(f'{guid} completed')
     return database
 
 def complete_craft(database, guid, force):
@@ -1947,7 +1951,7 @@ def complete_craft(database, guid, force):
         database['items'][item_guid]['consumed_nir'] = database['items'][item_guid]['consumed_nir'] + need_nir
     
     database['crafts'][guid]['status'] = 'complete'
-    print_message(f'{craft["id"]} completed')
+    print_message(f'{guid} completed')
     return database
 
 # Restart functions
@@ -1971,7 +1975,7 @@ def restart_barter(database, guid):
         print_message(f'{need_nir} more {item_name} (NIR) now needed')
     
     database['barters'][guid]['status'] = 'incomplete'
-    print_message(f'{barter["id"]} restarted')
+    print_message(f'{guid} restarted')
     return database
 
 def restart_craft(database, guid):
@@ -1994,7 +1998,7 @@ def restart_craft(database, guid):
         print_message(f'{need_nir} more {item_name} (NIR) now needed')
     
     database['crafts'][guid]['status'] = 'incomplete'
-    print_message(f'{craft["id"]} restarted')
+    print_message(f'{guid} restarted')
     return database
 
 # Import functions
@@ -3234,7 +3238,13 @@ def restart(tracker_file, argument):
 # Add
 def write_item_fir(tracker_file, count, argument):
     database = open_database(tracker_file)
-    database = add_item_fir(database, count, argument = argument)
+    guid = find_item(argument, database)
+
+    if (not guid):
+        print_error(f'Could not find any item matching {argument}')
+        return False
+
+    database = add_item_fir(database, count, guid)
 
     if (not database):
         print_error('No database file found')
@@ -3245,7 +3255,13 @@ def write_item_fir(tracker_file, count, argument):
 
 def write_item_nir(tracker_file, count, argument):
     database = open_database(tracker_file)
-    database = add_item_nir(database, count, argument = argument)
+    guid = find_item(argument, database)
+
+    if (not guid):
+        print_error(f'Could not find any item matching {argument}')
+        return False
+
+    database = add_item_nir(database, count, guid)
 
     if (not database):
         print_error('No database file found')
@@ -3257,7 +3273,13 @@ def write_item_nir(tracker_file, count, argument):
 # Delete
 def unwrite_item_fir(tracker_file, count, argument):
     database = open_database(tracker_file)
-    database = del_item_fir(database, count, argument = argument)
+    guid = find_item(argument, database)
+
+    if (not guid):
+        print_error(f'Could not find any item matching {argument}')
+        return False
+
+    database = del_item_fir(database, count, guid)
 
     if (not database):
         print_error('No database file found')
@@ -3268,7 +3290,13 @@ def unwrite_item_fir(tracker_file, count, argument):
 
 def unwrite_item_nir(tracker_file, count, argument):
     database = open_database(tracker_file)
-    database = del_item_nir(database, count, argument = argument)
+    guid = find_item(argument, database)
+
+    if (not guid):
+        print_error(f'Could not find any item matching {argument}')
+        return False
+
+    database = del_item_nir(database, count, guid)
 
     if (not database):
         print_error('No database file found')
@@ -3386,29 +3414,25 @@ def import_data(tracker_file, delta_import):
     print_message(f'Finished importing game data and saved to {tracker_file}')
     return True
 
-def delta(database):
-    memory = open_database(tracker_file)
-    update = import_data(tracker_file)
+def delta(tracker_file):
+    previous = open_database(tracker_file)
+    delta = import_data(tracker_file)
 
-    if (not update):
+    if (not delta):
         print_error('Encountered an error while importing the database. Aborted')
-        write_database(tracker_file, memory)
+        write_database(tracker_file, previous)
         return False
 
     database = open_database(tracker_file)
 
     if (not database):
-        print_error('Something went wrong opening the database')
+        print_error('Something went wrong opening the database. Aborted')
+        write_database(tracker_file, previous)
         return False
 
-    # Tasks
-    task_table = {}
-
-    for index, task in enumerate(database['tasks']):
-        task_table[task['id']] = index
-    
-    for task in memory['tasks']:
-        if (task['id'] not in task_table):
+    # Tasks    
+    for guid, task in previous['tasks'].items():
+        if (guid not in database['tasks'].keys()):
             print_warning(f'Task {task["name"]} cannot be found in the new dataset. Data will be lost. Acknowledge? (Y/N)')
             _confirmation_ = input('> ').lower()
 
@@ -3416,171 +3440,156 @@ def delta(database):
                 continue
 
             print_message('Aborted')
-            write_database(tracker_file, memory)
+            write_database(tracker_file, previous)
             return False
 
-        new_task = database['tasks'][task_table[task['id']]]
+        delta_task = delta['tasks'][guid]
 
-        if (new_task['status'] != task['status']):
-            database['tasks'][task_table[task['id']]]['status'] = task['status']
+        if (delta_task['status'] != task['status']):
+            database['tasks'][guid]['status'] = task['status']
         
-        if (new_task['tracked'] != task['tracked']):
-            if (task['kappaRequired'] and task['tracked'] and not new_task['kappaRequired']):
+        if (delta_task['tracked'] != task['tracked']):
+            if (task['kappaRequired'] and task['tracked'] and not delta_task['kappaRequired']):
                 print_warning(f'You are currently tracking {task["name"]} which is no longer Kappa required and will be untracked. Acknowledge? (Y/N)')
                 _confirmation_ = input('> ').lower()
 
                 if (_confirmation_ != 'y'):
                     print_message('Aborted')
-                    write_database(tracker_file, memory)
+                    write_database(tracker_file, previous)
                     return False
 
-                database = untrack_task(database, new_task['id'])
-            elif (not task['kappaRequired'] and not task['tracked'] and new_task['kappaRequired']):
+                database = untrack_task(database, guid)
+            elif (not task['kappaRequired'] and not task['tracked'] and delta_task['kappaRequired']):
                 print_warning(f'Task {task["name"]} is now Kappa required and has been tracked. Acknowledge? (Y/N)')
                 _confirmation_ = input('> ').lower()
 
                 if (_confirmation_ != 'y'):
                     print_message('Aborted')
-                    write_database(tracker_file, memory)
+                    write_database(tracker_file, previous)
                     return False
                 
             elif (task['kappaRequired'] and not task['tracked']):
                 print_warning(f'You had previously untracked a Kappa required task {task["name"]} which will continue to be untracked')
-                database = untrack_task(database, new_task['id'])
-            elif (not new_task['tracked']):
+                database = untrack_task(database, guid)
+            elif (not delta_task['tracked']):
                 print_warning(f'You had previously tracked task {task["name"]} which will remain tracked')
-                database = track_task(database, new_task['id'])
+                database = track_task(database, guid)
             else:
                 print_error('Unhandled error with (un)tracked tasks. Aborted')
-                write_database(tracker_file, memory)
+                write_database(tracker_file, previous)
                 return False
                         
-    print_message('Completed task delta import')
+    print_message('Completed tasks delta import')
     
-    # Hideout stations
-    station_table = {}
+    # Hideout stations    
+    for guid, station in previous['hideout'].items():
+        if (guid not in database['hideout'].keys()):
+            print_warning(f'Hideout station {station["normalizedName"]} cannot be found in the new dataset. Data will be lost. Acknowledge? (Y/N)')
+            _confirmation_ = input('> ').lower()
 
-    for index, station in enumerate(database['hideout']):
-        for sub_index, level in enumerate(station['levels']):
-            station_table[level['id']] = (index, sub_index)
-    
-    for station in memory['hideout']:
-        for level in station['levels']:
-            if (level['id'] not in station_table):
-                print_warning(f'Hideout station {level["normalizedName"]} cannot be found in the new dataset. Data will be lost. Acknowledge? (Y/N)')
-                _confirmation_ = input('> ').lower()
+            if (_confirmation_ == 'y'):
+                continue
 
-                if (_confirmation_ == 'y'):
-                    continue
+            print_message('Aborted')
+            write_database(tracker_file, previous)
+            return False
 
-                print_message('Aborted')
-                write_database(tracker_file, memory)
-                return False
+        delta_station = database['hideout'][guid]
 
-            new_station = database['hideout'][station_table[level['id']][0]]['levels'][station_table[level['id']][1]]
+        if (delta_station['status'] != station['status']):
+            database['hideout'][guid]['status'] = station['status']
+        
+        if (delta_station['tracked'] != station['tracked']):
+            if (station['tracked']):
+                database = track_station(database, guid)
+            else:
+                print_warning(f'You had previously untracked hideout station {station["normalizedName"]} which will continue to be untracked')
+                database = untrack_station(database, guid)
 
-            if (new_station['status'] != level['status']):
-                database['hideout'][station_table[level['id']][0]]['levels'][station_table[level['id']][1]]['status'] = level['status']
-            
-            if (new_station['tracked'] != level['tracked']):
-                if (level['tracked']):
-                    database = track_station(database, new_station['id'])
-                else:
-                    print_warning(f'You had previously untracked hideout station {level["normalizedName"]} which will continue to be untracked')
-                    database = untrack_station(database, new_station['id'])
-
-    print_message('Completed hideout station delta import')
+    print_message('Completed hideout delta import')
 
     # Barters
-    barter_table = {}
-
-    for index, barter in enumerate(database['barters']):
-        barter_table[barter['id']] = index
-    
-    for barter in memory['barters']:
-        if (barter['id'] not in barter_table):
-            print_warning(f'Barter {barter["id"]} cannot be found in the new dataset. Data will be lost. Acknowledge? (Y/N)')
+    for guid, barter in previous['barters'].items():
+        if (guid not in database['barters'].keys()):
+            print_warning(f'Barter {guid} cannot be found in the new dataset. Data will be lost. Acknowledge? (Y/N)')
             _confirmation_ = input('> ').lower()
 
             if (_confirmation_ == 'y'):
                 continue
 
             print_message('Aborted')
-            write_database(tracker_file, memory)
+            write_database(tracker_file, previous)
             return False
 
-        new_barter = database['barters'][barter_table[barter['id']]]
+        delta_barter = database['barters'][guid]
 
-        if (new_barter['status'] != barter['status']):
-            database['barters'][barter_table[barter['id']]]['status'] = barter['status']
+        if (delta_barter['status'] != barter['status']):
+            database['barters'][guid]['status'] = barter['status']
         
-        if (new_barter['tracked'] != barter['tracked']):
-                if (barter['tracked']):
-                    print_warning(f'You had previously tracked barter {barter["id"]} which will continue to be tracked')
-                    database = track_barter(database, new_barter['id'])[0]
-                else:
-                    database = untrack_barter(database, new_barter['id'])[0]
+        if (delta_barter['tracked'] != barter['tracked']):
+            if (barter['tracked']):
+                print_warning(f'You had previously tracked barter {guid} which will continue to be tracked')
+                database = track_barter(database, guid)
+            else:
+                database = untrack_barter(database, guid)
     
-    print_message('Completed barter delta import')
+    print_message('Completed barters delta import')
 
     # Crafts
-    craft_table = {}
+    for guid, craft in previous['crafts'].items():
+        if (guid not in database['crafts'].keys()):
+            print_warning(f'craft {guid} cannot be found in the new dataset. Data will be lost. Acknowledge? (Y/N)')
+            _confirmation_ = input('> ').lower()
 
-    for index, craft in enumerate(database['crafts']):
-        craft_table[craft['id']] = index
+            if (_confirmation_ == 'y'):
+                continue
+
+            print_message('Aborted')
+            write_database(tracker_file, previous)
+            return False
+
+        delta_craft = database['crafts'][guid]
+
+        if (delta_craft['status'] != craft['status']):
+            database['crafts'][guid]['status'] = craft['status']
+        
+        if (delta_craft['tracked'] != craft['tracked']):
+            if (craft['tracked']):
+                print_warning(f'You had previously tracked craft {guid} which will continue to be tracked')
+                database = track_craft(database, guid)
+            else:
+                database = untrack_craft(database, guid)
     
-    if ('crafts' in memory.keys()):
-        for craft in memory['crafts']:
-            if (craft['id'] not in craft_table):
-                print_warning(f'Craft {craft["id"]} cannot be found in the new dataset. Data will be lost. Acknowledge? (Y/N)')
-                _confirmation_ = input('> ').lower()
-
-                if (_confirmation_ == 'y'):
-                    continue
-
-                print_message('Aborted')
-                write_database(tracker_file, memory)
-                return False
-
-            new_craft = database['crafts'][craft_table[craft['id']]]
-
-            if (new_craft['tracked'] != craft['tracked']):
-                if (craft['tracked']):
-                    print_warning(f'You had previously tracked craft recipe {craft["id"]} which will continue to be tracked')
-                    database = track_craft(database, new_craft['id'])[0]
-                else:
-                    database = untrack_craft(database, new_craft['id'])[0]
-    
-    print_message('Completed craft recipes delta import')
+    print_message('Completed crafts delta import')
 
     # Inventory
-    for item in database['inventory'].keys():
-        if (item not in memory['inventory'].keys()):
-            print_warning(f'Inventory item {guid_to_item(database, item)} cannot be found in the new inventory. Data will be lost. Acknowledge? (Y/N)')
+    for guid, item in database['items'].items():
+        if (guid not in previous['items'].keys()):
+            print_warning(f'Item {item["shortName"]} cannot be found in the new inventory. Data will be lost. Acknowledge? (Y/N)')
             _confirmation_ = input('> ').lower()
             
             if (_confirmation_ == 'y'):
                 continue
 
             print_message('Aborted')
-            write_database(tracker_file, memory)
+            write_database(tracker_file, previous)
             return False
         
-        if (database['inventory'][item]['have_nir'] != memory['inventory'][item]['have_nir']):
-            database['inventory'][item]['have_nir'] = memory['inventory'][item]['have_nir']
+        if (database['items'][item]['have_nir'] != previous['items'][item]['have_nir']):
+            database['items'][item]['have_nir'] = previous['items'][item]['have_nir']
 
-        if (database['inventory'][item]['have_fir'] != memory['inventory'][item]['have_fir']):
-            database['inventory'][item]['have_fir'] = memory['inventory'][item]['have_fir']
+        if (database['items'][item]['have_fir'] != previous['items'][item]['have_fir']):
+            database['items'][item]['have_fir'] = previous['items'][item]['have_fir']
 
-        if (database['inventory'][item]['consumed_nir'] != memory['inventory'][item]['consumed_nir']):
-            database['inventory'][item]['consumed_nir'] = memory['inventory'][item]['consumed_nir']
+        if (database['items'][item]['consumed_nir'] != previous['items'][item]['consumed_nir']):
+            database['items'][item]['consumed_nir'] = previous['items'][item]['consumed_nir']
         
-        if (database['inventory'][item]['consumed_fir'] != memory['inventory'][item]['consumed_fir']):
-            database['inventory'][item]['consumed_fir'] = memory['inventory'][item]['consumed_fir']
+        if (database['items'][item]['consumed_fir'] != previous['items'][item]['consumed_fir']):
+            database['items'][item]['consumed_fir'] = previous['items'][item]['consumed_fir']
     
-    print_message('Completed inventory delta import')
-    database['player_level'] = memory['player_level']
-    database['last_price_refresh'] = memory['last_price_refresh']
+    print_message('Completed items delta import')
+    database['player_level'] = previous['player_level']
+    database['last_price_refresh'] = previous['last_price_refresh']
     print_message('Restored player level and price refresh data')
     write_database(tracker_file, database)
     print_message('Completed database delta import')

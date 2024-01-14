@@ -3684,7 +3684,7 @@ def restore(tracker_file):
     print_message(_display_)
     restore = input('> ')
 
-    if (not restore.isdigit() or int(restore) > len(saves)):
+    if (not restore.isdigit() or int(restore) > len(saves) or int(restore) < 1):
         print_error('Invalid restore argument')
         return False
     

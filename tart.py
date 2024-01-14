@@ -979,7 +979,7 @@ def display_bool(bool_value):
     
 def print_debug(message):
     if (DEBUG):
-        #print(f'>> (DEBUG) {message}')
+        print(f'>> (DEBUG) {message}')
         return True
     
     return False

@@ -2389,6 +2389,14 @@ def import_items(database, headers):
                 if (vendor['vendor']['normalizedName'] == 'skier'):
                     euro_to_roubles = int(vendor['price'])
 
+        if (item['id'] in database['items'].keys() and 'have_fir' in database['items'][item['id']].keys()):
+            item['have_fir'] = database['items'][item['id']]['have_fir']
+            item['have_nir'] = database['items'][item['id']]['have_nir']
+            item['need_fir'] = database['items'][item['id']]['need_fir']
+            item['need_nir'] = database['items'][item['id']]['need_nir']
+            item['consumed_fir'] = database['items'][item['id']]['consumed_fir']
+            item['consumed_nir'] = database['items'][item['id']]['consumed_nir']
+
     for item in items:
         guid = item['id']
         del item['id']
@@ -2810,7 +2818,11 @@ def display_items(items):
     items = alphabetize_items(items)
 
     for guid, item in items.items():
-        item_display = f'{item["have_nir"]}/{item["need_nir"]} ({item["have_fir"]}/{item["need_fir"]})'
+        try:
+            item_display = f'{item["have_nir"]}/{item["need_nir"]} ({item["have_fir"]}/{item["need_fir"]})'
+        except KeyError:
+            print(item)
+            return False
         sell_price = f'{format_price(item["sell_trade"], item["sell_trade_currency"])} / {format_price(item["sell_flea"], item["sell_flea_currency"])}'
         buy_price = f'{format_price(item["buy_trade"], item["buy_trade_currency"])} / {format_price(item["buy_flea"], item["buy_flea_currency"])}'
         display = display + '{:<25} {:<60} {:<25} {:<15} {:<12} {:<20} {:<12} {:<20}\n'.format(item['shortName'], item['normalizedName'], guid, item_display, item['sell_to'], sell_price, item['buy_from'], buy_price)
@@ -3090,7 +3102,7 @@ def search(tracker_file, argument, ignore_barters, ignore_crafts):
 
     if (datetime.fromisoformat(database['refresh']) < (datetime.now() - timedelta(hours = 24))):
         print_message('Item price data is over 24 hours old. Refreshing...')
-        database = import_items(database, headerse = {
+        database = import_items(database, headers = {
             'Content-Type': 'application/json'
         })
         write_database(tracker_file, database)

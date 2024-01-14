@@ -787,16 +787,12 @@ def normalize(text):
     normalized = re.sub(' +', ' ', normalized)
     return normalized
 
-def string_compare(comparable, comparator):
+def string_compare(comparable, comparator: str):
     comparable_words = normalize(comparable).split(' ')
     comparator_words = normalize(comparator).split(' ')
 
-    if (re.sub('-', '', comparator) == 'sicc' or comparator == 's i c c'):
-        print(comparable_words)
-        print(comparator_words)
-
     for comparable_word in comparable_words:
-        if (comparable_word not in comparator_words):
+        if (comparable_word not in comparator_words and not comparator.lower().replace('-', '').startswith(comparable.lower().replace('-', ''))):
             return False
 
     print_debug(f'>> {comparable_words} << == >> {comparator_words} <<')

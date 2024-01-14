@@ -3835,8 +3835,8 @@ def migrate(tracker_file, previous):
     print_message('Completed crafts migration')
 
     # Inventory
-    for item in previous['inventory']:
-        if (item['id'] not in database['items'].keys()):
+    for guid, item in previous['inventory'].items():
+        if (guid not in database['items'].keys()):
             print_warning(f'Item {item["normalizedName"]} cannot be found in the new inventory. Data will be lost. Acknowledge? (Y/N)')
             _confirmation_ = input('> ').lower()
             
@@ -3846,8 +3846,6 @@ def migrate(tracker_file, previous):
             print_message('Aborted')
             write_database(tracker_file, previous)
             return False
-        
-        guid = item['id']
         
         if (database['items'][guid]['have_nir'] != item['have_nir']):
             database['items'][guid]['have_nir'] = item['have_nir']

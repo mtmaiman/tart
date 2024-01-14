@@ -175,6 +175,7 @@ BUFFER = '----------------------------------------------------------------------
 ###################################################
 
 
+#TODO: Fix searching for hyphenated and S P A C E D things (i.e., a-2607 and S I C C)
 # Command parsing
 def parser(tracker_file, command):
     command = command.lower().split(' ')
@@ -803,7 +804,7 @@ def string_compare(comparable, comparator):
 
 def alphabetize_items(items):
     print_debug(f'Alphabetizing dict of size >> {len(items)} <<')
-    return {guid: item for guid, item in sorted(items.items(), key = lambda item: item[1]['shortName'])}
+    return {guid: item for guid, item in sorted(items.items(), key = lambda item: item[1]['shortName'].lower())}
 
 def format_price(price, currency):
     currency = currency.lower()
@@ -978,7 +979,7 @@ def display_bool(bool_value):
     
 def print_debug(message):
     if (DEBUG):
-        print(f'>> (DEBUG) {message}')
+        #print(f'>> (DEBUG) {message}')
         return True
     
     return False
@@ -1030,7 +1031,7 @@ def calculate_inventory(database):
                 if (fir):
                     database['items'][item_guid]['need_fir'] = database['items'][item_guid]['need_fir'] + objective['count']
                 else:
-                    database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_fir'] + objective['count']
+                    database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_nir'] + objective['count']
         
         if (task['neededKeys'] is not None and len(task['neededKeys']) > 0):
             for _key_ in task['neededKeys']:
@@ -1046,7 +1047,7 @@ def calculate_inventory(database):
 
         for requirement in station['itemRequirements']:
             item_guid = requirement['item']['id']
-            database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_fir'] + requirement['count']
+            database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_nir'] + requirement['count']
 
     print_message('Added all items required for tracked hideout stations to the database')
 
@@ -1056,7 +1057,7 @@ def calculate_inventory(database):
 
         for requirement in barter['requiredItems']:
             item_guid = requirement['item']['id']
-            database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_fir'] + requirement['count']
+            database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_nir'] + requirement['count']
 
     print_message('Added all items required for tracked barters to the database')
 
@@ -1066,7 +1067,7 @@ def calculate_inventory(database):
 
         for requirement in craft['requiredItems']:
             item_guid = requirement['item']['id']
-            database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_fir'] + requirement['count']
+            database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_nir'] + requirement['count']
 
     print_message('Added all items required for tracked crafts to the database')
     return database
@@ -1288,7 +1289,7 @@ def get_crafts(database):
     for guid, craft in database['crafts'].items():
         if (verify_craft(database, guid) == True):
             print_debug(f'Found available craft >> {guid} <<')
-            crafts.append(craft)
+            crafts[guid] = craft
 
     return crafts
 
@@ -3074,6 +3075,14 @@ def search(tracker_file, argument, ignore_barters, ignore_crafts):
         print_error('No database file found')
         return False
 
+    if (datetime.fromisoformat(database['refresh']) < (datetime.now() - timedelta(hours = 24))):
+        print_message('Item price data is over 24 hours old. Refreshing...')
+        database = import_items(database, headerse = {
+            'Content-Type': 'application/json'
+        })
+        write_database(tracker_file, database)
+        print_message('Complete')
+
     tasks = search_tasks(argument, database)
     hideout = search_hideout(argument, database)
     barters = search_barters(argument, database)
@@ -3107,6 +3116,14 @@ def required_search(tracker_file, argument, ignore_barters, ignore_crafts):
     if (not database):
         print_error('No database file found')
         return False
+    
+    if (datetime.fromisoformat(database['refresh']) < (datetime.now() - timedelta(hours = 24))):
+        print_message('Item price data is over 24 hours old. Refreshing...')
+        database = import_items(database, headerse = {
+            'Content-Type': 'application/json'
+        })
+        write_database(tracker_file, database)
+        print_message('Complete')
     
     tasks = search_tasks_by_item(argument, database)
     hideout = search_hideout_by_item(argument, database)
@@ -3406,12 +3423,12 @@ def import_data(tracker_file, delta_import = False):
     
     database = stage_inventory(database)
     database = calculate_inventory(database)
-
-    if (delta_import):
-        database = delta(tracker_file, database)
-
     write_database(tracker_file, database)
     print_message(f'Finished importing game data and saved to {tracker_file}')
+
+    if (delta_import):
+        delta(tracker_file)
+
     return True
 
 def delta(tracker_file):
@@ -3443,7 +3460,7 @@ def delta(tracker_file):
             write_database(tracker_file, previous)
             return False
 
-        delta_task = delta['tasks'][guid]
+        delta_task = database['tasks'][guid]
 
         if (delta_task['status'] != task['status']):
             database['tasks'][guid]['status'] = task['status']
@@ -3589,7 +3606,7 @@ def delta(tracker_file):
     
     print_message('Completed items delta import')
     database['player_level'] = previous['player_level']
-    database['last_price_refresh'] = previous['last_price_refresh']
+    database['refresh'] = previous['refresh']
     print_message('Restored player level and price refresh data')
     write_database(tracker_file, database)
     print_message('Completed database delta import')
@@ -3861,7 +3878,7 @@ def migrate(tracker_file, previous):
     
     print_message('Completed inventory delta import')
     database['player_level'] = previous['player_level']
-    database['last_price_refresh'] = previous['last_price_refresh']
+    database['refresh'] = previous['last_price_refresh']
     print_message('Restored player level and price refresh data')
     write_database(tracker_file, database)
     print_message('Completed database delta import')
@@ -3890,9 +3907,10 @@ def main(args):
 
     database = open_database(tracker_file)
 
-    if ('version' not in database.keys() or database['version'] != 'pineapple'):
-        print_warning('Your database is out of date and will be migrated')
-        migrate(tracker_file, database)
+    if (database):
+        if ('version' not in database.keys() or database['version'] != 'pineapple'):
+            print_warning('Your database is out of date and will be migrated')
+            migrate(tracker_file, database)
 
     while(True):
         command = input('> ')

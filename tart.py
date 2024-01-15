@@ -154,10 +154,10 @@ RESTORE_HELP = '''
 > restore\n
 Allows you to restore from a backup file. You can choose one of the two autosave backups or any manual backup within the 5 save slots
 '''
-ITEM_HEADER = '{:<25} {:<60} {:<25} {:<15} {:<12} {:<20} {:<12} {:<20}\n'.format('Item Short Name', 'Item Normalized Name', 'Item GUID', 'Inv (FIR)', 'Sell To', 'Trade / Flea', 'Buy From', 'Trade / Flea')
+ITEM_HEADER = '{:<25} {:<60} {:<25} {:<15} {:<12} {:<20} {:<12} {:<20}\n'.format('Item Short Name', 'Item Normalized Name', 'Item GUID', 'A/T/N (FIR)', 'Sell To', 'Trade / Flea', 'Buy From', 'Trade / Flea')
 MAP_HEADER = '{:<30} {:<20}\n'.format('Map Normalized Name', 'Map GUID')
 TRADER_HEADER = '{:<30} {:<20}\n'.format('Trader Normalized Name', 'Trader GUID')
-INVENTORY_HEADER = '{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} \n'.format('Item', 'Inv (FIR)', 'Item', 'Inv (FIR)', 'Item', 'Inv (FIR)', 'Item', 'Inv (FIR)')
+INVENTORY_HEADER = '{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} \n'.format('Item', 'A/T/N (FIR)', 'Item', 'A/T/N (FIR)', 'Item', 'A/T/N (FIR)', 'Item', 'A/T/N (FIR)')
 INVENTORY_HAVE_HEADER = '{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} \n'.format('Item', 'Have (FIR)', 'Item', 'Have (FIR)', 'Item', 'Have (FIR)', 'Item', 'Have (FIR)')
 INVENTORY_NEED_HEADER = '{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} \n'.format('Item', 'Need (FIR)', 'Item', 'Need (FIR)', 'Item', 'Need (FIR)', 'Item', 'Need (FIR)')
 TASK_HEADER = '{:<40} {:<20} {:<20} {:<20} {:<20} {:<20} {:<40}\n'.format('Task Title', 'Task Giver', 'Task Status', 'Tracked', 'Kappa?', 'Map', 'Task GUID')
@@ -175,7 +175,7 @@ BUFFER = '----------------------------------------------------------------------
 ###################################################
 
 
-#TODO: Fix map display (a lot show multi rn)
+#TODO: Show consumed in inventory
 # Command parsing
 def parser(tracker_file, command):
     command = command.lower().split(' ')
@@ -481,7 +481,7 @@ def parser(tracker_file, command):
             _confirmation_ = input('> ').lower()
 
             if (_confirmation_ == 'y'):
-                import_data(tracker_file, delta_import = False)
+                import_data(tracker_file)
             else:
                 print_debug(f'Abort >> {command[0]} << because >> {_confirmation_} <<')
                 print_message('Aborted')
@@ -1018,19 +1018,6 @@ def print_error(message):
 
 
 # Inventory functions
-def stage_inventory(database):
-    for guid, item in database['items'].items():
-        item['need_fir'] = 0
-        item['need_nir'] = 0
-        item['have_fir'] = 0
-        item['have_nir'] = 0
-        item['consumed_fir'] = 0
-        item['consumed_nir'] = 0
-        database['items'][guid] = item
-
-    print_message('Inventory staged')
-    return database
-
 def calculate_inventory(database):
     for guid, task in database['tasks'].items():
         if (not task['tracked']):
@@ -1040,6 +1027,9 @@ def calculate_inventory(database):
             if (objective['type'] == 'giveItem'):
                 item_guid = objective['item']['id']
                 fir = objective['foundInRaid']
+
+                if (item_guid == '59f32c3b86f77472a31742f0'):
+                    print(task)
 
                 if (fir):
                     database['items'][item_guid]['need_fir'] = database['items'][item_guid]['need_fir'] + objective['count']
@@ -2389,27 +2379,22 @@ def import_items(database, headers):
                 if (vendor['vendor']['normalizedName'] == 'skier'):
                     euro_to_roubles = int(vendor['price'])
 
-        if (item['id'] in database['items'].keys() and 'have_fir' in database['items'][item['id']].keys()):
-            item['have_fir'] = database['items'][item['id']]['have_fir']
-            item['have_nir'] = database['items'][item['id']]['have_nir']
-            item['need_fir'] = database['items'][item['id']]['need_fir']
-            item['need_nir'] = database['items'][item['id']]['need_nir']
-            item['consumed_fir'] = database['items'][item['id']]['consumed_fir']
-            item['consumed_nir'] = database['items'][item['id']]['consumed_nir']
-
     for item in items:
         guid = item['id']
-        del item['id']
         sell_price = 0
         sell_price_roubles = 0
-        sell_trader = ''
-        sell_currency = ''
-        sell_to = ''
+        sell_flea = 0
+        sell_flea_currency = 'N/A'
+        sell_trader = 'N/A'
+        sell_currency = 'N/A'
+        sell_to = 'N/A'
         buy_price = 0
         buy_price_roubles = sys.maxsize
-        buy_trader = ''
-        buy_currency = ''
-        buy_from = ''
+        buy_flea = 0
+        buy_flea_currency = 'N/A'
+        buy_trader = 'N/A'
+        buy_currency = 'N/A'
+        buy_from = 'N/A'
         
         for vendor in item['sellFor']:
             this_price = int(vendor['price'])
@@ -2429,8 +2414,8 @@ def import_items(database, headers):
                     item['fleaMarketFee'] = 100000000
                 
                 this_price_roubles = this_price_roubles - item['fleaMarketFee']
-                item['sell_flea'] = this_price
-                item['sell_flea_currency'] = this_currency
+                sell_flea = this_price
+                sell_flea_currency = this_currency
 
                 if (this_price_roubles > sell_price_roubles):
                     sell_to = 'flea'
@@ -2469,8 +2454,8 @@ def import_items(database, headers):
 
             if (vendor['vendor']['normalizedName'] == 'flea-market'):                
                 this_price_roubles = this_price_roubles
-                item['buy_flea'] = this_price
-                item['buy_flea_currency'] = this_currency
+                buy_flea = this_price
+                buy_flea_currency = this_currency
 
                 if (this_price_roubles < buy_price_roubles):
                     buy_from = 'flea'
@@ -2482,25 +2467,30 @@ def import_items(database, headers):
                 buy_currency = this_currency
                 buy_from = buy_trader
 
-        if ('buy_flea' not in item.keys()):
-            item['buy_flea'] = 0
-            item['buy_flea_currency'] = 'N/A'
+        if (guid not in database['items'].keys()):
+            database['items'][guid] = {
+                'need_fir': 0,
+                'need_nir': 0,
+                'have_fir': 0,
+                'have_nir': 0,
+                'consumed_fir': 0,
+                'consumed_nir': 0
+            }
 
-        if (buy_price == 0):
-            item['buy_trader'] = ''
-            item['buy_trade'] = 0
-            item['buy_trade_currency'] = 'N/A'
-        else:
-            item['buy_trader'] = buy_trader
-            item['buy_trade'] = buy_price
-            item['buy_trade_currency'] = buy_currency
-
-        del item['sellFor']
-        del item['buyFor']
-        del item['fleaMarketFee']
-        item['sell_to'] = sell_to
-        item['buy_from'] = buy_from
-        database['items'][guid] = item
+        database['items'][guid]['normalizedName'] = item['normalizedName']
+        database['items'][guid]['shortName'] = item['shortName']
+        database['items'][guid]['sell_flea'] = sell_flea
+        database['items'][guid]['sell_flea_currency'] = sell_flea_currency
+        database['items'][guid]['sell_trader'] = sell_trader
+        database['items'][guid]['sell_trade'] = sell_price
+        database['items'][guid]['sell_trade_currency'] = sell_currency
+        database['items'][guid]['buy_flea'] = buy_flea
+        database['items'][guid]['buy_flea_currency'] = buy_flea_currency
+        database['items'][guid]['buy_trader'] = buy_trader
+        database['items'][guid]['buy_trade'] = buy_price
+        database['items'][guid]['buy_trade_currency'] = buy_currency
+        database['items'][guid]['sell_to'] = sell_to
+        database['items'][guid]['buy_from'] = buy_from
 
     database['refresh'] = datetime.now().isoformat()
     print_message(f'Successfully loaded item data into the database!')
@@ -2581,51 +2571,39 @@ def import_traders(database, headers):
     return database
 
 # Display
-def display_inventory(items, output_type = INV):
+def display_inventory(items, filtered = False):
     items = alphabetize_items(items)
-
-    if (output_type == INV):
-        display = INVENTORY_HEADER + BUFFER
-    elif (output_type == HAVE):
-        display = INVENTORY_HAVE_HEADER + BUFFER
-    else:
-        display = INVENTORY_NEED_HEADER + BUFFER
-    
+    display = 'Available / Total / Need\n\n'
+    display = display + INVENTORY_HEADER + BUFFER
     _row_ = 1
     
     for guid, item in items.items():
-        nir, fir = None, None
+        nir, fir = False, False
         _completed_ = 0
         _overstock_ = False
         prefix = ''
 
-        if (output_type == HAVE or item['need_nir'] > 0):
-            if (output_type == NEED):
-                nir = item['need_nir']
-            elif (output_type == 'have'):
-                nir = item['have_nir']
-            else:
-                if (item['have_nir'] >= item['need_nir']):
-                    _completed_ = 1
+        # Skip currencies
+        if (guid in ['5449016a4bdc2d6f028b456f', '5696686a4bdc2da3298b456a', '569668774bdc2da2298b4568']):
+            continue
 
-                    if (item['have_nir'] > item['need_nir']):
-                        _overstock_ = True
+        if ((item['need_nir'] > 0 or item['have_nir'] > 0) and not (filtered and item['need_nir'] == 0)):
+            if (item['have_nir'] > item['need_nir']):
+                _overstock_ = True
 
-                nir = f'{item["have_nir"]}/{item["need_nir"]}'
+            if (item['have_nir'] >= item['need_nir'] and item['need_nir'] != 0):
+                _completed_ = 1
+
+            nir = f'{item["have_nir"] - item["consumed_nir"]}/{item["have_nir"]}/{item["need_nir"]}'
         
-        if (output_type == HAVE or item['need_fir'] > 0):
-            if (output_type == NEED):
-                fir = item['need_fir']
-            elif (output_type == HAVE):
-                fir = item['have_fir']
-            else:
-                if (item['have_fir'] >= item['need_fir']):
-                    _completed_ = _completed_ + 2
-                    
-                    if (item['have_fir'] > item['need_fir']):
-                        _overstock_ = True
+        if ((item['have_fir'] > 0 or item['need_fir'] > 0) and not (filtered and item['need_fir'] == 0)):
+            if (item['have_fir'] > item['need_fir']):
+                _overstock_ = True
 
-                fir = f'{item["have_fir"]}/{item["need_fir"]}'
+            if (item['have_fir'] >= item['need_fir'] and item['need_fir'] != 0):
+                _completed_ = _completed_ + 2
+
+            fir = f'{item["have_fir"] - item["consumed_fir"]}/{item["have_fir"]}/{item["need_fir"]}'
 
         if ((_completed_ == 1 and item['need_fir'] == 0) or (_completed_ == 2 and item['need_nir'] == 0) or _completed_ == 3):
             if (_overstock_):
@@ -2652,7 +2630,73 @@ def display_inventory(items, output_type = INV):
     
     display = display + '\n\n'
     print_message(f'\n{display}')
-    return
+    return True
+
+def display_have(items):
+    items = alphabetize_items(items)
+    display = INVENTORY_HAVE_HEADER + BUFFER
+    _row_ = 1
+    
+    for guid, item in items.items():
+        nir, fir = False, False
+
+        if (item['have_nir'] > 0):
+            nir = f'{item["have_nir"]}'
+        
+        if (item['have_fir'] > 0):
+            fir = f'{item["have_fir"]}'
+
+        if (nir and fir):
+            display = display + '{:<20} {:<20} '.format(f'{item["shortName"]}', f'{nir} ({fir})')
+        elif (nir):
+            display = display + '{:<20} {:<20} '.format(f'{item["shortName"]}', nir)
+        elif (fir):
+            display = display + '{:<20} {:<20} '.format(f'{item["shortName"]}', f'({fir})')
+        else:
+            continue
+        
+        if (_row_ == 4):
+            display = display.strip(' ') + '\n'
+            _row_ = 0
+
+        _row_ = _row_ + 1
+    
+    display = display + '\n\n'
+    print_message(f'\n{display}')
+    return True
+
+def display_need(items):
+    items = alphabetize_items(items)
+    display = INVENTORY_NEED_HEADER + BUFFER
+    _row_ = 1
+    
+    for guid, item in items.items():
+        nir, fir = False, False
+
+        if (item['need_nir'] > 0):
+            nir = f'{item["need_nir"]}'
+        
+        if (item['need_fir'] > 0):
+            fir = f'{item["need_fir"]}'
+
+        if (nir and fir):
+            display = display + '{:<20} {:<20} '.format(f'{item["shortName"]}', f'{nir} ({fir})')
+        elif (nir):
+            display = display + '{:<20} {:<20} '.format(f'{item["shortName"]}', nir)
+        elif (fir):
+            display = display + '{:<20} {:<20} '.format(f'{item["shortName"]}', f'({fir})')
+        else:
+            continue
+        
+        if (_row_ == 4):
+            display = display.strip(' ') + '\n'
+            _row_ = 0
+
+        _row_ = _row_ + 1
+    
+    display = display + '\n\n'
+    print_message(f'\n{display}')
+    return True
 
 def display_tasks(database, tasks):
     display = TASK_HEADER + BUFFER
@@ -2814,12 +2858,13 @@ def display_untracked(database, untracked):
     return True
 
 def display_items(items):
-    display = ITEM_HEADER + BUFFER
+    display = 'Available / Total / Need\n\n'
+    display = display + ITEM_HEADER + BUFFER
     items = alphabetize_items(items)
 
     for guid, item in items.items():
         try:
-            item_display = f'{item["have_nir"]}/{item["need_nir"]} ({item["have_fir"]}/{item["need_fir"]})'
+            item_display = f'{item["have_nir"] - item["consumed_nir"]}/{item["have_nir"]}/{item["need_nir"]} ({item["have_fir"] - item["consumed_fir"]}/{item["have_fir"]}/{item["need_fir"]})'
         except KeyError:
             print(item)
             return False
@@ -2904,7 +2949,7 @@ def inventory_tasks(tracker_file):
     if (len(task_items) == 0):
         print_message('No items are required for tasks')
     else:
-        display_inventory(task_items)
+        display_inventory(task_items, filtered = True)
 
     return True
 
@@ -2919,7 +2964,7 @@ def inventory_hideout(tracker_file):
     if (len(hideout_items) == 0):
         print_message('No items are required for the hideout')
     else:
-        display_inventory(hideout_items)
+        display_inventory(hideout_items, filtered = True)
 
     return True
 
@@ -2934,7 +2979,7 @@ def inventory_barters(tracker_file):
     if (len(barter_items) == 0):
         print_message('No items are required for barters')
     else:
-        display_inventory(barter_items)
+        display_inventory(barter_items, filtered = True)
 
     return True
 
@@ -2949,7 +2994,7 @@ def inventory_crafts(tracker_file):
     if (len(craft_items) == 0):
         print_message('No items are required for crafts')
     else:
-        display_inventory(craft_items)
+        display_inventory(craft_items, filtered = True)
 
     return True
 
@@ -2964,7 +3009,7 @@ def inventory_have(tracker_file):
     if (len(have_items) == 0):
         print_message('You have not collected any items')
     else:
-        display_inventory(have_items, output_type = HAVE)
+        display_have(have_items)
 
     return True
 
@@ -2979,7 +3024,7 @@ def inventory_need(tracker_file):
     if (len(need_items) == 0):
         print_message('No items needed. CONGRATULATIONS!')
     else:
-        display_inventory(need_items, output_type = NEED)
+        display_need(need_items)
 
     return True
 
@@ -3289,7 +3334,6 @@ def write_item_fir(tracker_file, count, argument):
     database = add_item_fir(database, count, guid)
 
     if (not database):
-        print_error('No database file found')
         return False
 
     write_database(tracker_file, database)
@@ -3306,7 +3350,6 @@ def write_item_nir(tracker_file, count, argument):
     database = add_item_nir(database, count, guid)
 
     if (not database):
-        print_error('No database file found')
         return False
 
     write_database(tracker_file, database)
@@ -3324,7 +3367,6 @@ def unwrite_item_fir(tracker_file, count, argument):
     database = del_item_fir(database, count, guid)
 
     if (not database):
-        print_error('No database file found')
         return False
 
     write_database(tracker_file, database)
@@ -3341,7 +3383,6 @@ def unwrite_item_nir(tracker_file, count, argument):
     database = del_item_nir(database, count, guid)
 
     if (not database):
-        print_error('No database file found')
         return False
 
     write_database(tracker_file, database)
@@ -3446,7 +3487,6 @@ def import_data(tracker_file):
         print_error('Encountered error while importing items. Import aborted')
         return False
     
-    database = stage_inventory(database)
     database = calculate_inventory(database)
     write_database(tracker_file, database)
     print_message(f'Finished importing game data and saved to {tracker_file}')

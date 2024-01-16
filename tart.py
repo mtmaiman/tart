@@ -1560,7 +1560,7 @@ def track_barter(database, guid):
     barter = database['barters'][guid]
 
     if (barter['tracked']):
-        print_message(f'Already tracking {barter["id"]}')
+        print_message(f'Already tracking {guid}')
         return database
     
     for requirement in barter['requiredItems']:
@@ -1580,7 +1580,7 @@ def track_craft(database, guid):
     craft = database['crafts'][guid]
 
     if (craft['tracked']):
-        print_message(f'Already tracking {craft["id"]}')
+        print_message(f'Already tracking {guid}')
         return database
     
     for requirement in craft['requiredItems']:

@@ -13,6 +13,8 @@ except ModuleNotFoundError as exception:
     exit(1)
 
 
+VERSION = 'cherry'
+
 DEBUG = False
 
 INV = 0
@@ -162,8 +164,8 @@ INVENTORY_HAVE_HEADER = '{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20}
 INVENTORY_NEED_HEADER = '{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} \n'.format('Item', 'Need (FIR)', 'Item', 'Need (FIR)', 'Item', 'Need (FIR)', 'Item', 'Need (FIR)')
 TASK_HEADER = '{:<40} {:<20} {:<20} {:<20} {:<20} {:<20} {:<40}\n'.format('Task Title', 'Task Giver', 'Task Status', 'Tracked', 'Kappa?', 'Map', 'Task GUID')
 HIDEOUT_HEADER = '{:<40} {:<20} {:<20} {:<40}\n'.format('Station Name', 'Station Status', 'Tracked', 'Station GUID')
-BARTER_HEADER = '{:<40} {:<20} {:<20} {:<20}\n'.format('Barter GUID', 'Trader', 'Loyalty Level', 'Tracked')
-CRAFT_HEADER = '{:<40} {:<30} {:<20}\n'.format('Craft Recipe GUID', 'Station', 'Tracked')
+BARTER_HEADER = '{:<40} {:<20} {:<20} {:<20}\n'.format('Barter GUID', 'Trader', 'Loyalty Level', 'Barter Status', 'Tracked')
+CRAFT_HEADER = '{:<40} {:<30} {:<20}\n'.format('Craft Recipe GUID', 'Station', 'Craft Status', 'Tracked')
 UNTRACKED_HEADER = '{:<40} {:<20} {:<20} {:<20}\n'.format('Entity Name', 'Type', 'Tracked', 'Kappa?')
 BUFFER = '-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n'
 
@@ -175,7 +177,7 @@ BUFFER = '----------------------------------------------------------------------
 ###################################################
 
 
-#TODO: Show consumed in inventory
+#TODO: Show status of crafts and barters
 # Command parsing
 def parser(tracker_file, command):
     command = command.lower().split(' ')
@@ -2794,7 +2796,7 @@ def display_barters(database, barters):
     display = BARTER_HEADER + BUFFER
 
     for guid, barter in barters.items():
-        display = display + '{:<40} {:<20} {:<20} {:<20}\n'.format(guid, database['traders'][barter['trader']['id']]['normalizedName'], barter['level'], display_bool(barter['tracked']))
+        display = display + '{:<40} {:<20} {:<20} {:<20} {:<20}\n'.format(guid, database['traders'][barter['trader']['id']]['normalizedName'], barter['level'], barter['status'],display_bool(barter['tracked']))
 
         for item in barter['requiredItems']:
             item_guid = item['item']['id']
@@ -2821,7 +2823,7 @@ def display_crafts(database, crafts):
     display = CRAFT_HEADER + BUFFER
 
     for guid, craft in crafts.items():
-        display = display + '{:<40} {:<30} {:<20}\n'.format(guid, database['hideout'][craft['station']['id'] + '-' + str(craft['level'])]['normalizedName'], display_bool(craft['tracked']))
+        display = display + '{:<40} {:<30} {:<20} {:<20}\n'.format(guid, database['hideout'][craft['station']['id'] + '-' + str(craft['level'])]['normalizedName'], craft['status'], display_bool(craft['tracked']))
 
         for item in craft['requiredItems']:
             item_guid = item['item']['id']
@@ -3440,7 +3442,7 @@ def import_data(tracker_file):
         'traders': {},
         'player_level': 1,
         'refresh': -1,
-        'version': 'pineapple'
+        'version': VERSION
     }
     headers = {
         'Content-Type': 'application/json'
@@ -3783,8 +3785,7 @@ def main(args):
 
     if (database):
         if ('version' not in database.keys() or database['version'] != 'pineapple'):
-            print_warning('Your database is out of date and will be migrated')
-            migrate(tracker_file, database)
+            print_warning('Your database is out of date. Please perform a delta import!')
 
     while(True):
         command = input('> ')

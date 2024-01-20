@@ -2800,7 +2800,7 @@ def display_barters(database, barters):
     display = BARTER_HEADER + BUFFER
 
     for guid, barter in barters.items():
-        display = display + '{:<40} {:<20} {:<20} {:<20} {:<20} {:<20}\n'.format(guid, database['traders'][barter['trader']['id']]['normalizedName'], barter['level'], barter['status'], display_bool(barter['tracked'], barter['restarts']))
+        display = display + '{:<40} {:<20} {:<20} {:<20} {:<20} {:<20}\n'.format(guid, database['traders'][barter['trader']['id']]['normalizedName'], barter['level'], barter['status'], display_bool(barter['tracked']), barter['restarts'])
 
         for item in barter['requiredItems']:
             item_guid = item['item']['id']
@@ -2827,7 +2827,7 @@ def display_crafts(database, crafts):
     display = CRAFT_HEADER + BUFFER
 
     for guid, craft in crafts.items():
-        display = display + '{:<40} {:<30} {:<20} {:<20} {:<20}\n'.format(guid, database['hideout'][craft['station']['id'] + '-' + str(craft['level'])]['normalizedName'], craft['status'], display_bool(craft['tracked'], craft['restarts']))
+        display = display + '{:<40} {:<30} {:<20} {:<20} {:<20}\n'.format(guid, database['hideout'][craft['station']['id'] + '-' + str(craft['level'])]['normalizedName'], craft['status'], display_bool(craft['tracked']), craft['restarts'])
 
         for item in craft['requiredItems']:
             item_guid = item['item']['id']

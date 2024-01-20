@@ -164,8 +164,8 @@ INVENTORY_HAVE_HEADER = '{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20}
 INVENTORY_NEED_HEADER = '{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} \n'.format('Item', 'Need (FIR)', 'Item', 'Need (FIR)', 'Item', 'Need (FIR)', 'Item', 'Need (FIR)')
 TASK_HEADER = '{:<40} {:<20} {:<20} {:<20} {:<20} {:<20} {:<40}\n'.format('Task Title', 'Task Giver', 'Task Status', 'Tracked', 'Kappa?', 'Map', 'Task GUID')
 HIDEOUT_HEADER = '{:<40} {:<20} {:<20} {:<40}\n'.format('Station Name', 'Station Status', 'Tracked', 'Station GUID')
-BARTER_HEADER = '{:<40} {:<20} {:<20} {:<20}\n'.format('Barter GUID', 'Trader', 'Loyalty Level', 'Barter Status', 'Tracked')
-CRAFT_HEADER = '{:<40} {:<30} {:<20}\n'.format('Craft Recipe GUID', 'Station', 'Craft Status', 'Tracked')
+BARTER_HEADER = '{:<40} {:<20} {:<20} {:<20} {:<20} {:<20}\n'.format('Barter GUID', 'Trader', 'Loyalty Level', 'Barter Status', 'Tracked', 'Restarts')
+CRAFT_HEADER = '{:<40} {:<30} {:<20} {:<20} {:<20}\n'.format('Craft Recipe GUID', 'Station', 'Craft Status', 'Tracked', 'Restarts')
 UNTRACKED_HEADER = '{:<40} {:<20} {:<20} {:<20}\n'.format('Entity Name', 'Type', 'Tracked', 'Kappa?')
 BUFFER = '-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n'
 
@@ -177,7 +177,7 @@ BUFFER = '----------------------------------------------------------------------
 ###################################################
 
 
-#TODO: Show status of crafts and barters
+#TODO: Keep track of how many times a barter or craft has been restarted for delta import
 # Command parsing
 def parser(tracker_file, command):
     command = command.lower().split(' ')
@@ -1959,6 +1959,7 @@ def restart_barter(database, guid):
         print_message(f'{need_nir} more {item_name} (NIR) now needed')
     
     database['barters'][guid]['status'] = 'incomplete'
+    database['barters'][guid]['restarts'] = database['barters'][guid]['restarts'] + 1
     print_message(f'{guid} restarted')
     return database
 
@@ -1982,6 +1983,7 @@ def restart_craft(database, guid):
         print_message(f'{need_nir} more {item_name} (NIR) now needed')
     
     database['crafts'][guid]['status'] = 'incomplete'
+    database['crafts'][guid]['restarts'] = database['crafts'][guid]['restarts'] + 1
     print_message(f'{guid} restarted')
     return database
 
@@ -2270,6 +2272,7 @@ def import_barters(database, headers):
         del barter['id']
         barter['status'] = 'incomplete'
         barter['tracked'] = False
+        barter['restarts'] = 0
         database['barters'][guid] = barter
 
     print_message(f'Successfully loaded barter data into the database!')
@@ -2323,6 +2326,7 @@ def import_crafts(database, headers):
         del craft['id']
         craft['status'] = 'incomplete'
         craft['tracked'] = False
+        craft['restarts'] = 0
         database['crafts'][guid] = craft
     
     print_message(f'Successfully loaded craft data into the database!')
@@ -2796,7 +2800,7 @@ def display_barters(database, barters):
     display = BARTER_HEADER + BUFFER
 
     for guid, barter in barters.items():
-        display = display + '{:<40} {:<20} {:<20} {:<20} {:<20}\n'.format(guid, database['traders'][barter['trader']['id']]['normalizedName'], barter['level'], barter['status'],display_bool(barter['tracked']))
+        display = display + '{:<40} {:<20} {:<20} {:<20} {:<20} {:<20}\n'.format(guid, database['traders'][barter['trader']['id']]['normalizedName'], barter['level'], barter['status'], display_bool(barter['tracked'], barter['restarts']))
 
         for item in barter['requiredItems']:
             item_guid = item['item']['id']
@@ -2823,7 +2827,7 @@ def display_crafts(database, crafts):
     display = CRAFT_HEADER + BUFFER
 
     for guid, craft in crafts.items():
-        display = display + '{:<40} {:<30} {:<20} {:<20}\n'.format(guid, database['hideout'][craft['station']['id'] + '-' + str(craft['level'])]['normalizedName'], craft['status'], display_bool(craft['tracked']))
+        display = display + '{:<40} {:<30} {:<20} {:<20} {:<20}\n'.format(guid, database['hideout'][craft['station']['id'] + '-' + str(craft['level'])]['normalizedName'], craft['status'], display_bool(craft['tracked'], craft['restarts']))
 
         for item in craft['requiredItems']:
             item_guid = item['item']['id']
@@ -3612,6 +3616,19 @@ def delta(tracker_file):
                 database = track_barter(database, guid)
             else:
                 database = untrack_barter(database, guid)
+
+        if ('restarts' in barter.keys() and barter['restarts'] > 0):
+            for _restart_ in range(barter['restarts']):
+                for requirement in barter['requiredItems']:
+                    item_guid = requirement['item']['id']
+                    item_name = database['items'][item_guid]['shortName']
+                    count = requirement['count']
+                    database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_nir'] + count
+                    print_debug(f'Adding >> {count} << of >> {item_guid} << for requirement')
+                    print_message(f'{count} more {item_name} (NIR) now needed')
+            
+            database['barters'][guid]['restarts'] = barter['restarts']
+            print_message(f'Barter {guid} had been restarted {barter["restarts"]} times. Item counts for this have been retained')
     
     print_message('Completed barters delta import')
 
@@ -3639,6 +3656,19 @@ def delta(tracker_file):
                 database = track_craft(database, guid)
             else:
                 database = untrack_craft(database, guid)
+
+        if ('restarts' in craft.keys() and craft['restarts'] > 0):
+            for _restart_ in range(craft['restarts']):
+                for requirement in craft['requiredItems']:
+                    item_guid = requirement['item']['id']
+                    item_name = database['items'][item_guid]['shortName']
+                    count = requirement['count']
+                    database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_nir'] + count
+                    print_debug(f'Adding >> {count} << of >> {item_guid} << for requirement')
+                    print_message(f'{count} more {item_name} (NIR) now needed')
+
+            database['crafts'][guid]['restarts'] = craft['restarts']
+            print_message(f'Craft {guid} had been restarted {craft["restarts"]} times. Item counts for this have been retained')
     
     print_message('Completed crafts delta import')
 
@@ -3784,7 +3814,7 @@ def main(args):
     database = open_database(tracker_file)
 
     if (database):
-        if ('version' not in database.keys() or database['version'] != 'pineapple'):
+        if ('version' not in database.keys() or database['version'] != VERSION):
             print_warning('Your database is out of date. Please perform a delta import!')
 
     while(True):

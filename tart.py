@@ -944,6 +944,8 @@ def add_item_nir(database, count, guid):
         database['items'][guid]['have_nir'] = database['items'][guid]['have_nir'] + count
         print_message(f'Added {count} {item_name} (NIR)')
 
+    hideout_readiness(database, guid)
+
     if (not database):
         print_error('Something went wrong. Aborted')
         return False
@@ -984,6 +986,24 @@ def del_item_nir(database, count, guid):
     remaining = database['items'][guid]['have_nir']
     print_message(f'Removed {count} {item_name} (NIR) ({remaining} remaining NIR)')
     return database
+
+# Hideout Readiness
+def hideout_readiness(database, guid):
+    ready = False
+
+    for station in database['hideout']:
+        for requirement in station['itemRequirements']:
+            if (database['items'][requirement['item']['id']]['available_nir'] < requirement['count']):
+                ready = False
+                break
+            elif (requirement['item']['id'] == guid):
+                ready = True
+        else:
+            if (ready):
+                print_message(f'{station['normalizedName']} is ready to complete')
+                return True
+            
+    return False
 
 # Console output
 def display_bool(bool_value):

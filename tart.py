@@ -177,6 +177,7 @@ BUFFER = '----------------------------------------------------------------------
 ###################################################
 
 
+#TODO: Add ready to complete notifications
 # Command parsing
 def parser(tracker_file, command):
     command = command.lower().split(' ')
@@ -1028,9 +1029,6 @@ def calculate_inventory(database):
             if (objective['type'] == 'giveItem'):
                 item_guid = objective['item']['id']
                 fir = objective['foundInRaid']
-
-                if (item_guid == '59f32c3b86f77472a31742f0'):
-                    print(task)
 
                 if (fir):
                     database['items'][item_guid]['need_fir'] = database['items'][item_guid]['need_fir'] + objective['count']
@@ -3592,33 +3590,66 @@ def delta(tracker_file):
     print_message('Completed hideout delta import')
 
     # Barters
-    for guid, barter in previous['barters'].items():
-        if (guid not in database['barters'].keys()):
-            print_warning(f'Barter {guid} cannot be found in the new dataset. Data will be lost. Acknowledge? (Y/N)')
-            _confirmation_ = input('> ').lower()
+    matched_guid = False
 
-            if (_confirmation_ == 'y'):
-                continue
-
-            print_message('Aborted')
-            write_database(tracker_file, previous)
-            return False
-
-        delta_barter = database['barters'][guid]
-
-        if (delta_barter['status'] != barter['status']):
-            database['barters'][guid]['status'] = barter['status']
-        
-        if (delta_barter['tracked'] != barter['tracked']):
-            if (barter['tracked']):
-                print_warning(f'You had previously tracked barter {guid} which will continue to be tracked')
-                database = track_barter(database, guid)
+    for previous_guid, previous_barter in previous['barters'].items():
+        if (previous_guid not in database['barters'].keys()):
+            for delta_guid, delta_barter in database['barters'].items():
+                for previous_requirement in previous_barter['requiredItems']:
+                    for delta_requirement in delta_barter['requiredItems']:
+                        if (previous_requirement['item']['id'] == delta_requirement['item']['id'] and previous_requirement['count'] == delta_requirement['count']):
+                            # match for this requirement
+                            break
+                    else:
+                        # did not match this requirement, move on to next delta_barter
+                        break
+                    # match for this requirement, continue to next requirement
+                    continue
+                else:
+                    # matched all requirements
+                    for previous_reward in previous_barter['rewardItems']:
+                        for delta_reward in delta_barter['rewardItems']:
+                            if (previous_reward['item']['id'] == delta_reward['item']['id'] and previous_reward['count'] == delta_reward['count']):
+                                # match for this reward
+                                break
+                        else:
+                            # did not match this reward, move on to next delta_barter
+                            break
+                        # match for this reward, continue to next reward
+                        continue
+                    else:
+                        # matched all requirements and rewards
+                        print_warning(f'The GUID of barter {previous_guid} has changed. Merging data into new barter GUID {delta_guid}')
+                        matched_guid = delta_guid
+                        break
+                    # did not match this barter, move on to next delta_barter
+                    continue
             else:
-                database = untrack_barter(database, guid)
+                # no match found for any delta_barter
+                print_warning(f'Could not find a new barter matching the following. Data for this barter will be lost!')
+                display_barters(database, {previous_guid: previous_barter})
+                matched_guid = False
+        else:
+            matched_guid = previous_guid
 
-        if ('restarts' in barter.keys() and barter['restarts'] > 0):
-            for _restart_ in range(barter['restarts']):
-                for requirement in barter['requiredItems']:
+        if (not matched_guid):
+            continue
+
+        delta_barter = database['barters'][matched_guid]
+
+        if (delta_barter['status'] != previous_barter['status']):
+            database['barters'][matched_guid]['status'] = previous_barter['status']
+        
+        if (delta_barter['tracked'] != previous_barter['tracked']):
+            if (previous_barter['tracked']):
+                print_warning(f'You had previously tracked barter {matched_guid} which will continue to be tracked')
+                database = track_barter(database, matched_guid)
+            else:
+                database = untrack_barter(database, matched_guid)
+
+        if ('restarts' in previous_barter.keys() and previous_barter['restarts'] > 0):
+            for _restart_ in range(previous_barter['restarts']):
+                for requirement in previous_barter['requiredItems']:
                     item_guid = requirement['item']['id']
                     item_name = database['items'][item_guid]['shortName']
                     count = requirement['count']
@@ -3626,48 +3657,81 @@ def delta(tracker_file):
                     print_debug(f'Adding >> {count} << of >> {item_guid} << for requirement')
                     print_message(f'{count} more {item_name} (NIR) now needed')
             
-            database['barters'][guid]['restarts'] = barter['restarts']
-            print_message(f'Barter {guid} had been restarted {barter["restarts"]} times. Item counts for this have been retained')
+            database['barters'][matched_guid]['restarts'] = previous_barter['restarts']
+            print_message(f'Barter {matched_guid} had been restarted {previous_barter["restarts"]} times. Item counts for this have been retained')
     
     print_message('Completed barters delta import')
 
     # Crafts
-    for guid, craft in previous['crafts'].items():
-        if (guid not in database['crafts'].keys()):
-            print_warning(f'craft {guid} cannot be found in the new dataset. Data will be lost. Acknowledge? (Y/N)')
-            _confirmation_ = input('> ').lower()
+    matched_guid = False
 
-            if (_confirmation_ == 'y'):
-                continue
-
-            print_message('Aborted')
-            write_database(tracker_file, previous)
-            return False
-
-        delta_craft = database['crafts'][guid]
-
-        if (delta_craft['status'] != craft['status']):
-            database['crafts'][guid]['status'] = craft['status']
-        
-        if (delta_craft['tracked'] != craft['tracked']):
-            if (craft['tracked']):
-                print_warning(f'You had previously tracked craft {guid} which will continue to be tracked')
-                database = track_craft(database, guid)
+    for previous_guid, previous_craft in previous['crafts'].items():
+        if (previous_guid not in database['crafts'].keys()):
+            for delta_guid, delta_craft in database['crafts'].items():
+                for previous_requirement in previous_craft['requiredItems']:
+                    for delta_requirement in delta_craft['requiredItems']:
+                        if (previous_requirement['item']['id'] == delta_requirement['item']['id'] and previous_requirement['count'] == delta_requirement['count']):
+                            # match for this requirement
+                            break
+                    else:
+                        # did not match this requirement, move on to next delta_craft
+                        break
+                    # match for this requirement, continue to next requirement
+                    continue
+                else:
+                    # matched all requirements
+                    for previous_reward in previous_craft['rewardItems']:
+                        for delta_reward in delta_craft['rewardItems']:
+                            if (previous_reward['item']['id'] == delta_reward['item']['id'] and previous_reward['count'] == delta_reward['count']):
+                                # match for this reward
+                                break
+                        else:
+                            # did not match this reward, move on to next delta_craft
+                            break
+                        # match for this reward, continue to next reward
+                        continue
+                    else:
+                        # matched all requirements and rewards
+                        print_warning(f'The GUID of craft {previous_guid} has changed. Merging data into new craft GUID {delta_guid}')
+                        matched_guid = delta_guid
+                        break
+                    # did not match this craft, move on to next delta_craft
+                    continue
             else:
-                database = untrack_craft(database, guid)
+                # no match found for any delta_craft
+                print_warning(f'Could not find a new craft matching the following. Data for this craft will be lost!')
+                display_crafts(database, {previous_guid: previous_craft})
+                matched_guid = False
+        else:
+            matched_guid = previous_guid
 
-        if ('restarts' in craft.keys() and craft['restarts'] > 0):
-            for _restart_ in range(craft['restarts']):
-                for requirement in craft['requiredItems']:
+        if (not matched_guid):
+            continue
+
+        delta_craft = database['crafts'][matched_guid]
+
+        if (delta_craft['status'] != previous_craft['status']):
+            database['crafts'][matched_guid]['status'] = previous_craft['status']
+        
+        if (delta_craft['tracked'] != previous_craft['tracked']):
+            if (previous_craft['tracked']):
+                print_warning(f'You had previously tracked craft {matched_guid} which will continue to be tracked')
+                database = track_craft(database, matched_guid)
+            else:
+                database = untrack_craft(database, matched_guid)
+
+        if ('restarts' in previous_craft.keys() and previous_craft['restarts'] > 0):
+            for _restart_ in range(previous_craft['restarts']):
+                for requirement in previous_craft['requiredItems']:
                     item_guid = requirement['item']['id']
                     item_name = database['items'][item_guid]['shortName']
                     count = requirement['count']
                     database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_nir'] + count
                     print_debug(f'Adding >> {count} << of >> {item_guid} << for requirement')
                     print_message(f'{count} more {item_name} (NIR) now needed')
-
-            database['crafts'][guid]['restarts'] = craft['restarts']
-            print_message(f'Craft {guid} had been restarted {craft["restarts"]} times. Item counts for this have been retained')
+            
+            database['crafts'][matched_guid]['restarts'] = previous_craft['restarts']
+            print_message(f'Craft {matched_guid} had been restarted {previous_craft["restarts"]} times. Item counts for this have been retained')
     
     print_message('Completed crafts delta import')
 

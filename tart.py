@@ -992,17 +992,19 @@ def hideout_readiness(database, guid):
     ready = False
 
     for station_guid, station in database['hideout'].items():
-        for requirement in station['itemRequirements']:
-            this_guid = requirement['item']['id']
-            if (database['items'][this_guid]['have_nir'] - database['items'][this_guid]['consumed_nir'] < requirement['count']):
-                ready = False
-                break
-            elif (requirement['item']['id'] == guid):
-                ready = True
-        else:
-            if (ready):
-                print_message(f'{station['normalizedName']} is ready to complete')
-                return True
+        if (station['status'] == 'incomplete' and station['tracked']):
+            for requirement in station['itemRequirements']:
+                this_guid = requirement['item']['id']
+
+                if (database['items'][this_guid]['have_nir'] - database['items'][this_guid]['consumed_nir'] < requirement['count']):
+                    ready = False
+                    break
+                elif (requirement['item']['id'] == guid):
+                    ready = True
+            else:
+                if (ready):
+                    print_message(f'{station['normalizedName']} is ready to complete')
+                    return True
             
     return False
 

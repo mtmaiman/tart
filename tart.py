@@ -991,7 +991,7 @@ def del_item_nir(database, count, guid):
 def hideout_readiness(database, guid):
     ready = False
 
-    for station in database['hideout']:
+    for station_guid, station in database['hideout'].items():
         for requirement in station['itemRequirements']:
             if (database['items'][requirement['item']['id']]['available_nir'] < requirement['count']):
                 ready = False

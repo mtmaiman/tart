@@ -177,7 +177,6 @@ BUFFER = '----------------------------------------------------------------------
 ###################################################
 
 
-#TODO: Keep track of how many times a barter or craft has been restarted for delta import
 # Command parsing
 def parser(tracker_file, command):
     command = command.lower().split(' ')

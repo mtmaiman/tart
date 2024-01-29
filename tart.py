@@ -993,7 +993,8 @@ def hideout_readiness(database, guid):
 
     for station_guid, station in database['hideout'].items():
         for requirement in station['itemRequirements']:
-            if (database['items'][requirement['item']['id']]['available_nir'] < requirement['count']):
+            this_guid = requirement['item']['id']
+            if (database['items'][this_guid]['have_nir'] - database['items'][this_guid]['consumed_nir'] < requirement['count']):
                 ready = False
                 break
             elif (requirement['item']['id'] == guid):

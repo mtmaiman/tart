@@ -989,9 +989,9 @@ def del_item_nir(database, count, guid):
 
 # Hideout Readiness
 def hideout_readiness(database, guid):
-    ready = False
-
     for station_guid, station in database['hideout'].items():
+        ready = False
+        
         if (station['status'] == 'incomplete' and station['tracked']):
             for requirement in station['itemRequirements']:
                 this_guid = requirement['item']['id']
@@ -1004,9 +1004,8 @@ def hideout_readiness(database, guid):
             else:
                 if (ready):
                     print_message(f'{station['normalizedName']} is ready to complete')
-                    return True
             
-    return False
+    return True
 
 # Console output
 def display_bool(bool_value):

@@ -96,6 +96,10 @@ FAQ
 
     For example, if I need 58 NIR and 15 FIR CPU fans across all of my tasks, hideout stations, barters, and crafts, then the inv will show 0/0/58 (0/0/15). I have 0 available, 0 total, and 58 needed NIR, and 0 available, 0 total, and 15 needed FIR. If I later get 32 CPU fans NIR and 6 FIR, then the number will then look like 32/32/58 (6/6/15). However, if I then turn in 4 as FIR for a task and use 12 for a hideout station, I have then consumed those and that amount is subtracted from the available number. Now, it will look like 20/32/58 (2/6/15).
 
+    [*] means you have collected all that you need of this item.
+
+    [!] means you have more than you need of this item. This shouldn't happen often but is possible.
+
     Q: How do I get items into the inventory?
 
     A: You must manually add items that you collect in the game, whether through looting, trading, crafting, or purchasing. Of course, not all items will need to be added, as not every item that you get is required for a task, hideout station, barter, or craft (i.e., most weapons). In that case, you do not need to add those items to the inventory, as they are irrelevant. If you try to add an item that is irrelevant, it will tell you so and fail to add. After some experience with the game, you will learn what items to add to the inventory and what not. If you're unsure, feel free to add it and the app will tell you if it's needed. Use the following command for information about adding items:
@@ -147,3 +151,11 @@ FAQ
     Q: How do I save my data?
 
     A: Data is automatically saved in your AppData folder. However, you can take manual saves using the backup and restore commands.
+
+    Q: Can you alphabetize the item display by column instead of row?
+
+    A: No. No, I will not. I'm not a frontend dev.
+
+    Q: How are Found In Raid (FIR) items consumed?
+
+    A: The app is smart enough to "reserve" Found In Raid (FIR) items for tasks that require them. Once you have enough FIR items to satisfy all task requirements, adding more of that item as FIR will automatically switch it to be NIR in the inventory. Hideout stations, barters, and crafts will only show you items that you have available as NIR towards their completion, however if you have FIR items available too, they will be displayed but note that these items are reserved for a task. If you want to complete a hideout station, barter, or craft using Found In Raid (FIR) items that have been reserved for a task, the app will warn you that you are going to consume them and automatically unreserve them from the task.

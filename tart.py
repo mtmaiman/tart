@@ -540,18 +540,13 @@ def parser(tracker_file, directory, command):
         print_debug(f'Executing >> {command[0]} <<')
         database = open_database(tracker_file, directory)
 
-        if (tracker_file == 'debug.json'):
-            file = 'debug'
-        else:
-            file = 'database'
-
-        if (f'{file}.prev.bak' in listdir('.')):
-            remove(f'{file}.prev.bak')
+        if (f'{tracker_file}.prev.bak' in listdir('.')):
+            remove(f'{tracker_file}.prev.bak')
         
-        if (f'{file}.curr.bak' in listdir('.')):
-            rename(f'{file}.curr.bak', f'{file}.prev.bak')
+        if (f'{tracker_file}.curr.bak' in listdir('.')):
+            rename(f'{tracker_file}.curr.bak', f'{tracker_file}.prev.bak')
 
-        write_database(f'{file}.curr.bak', directory, database)
+        write_database(f'{tracker_file}.curr.bak', directory, database)
         print_message(f'Backup saved')
         return False
     # Error
@@ -1325,14 +1320,14 @@ def get_saves(tracker_file, directory):
         saves.append(f'{tracker_file}.curr.bak')
     else:
         print_debug('Current autosave not found')
-        saves.append('')
+        saves.append('curr.null')
 
     if (f'{tracker_file}.prev.bak' in files):
         print_debug(f'Found previous autosave >> {tracker_file}.prev.bak <<')
         saves.append(f'{tracker_file}.prev.bak')
     else:
         print_debug('Previous autosave not found')
-        saves.append('')
+        saves.append('prev.null')
 
     for save in files:
         if (tracker_file in save and save != tracker_file and save != f'{tracker_file}.curr.bak' and save != f'{tracker_file}.prev.bak'):
@@ -2808,9 +2803,15 @@ def display_hideout(database, stations):
         for item in station['itemRequirements']:
             item_guid = item['item']['id']
             have_available_nir = database['items'][item_guid]['have_nir'] - database['items'][item_guid]['consumed_nir']
+            have_available_fir = database['items'][item_guid]['have_fir'] - database['items'][item_guid]['consumed_fir']
             short_name = database['items'][item_guid]['shortName']
             count = item['count']
-            display = display + f'--> {have_available_nir}/{count} {short_name} available\n'
+            display = display + f'--> {have_available_nir}/{count} {short_name} available'
+
+            if (have_available_fir > 0):
+                display = display + f' ({have_available_fir}/{count}) FIR'
+
+            display = display + '\n'
         
         display = display + '\n\n'
 
@@ -2827,8 +2828,14 @@ def display_barters(database, barters):
             item_guid = item['item']['id']
             item_name = database['items'][item_guid]['shortName']
             have_available_nir = database['items'][item_guid]['have_nir'] - database['items'][item_guid]['consumed_nir']
+            have_available_fir = database['items'][item_guid]['have_fir'] - database['items'][item_guid]['consumed_fir']
             count = item['count']
-            display = display + f'--> Give {have_available_nir}/{count} {item_name} available\n'
+            display = display + f'--> Give {have_available_nir}/{count} {item_name} available'
+
+            if (have_available_fir > 0):
+                display = display + f' ({have_available_fir}/{count}) FIR'
+
+            display = display + '\n'
 
         for item in barter['rewardItems']:
             item_guid = item['item']['id']
@@ -2854,8 +2861,14 @@ def display_crafts(database, crafts):
             item_guid = item['item']['id']
             item_name = database['items'][item_guid]['shortName']
             have_available_nir = database['items'][item_guid]['have_nir'] - database['items'][item_guid]['consumed_nir']
+            have_available_fir = database['items'][item_guid]['have_fir'] - database['items'][item_guid]['consumed_fir']
             count = item['count']
-            display = display + f'--> Give {have_available_nir}/{count} {item_name} available\n'
+            display = display + f'--> Give {have_available_nir}/{count} {item_name} available'
+
+            if (have_available_fir > 0):
+                display = display + f' ({have_available_fir}/{count}) FIR'
+
+            display = display + '\n'
 
         for item in craft['rewardItems']:
             item_guid = item['item']['id']
@@ -3797,9 +3810,9 @@ def backup(tracker_file, directory):
     saves = get_saves(tracker_file, directory)
     print(saves)
     
-    if ((saves[0] != '' and saves[1] != '' and len(saves) == 7)
-        or (((saves[0] == '' and saves[1] != '') or (saves[0] != '' and saves[1] == '')) and len(saves) == 6)
-        or (saves[0] == '' and saves[1] == '' and len(saves) == 5)):
+    if (('curr.null' in saves and 'prev.null' in saves and len(saves) > 4) or
+        (('curr.null' in saves and 'prev.null' not in saves) or ('prev.null' in saves and 'curr.null' not in saves) and len(saves) > 5) or
+        ('curr.null' not in saves and 'prev.null' not in saves and len(saves) > 6)):
         print_message(f'You are only allowed 5 save files. Please choose a file to overwrite!')
         _display_ = '\n'
 
@@ -3813,9 +3826,9 @@ def backup(tracker_file, directory):
                 _display_ = _display_ + f'[{index + 1}] {_save_} (Autosave - Cannot overwrite)\n'
             else:
                 _save_ = save.split('.')
-                _save_[1] = datetime.strptime(_save_[1], '%Y-%m-%d').strftime('%B, %A %d, %Y')
-                _save_[2] = datetime.strptime(_save_[2], '%H-%M-%S').strftime('%H:%M:%S')
-                _save_ = f'{_save_[1]} at {_save_[2]}'
+                _save_[2] = datetime.strptime(_save_[2], '%Y-%m-%d').strftime('%B, %A %d, %Y')
+                _save_[3] = datetime.strptime(_save_[3], '%H-%M-%S').strftime('%H:%M:%S')
+                _save_ = f'{_save_[2]} at {_save_[3]}'
                 _display_ = _display_ + f'[{index + 1}] {_save_}\n'
 
         print_message(_display_)
@@ -3827,7 +3840,7 @@ def backup(tracker_file, directory):
         
         overwrite = saves[int(overwrite) - 1]
         print_message(f'Overwriting save file {overwrite}')
-        remove(overwrite)
+        remove(directory + f'\\{overwrite}')
 
     database = open_database(tracker_file, directory)
     filename = f'{tracker_file}.{datetime.now().strftime('%Y-%m-%d.%H-%M-%S')}.bak'
@@ -3837,18 +3850,13 @@ def backup(tracker_file, directory):
 
 # Restore
 def restore(tracker_file, directory):
-    if (tracker_file == 'debug.json'):
-        file = directory + '\\debug.json'
-    else:
-        file = directory + '\\database.json'
-
-    saves = get_saves(file, directory)
+    saves = get_saves(tracker_file, directory)
     print_message('Please choose a save file to restore from')
     _display_ = '\n'
 
     for index, save in enumerate(saves):
         if (index < 2):
-            if (save == f'{file}.curr.bak'):
+            if (save == f'{tracker_file}.curr.bak'):
                 _save_ = 'Current autosave (1 exit ago)'
             else:
                 _save_ = 'Previous autosave (2 exits ago)'
@@ -3856,9 +3864,9 @@ def restore(tracker_file, directory):
             _display_ = _display_ + f'[{index + 1}] {_save_} (Autosave)\n'
         else:
             _save_ = save.split('.')
-            _save_[1] = datetime.strptime(_save_[1], '%Y-%m-%d').strftime('%B, %A %d, %Y')
-            _save_[2] = datetime.strptime(_save_[2], '%H-%M-%S').strftime('%H:%M:%S')
-            _save_ = f'{_save_[1]} at {_save_[2]}'
+            _save_[2] = datetime.strptime(_save_[2], '%Y-%m-%d').strftime('%B, %A %d, %Y')
+            _save_[3] = datetime.strptime(_save_[3], '%H-%M-%S').strftime('%H:%M:%S')
+            _save_ = f'{_save_[2]} at {_save_[3]}'
             _display_ = _display_ + f'[{index + 1}] {_save_}\n'
 
     print_message(_display_)

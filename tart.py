@@ -1,11 +1,10 @@
 # Standard library
 try:
     from datetime import datetime, timedelta
-    from os import system, name, rename, remove, listdir
+    from os import system, name, rename, remove, listdir, path, mkdir
     import json
     import sys
     import re
-
     # Imported libraries
     import requests
 except ModuleNotFoundError as exception:
@@ -164,7 +163,7 @@ INVENTORY_HAVE_HEADER = '{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20}
 INVENTORY_NEED_HEADER = '{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} \n'.format('Item', 'Need (FIR)', 'Item', 'Need (FIR)', 'Item', 'Need (FIR)', 'Item', 'Need (FIR)')
 TASK_HEADER = '{:<40} {:<20} {:<20} {:<20} {:<20} {:<20} {:<40}\n'.format('Task Title', 'Task Giver', 'Task Status', 'Tracked', 'Kappa?', 'Map', 'Task GUID')
 HIDEOUT_HEADER = '{:<40} {:<20} {:<20} {:<40}\n'.format('Station Name', 'Station Status', 'Tracked', 'Station GUID')
-BARTER_HEADER = '{:<40} {:<20} {:<20} {:<20} {:<20} {:<20}\n'.format('Barter GUID', 'Trader', 'Loyalty Level', 'Barter Status', 'Tracked', 'Restarts')
+BARTER_HEADER = '{:<40} {:<20} {:<20} {:<20} {:<20} {:20}\n'.format('Barter GUID', 'Trader', 'Loyalty Level', 'Barter Status', 'Tracked', 'Restarts')
 CRAFT_HEADER = '{:<40} {:<30} {:<20} {:<20} {:<20}\n'.format('Craft Recipe GUID', 'Station', 'Craft Status', 'Tracked', 'Restarts')
 UNTRACKED_HEADER = '{:<40} {:<20} {:<20} {:<20}\n'.format('Entity Name', 'Type', 'Tracked', 'Kappa?')
 BUFFER = '-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n'
@@ -922,7 +921,7 @@ def add_item_fir(database, count, guid):
 
     return database
 
-def add_item_nir(database, count, guid):    
+def add_item_nir(database, count, guid):
     item_name = database['items'][guid]['normalizedName']
 
     if (database['items'][guid]['need_nir'] == 0 and database['items'][guid]['need_fir'] == 0):
@@ -951,7 +950,7 @@ def add_item_nir(database, count, guid):
     return database
 
 # Delete Items
-def del_item_fir(database, count, guid):    
+def del_item_fir(database, count, guid):
     item_name = database['items'][guid]['normalizedName']
     
     if (database['items'][guid]['have_fir'] == 0):
@@ -1010,6 +1009,8 @@ def print_warning(message):
 def print_error(message):
     print(f'>> (ERROR) {message}!')
     return True
+
+# Ready status
 
 
 ###################################################
@@ -3863,16 +3864,21 @@ def restore(tracker_file):
 
 
 def main(args):
+    directory = path.expanduser('~/AppData/Local/Programs/Tart')
+
+    if (not path.isdir(directory)):
+        mkdir(directory)
+
     if (len(args) > 1 and args[1] == 'debug'):
         global DEBUG
         DEBUG = True
 
         print_message('Welcome to the TARkov Tracker (TART)!')
         print_debug('RUNNING IN DEBUG MODE. All changes will affect only the debug database file!')
-        tracker_file = 'debug.json'
+        tracker_file = directory + '/debug.json'
     else:
         print_message('Welcome to the TARkov Tracker (TART)! Type help for usage')
-        tracker_file = 'database.json'
+        tracker_file = directory + '/database.json'
 
     database = open_database(tracker_file)
 

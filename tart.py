@@ -987,21 +987,21 @@ def del_item_nir(database, count, guid):
     return database
 
 # Hideout Readiness
-def hideout_readiness(database, guid):
+def hideout_readiness(database, guid = False):
     for station_guid, station in database['hideout'].items():
         ready = False
         
-        if (station['status'] == 'incomplete' and station['tracked']):
+        if (type(verify_station(database, station)) is not str):
             for requirement in station['itemRequirements']:
                 this_guid = requirement['item']['id']
 
                 if (database['items'][this_guid]['have_nir'] - database['items'][this_guid]['consumed_nir'] < requirement['count']):
                     ready = False
                     break
-                elif (requirement['item']['id'] == guid):
+                elif (guid and requirement['item']['id'] == guid):
                     ready = True
             else:
-                if (ready):
+                if (ready or not guid):
                     print_message(f'{station['normalizedName']} is ready to complete')
             
     return True
@@ -1844,6 +1844,7 @@ def complete_station(database, guid, force):
     
     database['hideout'][guid]['status'] = 'complete'
     print_message(f'{station["normalizedName"]} completed')
+    hideout_readiness(database)
     return database
 
 def complete_barter(database, guid, force):
@@ -3886,7 +3887,7 @@ def restore(tracker_file):
 
 
 def main(args):
-    directory = path.expanduser('~/AppData/Local/Programs/Tart')
+    directory = path.expanduser('~\AppData\Local\Programs\Tart')
 
     if (not path.isdir(directory)):
         mkdir(directory)
@@ -3897,10 +3898,10 @@ def main(args):
 
         print_message('Welcome to the TARkov Tracker (TART)!')
         print_debug('RUNNING IN DEBUG MODE. All changes will affect only the debug database file!')
-        tracker_file = directory + '/debug.json'
+        tracker_file = directory + '\debug.json'
     else:
         print_message('Welcome to the TARkov Tracker (TART)! Type help for usage')
-        tracker_file = directory + '/database.json'
+        tracker_file = directory + '\database.json'
 
     database = open_database(tracker_file)
 

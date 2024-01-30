@@ -3590,7 +3590,7 @@ def delta(tracker_file, directory):
                 print_warning(f'You had previously untracked a Kappa required task {task["name"]} which will continue to be untracked')
                 database = untrack_task(database, guid)
             elif (not delta_task['tracked']):
-                print_warning(f'You had previously tracked task {task["name"]} which will remain tracked')
+                print_warning(f'You had previously tracked a non-Kappa task {task["name"]} which will remain tracked')
                 database = track_task(database, guid)
             else:
                 print_error('Unhandled error with (un)tracked tasks. Aborted')

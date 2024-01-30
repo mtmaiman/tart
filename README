@@ -163,3 +163,17 @@ FAQ
     Q: What do "multi" and "any" mean for the map on a task?
 
         "Multi" means this task requires you to go to multiple maps. "Any" means this task can be completed anywhere. The map is a best guess based on the task requirements, but it may not always be right.
+
+    Q: I don't want to manually add every item required for the hideout that I purchased from the flea or found.
+
+        If you don't want to deal with this, then your inventory will not be accurate. However, when you complete a hideout station, you can append the "force" argument to the end which will force the station to be completed regardless if you have the items or not. Those items will be automatically added to your inventory for you. The force flag can be used with any task, hideout station, barter, or craft. This is a powerful command, be careful using it. You CANNOT currently uncomplete anything!! For example,
+
+        complete heating 1 force
+
+        Say I did not have 25,000 roubles in my inventory to complete this, but I added "force" to the end. This will add 25,000 roubles to your inventory then complete the hideout station.
+
+    Q: I want to forcefully complete a chain of tasks at once (i.e., complete background check which also completes its prerequisite tasks luxurious life, debut, and shooting cans).
+
+        Similar to the above question, instead of "force", you can use the flag "recurse". This ONLY works with tasks, but it will complete the specified task and all prerequisite tasks, including adding the needed items to the inventory (if you don't already have them). This is a powerful command, be careful using it. You CANNOT currently uncomplete anything!! See below
+
+        complete background check recurse

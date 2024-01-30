@@ -3534,7 +3534,7 @@ def import_data(tracker_file, directory):
 
 def delta(tracker_file, directory):
     previous = open_database(tracker_file, directory)
-    delta = import_data(tracker_file)
+    delta = import_data(tracker_file, directory)
 
     if (not delta):
         print_error('Encountered an error while importing the database. Aborted')

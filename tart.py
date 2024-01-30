@@ -3887,7 +3887,7 @@ def restore(tracker_file):
 
 
 def main(args):
-    directory = path.expanduser('~\AppData\Local\Programs\Tart')
+    directory = path.expanduser('~\\AppData\\Local\\Programs\\Tart')
 
     if (not path.isdir(directory)):
         mkdir(directory)
@@ -3898,10 +3898,10 @@ def main(args):
 
         print_message('Welcome to the TARkov Tracker (TART)!')
         print_debug('RUNNING IN DEBUG MODE. All changes will affect only the debug database file!')
-        tracker_file = directory + '\debug.json'
+        tracker_file = directory + '\\debug.json'
     else:
         print_message('Welcome to the TARkov Tracker (TART)! Type help for usage')
-        tracker_file = directory + '\database.json'
+        tracker_file = directory + '\\database.json'
 
     database = open_database(tracker_file)
 

@@ -70,92 +70,96 @@ FAQ
 
     Q: How do I report a bug?
 
-    A: You can do this using the "Issues" function built into the github repository. However, I am not a developer and I do not code full-time, so I might not get to it.
+        You can do this using the "Issues" function built into the github repository. However, I am not a developer and I do not code full-time, so I might not get to it.
 
     Q: How do I request a new feature?
 
-    A: You can use the "Issues" function built into the github repository for this, as well. However, as mentioned, I am not a developer and may not implement it.
+        You can use the "Issues" function built into the github repository for this, as well. However, as mentioned, I am not a developer and may not implement it.
 
     Q: Your app sucks and I can do it better.. or I simply want to steal some of your logic for my own app.
 
-    A: You are free to do whatever you wish with this code. I made this in my freetime to help learn some coding skills and to help my own in-game experience. I find most of the available online tools to be too cumbersome to navigate and tend to prefer CLI tools.
+        You are free to do whatever you wish with this code. I made this in my freetime to help learn some coding skills and to help my own in-game experience. I find most of the available online tools to be too cumbersome to navigate and tend to prefer CLI tools.
     
     Q: What are NIR and FIR?
 
-    A: FIR means Found In Raid. This is a tag used within the game to denote if an item was found during a raid and successfully extracted, or if an item was received as a task or craft reward. NIR, in the context of this app, means Not found In Raid. This tag is implicitly used in the game, but explicitly stated in the app. This helps make it clear when an item is needed or owned as Found In Raid or Not found In Raid.
+        FIR means Found In Raid. This is a tag used within the game to denote if an item was found during a raid and successfully extracted, or if an item was received as a task or craft reward. NIR, in the context of this app, means Not found In Raid. This tag is implicitly used in the game, but explicitly stated in the app. This helps make it clear when an item is needed or owned as Found In Raid or Not found In Raid.
     
     Q: Explain tracking.
 
-    A: Tracking is what tells the application whether or not a task, hideout station, barter, or craft should be considered when doing calculations and within the inventory. If a task, for example, is tracked, then it will show up when you list your tasks, it can be completed, and items required for the task will be calculated in the inventory. By default, no task not required for Kappa is tracked and no barters or crafts are tracked. You can track and untrack tasks, hideout stations, barters, and crafts by using the available command. Barters and crafts are tracked by GUID.
+        Tracking is what tells the application whether or not a task, hideout station, barter, or craft should be considered when doing calculations and within the inventory. If a task, for example, is tracked, then it will show up when you list your tasks, it can be completed, and items required for the task will be calculated in the inventory. By default, no task not required for Kappa is tracked and no barters or crafts are tracked. You can track and untrack tasks, hideout stations, barters, and crafts by using the available command. Barters and crafts are tracked by GUID.
     
     Q: Explain the inventory.
 
-    A: The inventory keeps track of all items that you are required to collect for tracked tasks, hideout stations, barters, and crafts. It is smart enough to know if an item is needed as Found In Raid (FIR) or Not found In Raid (NIR). Generally, items that are NIR will not be surrounded by parenthesis (), whereas items that are FIR will be surrounded by parenthesis.
+        The inventory keeps track of all items that you are required to collect for tracked tasks, hideout stations, barters, and crafts. It is smart enough to know if an item is needed as Found In Raid (FIR) or Not found In Raid (NIR). Generally, items that are NIR will not be surrounded by parenthesis (), whereas items that are FIR will be surrounded by parenthesis.
 
-    There are three numbers displayed for each item for both FIR and NIR in most inventories. These numbers are separated with forward slashes and mean different things. The first number is the number of that item you have Available in the inventory. This means these items are available to be used in a task, hideout station, barter, or craft. The second number is the total number of that item you have in the inventory. This is the total number of that item that you have added to the app, whether by finding it in raid, crafting it, or buying it from a vendor or the flea. The third number is the number of that item that you need overall. With all tracked tasks, hideout stations, barters, and crafts combined, this is the total number of that item needed to complete all of these.
+        There are three numbers displayed for each item for both FIR and NIR in most inventories. These numbers are separated with forward slashes and mean different things. The first number is the number of that item you have Available in the inventory. This means these items are available to be used in a task, hideout station, barter, or craft. The second number is the total number of that item you have in the inventory. This is the total number of that item that you have added to the app, whether by finding it in raid, crafting it, or buying it from a vendor or the flea. The third number is the number of that item that you need overall. With all tracked tasks, hideout stations, barters, and crafts combined, this is the total number of that item needed to complete all of these.
 
-    For example, if I need 58 NIR and 15 FIR CPU fans across all of my tasks, hideout stations, barters, and crafts, then the inv will show 0/0/58 (0/0/15). I have 0 available, 0 total, and 58 needed NIR, and 0 available, 0 total, and 15 needed FIR. If I later get 32 CPU fans NIR and 6 FIR, then the number will then look like 32/32/58 (6/6/15). However, if I then turn in 4 as FIR for a task and use 12 for a hideout station, I have then consumed those and that amount is subtracted from the available number. Now, it will look like 20/32/58 (2/6/15).
+        For example, if I need 58 NIR and 15 FIR CPU fans across all of my tasks, hideout stations, barters, and crafts, then the inv will show 0/0/58 (0/0/15). I have 0 available, 0 total, and 58 needed NIR, and 0 available, 0 total, and 15 needed FIR. If I later get 32 CPU fans NIR and 6 FIR, then the number will then look like 32/32/58 (6/6/15). However, if I then turn in 4 as FIR for a task and use 12 for a hideout station, I have then consumed those and that amount is subtracted from the available number. Now, it will look like 20/32/58 (2/6/15).
 
-    [*] means you have collected all that you need of this item.
+        [*] means you have collected all that you need of this item.
 
-    [!] means you have more than you need of this item. This shouldn't happen often but is possible.
+        [!] means you have more than you need of this item. This shouldn't happen often but is possible.
 
     Q: How do I get items into the inventory?
 
-    A: You must manually add items that you collect in the game, whether through looting, trading, crafting, or purchasing. Of course, not all items will need to be added, as not every item that you get is required for a task, hideout station, barter, or craft (i.e., most weapons). In that case, you do not need to add those items to the inventory, as they are irrelevant. If you try to add an item that is irrelevant, it will tell you so and fail to add. After some experience with the game, you will learn what items to add to the inventory and what not. If you're unsure, feel free to add it and the app will tell you if it's needed. Use the following command for information about adding items:
+        You must manually add items that you collect in the game, whether through looting, trading, crafting, or purchasing. Of course, not all items will need to be added, as not every item that you get is required for a task, hideout station, barter, or craft (i.e., most weapons). In that case, you do not need to add those items to the inventory, as they are irrelevant. If you try to add an item that is irrelevant, it will tell you so and fail to add. After some experience with the game, you will learn what items to add to the inventory and what not. If you're unsure, feel free to add it and the app will tell you if it's needed. Use the following command for information about adding items:
 
-    add help
+        add help
 
     Q: I accidentally added an item to the inventory or consumed an item in the game for something else. How do I remove it from the inventory?
 
-    A: There is rarely a case that you should need to manually remove an item from the inventory. For the most part, the app is smart enough to know when an item is consumed based on what you mark as completed. However, there are times that you may mistype a number when adding, or that you may decide to use an item in the inventory for something else in the game (such as a daily task). In that case, items can easily be removed with the del command. Find help for it by typing:
+        There is rarely a case that you should need to manually remove an item from the inventory. For the most part, the app is smart enough to know when an item is consumed based on what you mark as completed. However, there are times that you may mistype a number when adding, or that you may decide to use an item in the inventory for something else in the game (such as a daily task). In that case, items can easily be removed with the del command. Find help for it by typing:
 
-    del help
+        del help
 
     Q: Explain the ls (list) function?
 
-    A: ls is a very powerful tool for seeing information on your active tasks, hideout stations, barters, crafts, and others. This information is pulled from what the app knows based on what you have told it. If there is inaccurate information, it's either because you have not provided the app some information on player level or items collected, or the source data that it is pulling from online (tarkov.dev) has not been updated.
+        ls is a very powerful tool for seeing information on your active tasks, hideout stations, barters, crafts, and others. This information is pulled from what the app knows based on what you have told it. If there is inaccurate information, it's either because you have not provided the app some information on player level or items collected, or the source data that it is pulling from online (tarkov.dev) has not been updated.
 
-    Using this function, you can see what tasks are currently available, but also filter down by map or trader. This will respect player level, task prerequisites, tracking status, and only show tasks that you currently have available to you within the game. This same logic applies to hideout stations.
+        Using this function, you can see what tasks are currently available, but also filter down by map or trader. This will respect player level, task prerequisites, tracking status, and only show tasks that you currently have available to you within the game. This same logic applies to hideout stations.
 
-    You can also use this to view anything that you have untracked.
+        You can also use this to view anything that you have untracked.
 
     Q: How do I find stuff with this, like items, tasks, hideout stations, barters, and crafts?
 
-    A: The search and requires functions are powerful utilities to let you search just about anything in the game.
+        The search and requires functions are powerful utilities to let you search just about anything in the game.
 
-    First, let's focus on search. You can use this to find any item in the game, including detailed information such as the item GUID, inventory info for that item, who to sell the item to and for how much, and where to buy the item from and for how much. Furthermore, you can search for any task, hideout station, barter, or craft in the game regardless if it's tracked or not. This will give you nearly all relevant information that you might want on these items.
+        First, let's focus on search. You can use this to find any item in the game, including detailed information such as the item GUID, inventory info for that item, who to sell the item to and for how much, and where to buy the item from and for how much. Furthermore, you can search for any task, hideout station, barter, or craft in the game regardless if it's tracked or not. This will give you nearly all relevant information that you might want on these items.
 
-    Requires does the same thing as search, however, it will only return things, like tasks or hideout stations, that require the searched item. For example, if you want to see which everything that requires bolts, you can use this command which will tell you every task and hideout station that requires this item.
+        Requires does the same thing as search, however, it will only return things, like tasks or hideout stations, that require the searched item. For example, if you want to see which everything that requires bolts, you can use this command which will tell you every task and hideout station that requires this item.
 
-    For both search and requires, barters and crafts are ignored by default. If you want to include these in your search, you can append either term on the end of the search. Or, you can simply append "all" to search everything. Using the normal "search" function will show you barters and crafts that either require or reward the specified item. Using the "requires" function will show barters and crafts that only require the specified item.
+        For both search and requires, barters and crafts are ignored by default. If you want to include these in your search, you can append either term on the end of the search. Or, you can simply append "all" to search everything. Using the normal "search" function will show you barters and crafts that either require or reward the specified item. Using the "requires" function will show barters and crafts that only require the specified item.
 
     Q: How do I find a barter or craft GUID to track it?
 
-    A: You can find GUIDs by searching for the barter or craft following the above question. Search for barters or crafts by the item that they reward or require, depending on your search, and you will see the GUID listed. Copy this GUID by highlighting it with your mouse and right-clicking. Right-click again to paste it in the track or untrack command.
+        You can find GUIDs by searching for the barter or craft following the above question. Search for barters or crafts by the item that they reward or require, depending on your search, and you will see the GUID listed. Copy this GUID by highlighting it with your mouse and right-clicking. Right-click again to paste it in the track or untrack command.
 
     Q: Why do I need to keep track of my player level?
 
-    A: A lot of tasks require your player to be a certain level. Therefore, you must maintain your player level in the app alongside the game.
+        A lot of tasks require your player to be a certain level. Therefore, you must maintain your player level in the app alongside the game.
 
     Q: What is "restart" for?
 
-    A: If you wish to repeat a barter or craft, you can use the restart command to do so. This will increase the items for that barter or craft needed within your inventory again to maintain consistent inventory data.
+        If you wish to repeat a barter or craft, you can use the restart command to do so. This will increase the items for that barter or craft needed within your inventory again to maintain consistent inventory data.
 
     Q: I don't see some tasks in the app that I have in the game.
 
-    A: They are probably not required for Kappa and must be manually tracked. A lot of Streets tasks are not required for Kappa. Otherwise, you may not have updated your player level. As a last resort, it's possible shortly after a new wipe that the game data this app relies on has not yet been updated. You can use the following command to pull in new data.
+        They are probably not required for Kappa and must be manually tracked. A lot of Streets tasks are not required for Kappa. Otherwise, you may not have updated your player level. As a last resort, it's possible shortly after a new wipe that the game data this app relies on has not yet been updated. You can use the following command to pull in new data.
 
-    import delta
+        import delta
 
     Q: How do I save my data?
 
-    A: Data is automatically saved in your AppData folder. However, you can take manual saves using the backup and restore commands.
+        Data is automatically saved in your AppData folder. However, you can take manual saves using the backup and restore commands.
 
     Q: Can you alphabetize the item display by column instead of row?
 
-    A: No. No, I will not. I'm not a frontend dev.
+        No. No, I will not. I'm not a frontend dev.
 
     Q: How are Found In Raid (FIR) items consumed?
 
-    A: The app is smart enough to "reserve" Found In Raid (FIR) items for tasks that require them. Once you have enough FIR items to satisfy all task requirements, adding more of that item as FIR will automatically switch it to be NIR in the inventory. Hideout stations, barters, and crafts will only show you items that you have available as NIR towards their completion, however if you have FIR items available too, they will be displayed but note that these items are reserved for a task. If you want to complete a hideout station, barter, or craft using Found In Raid (FIR) items that have been reserved for a task, the app will warn you that you are going to consume them and automatically unreserve them from the task.
+        The app is smart enough to "reserve" Found In Raid (FIR) items for tasks that require them. Once you have enough FIR items to satisfy all task requirements, adding more of that item as FIR will automatically switch it to be NIR in the inventory. Hideout stations, barters, and crafts will only show you items that you have available as NIR towards their completion, however if you have FIR items available too, they will be displayed but note that these items are reserved for a task. If you want to complete a hideout station, barter, or craft using Found In Raid (FIR) items that have been reserved for a task, the app will warn you that you are going to consume them and automatically unreserve them from the task.
+
+    Q: What do "multi" and "any" mean for the map on a task?
+
+        "Multi" means this task requires you to go to multiple maps. "Any" means this task can be completed anywhere. The map is a best guess based on the task requirements, but it may not always be right.

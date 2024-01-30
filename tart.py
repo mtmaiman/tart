@@ -12,7 +12,7 @@ except ModuleNotFoundError as exception:
     exit(1)
 
 
-VERSION = 'cherry'
+VERSION = 'cucumber'
 
 DEBUG = False
 
@@ -178,7 +178,7 @@ BUFFER = '----------------------------------------------------------------------
 
 #TODO: Add ready to complete notifications
 # Command parsing
-def parser(tracker_file, command):
+def parser(tracker_file, directory, command):
     command = command.lower().split(' ')
     print_debug(f'Received command >> {command} <<')
 
@@ -186,25 +186,25 @@ def parser(tracker_file, command):
     if (command[0] == 'inv'):
         if (len(command) == 1):
             print_debug(f'Executing >> {command[0]} <<')
-            inventory(tracker_file)
+            inventory(tracker_file, directory)
         elif (command[1] == 'tasks'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
-            inventory_tasks(tracker_file)
+            inventory_tasks(tracker_file, directory)
         elif (command[1] == 'stations' or command[1] == 'hideout'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
-            inventory_hideout(tracker_file)
+            inventory_hideout(tracker_file, directory)
         elif (command[1] == 'barters'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
-            inventory_barters(tracker_file)
+            inventory_barters(tracker_file, directory)
         elif (command[1] == 'crafts'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
-            inventory_crafts(tracker_file)
+            inventory_crafts(tracker_file, directory)
         elif (command[1] == 'have'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
-            inventory_have(tracker_file)
+            inventory_have(tracker_file, directory)
         elif (command[1] == 'need'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
-            inventory_need(tracker_file)
+            inventory_need(tracker_file, directory)
         elif (command[1] == 'help' or command[1] == 'h'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
             print_message(INV_HELP)
@@ -219,41 +219,41 @@ def parser(tracker_file, command):
         elif (command[1] == 'tasks'):
             if (len(command) == 3):
                 print_debug(f'Executing >> {command[0]} {command[1]} {command[2]} <<')
-                list_tasks(tracker_file, command[2])
+                list_tasks(tracker_file, directory, command[2])
             else:
                 print_debug(f'Executing >> {command[0]} {command[1]} all <<')
-                list_tasks(tracker_file, 'all')
+                list_tasks(tracker_file, directory, 'all')
         elif (command[1] == 'stations' or command[1] == 'hideout'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
-            list_stations(tracker_file)
+            list_stations(tracker_file, directory)
         elif (command[1] == 'barters'):
             if (len(command) == 3):
                 print_debug(f'Executing >> {command[0]} {command[1]} {command[2]} <<')
-                list_barters(tracker_file, command[2])
+                list_barters(tracker_file, directory, command[2])
             else:
                 print_debug(f'Executing >> {command[0]} {command[1]} all <<')
-                list_barters(tracker_file, 'all')
+                list_barters(tracker_file, directory, 'all')
         elif (command[1] == 'crafts'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
-            list_crafts(tracker_file)
+            list_crafts(tracker_file, directory)
         elif (command[1] == 'untracked'):
             if (len(command) == 3):
                 print_debug(f'Executing >> {command[0]} {command[1]} {command[2]} <<')
                 
                 if (command[2] == 'kappa'):
-                    list_untracked(tracker_file, True)
+                    list_untracked(tracker_file, directory, True)
                 else:
                     print_debug(f'Failed >> {command[0]} {command[1]} <<')
                     print_error('Command not recognized')
             else:
                 print_debug(f'Executing >> {command[0]} {command[1]} <<')
-                list_untracked(tracker_file, False)
+                list_untracked(tracker_file, directory, False)
         elif (command[1] == 'maps'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
-            list_maps(tracker_file)
+            list_maps(tracker_file, directory)
         elif (command[1] == 'traders'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
-            list_traders(tracker_file)
+            list_traders(tracker_file, directory)
         elif (command[1] == 'help' or command[1] == 'h'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
             print_message(LS_HELP)
@@ -274,25 +274,25 @@ def parser(tracker_file, command):
                 ignore_barters = False
                 ignore_crafts = True
                 pattern = ' '.join(command[1:-1])
-                search(tracker_file, pattern, ignore_barters, ignore_crafts)
+                search(tracker_file, directory, pattern, ignore_barters, ignore_crafts)
             elif (command[-1] == 'crafts'):
                 print_debug(f'Executing >> {command[0]} {command[1:-1]} {command[-1]} <<')
                 ignore_barters = True
                 ignore_crafts = False
                 pattern = ' '.join(command[1:-1])
-                search(tracker_file, pattern, ignore_barters, ignore_crafts)
+                search(tracker_file, directory, pattern, ignore_barters, ignore_crafts)
             elif (command[-1] == 'all'):
                 print_debug(f'Executing >> {command[0]} {command[1:-1]} {command[-1]} <<')
                 ignore_barters = False
                 ignore_crafts = False
                 pattern = ' '.join(command[1:-1])
-                search(tracker_file, pattern, ignore_barters, ignore_crafts)
+                search(tracker_file, directory, pattern, ignore_barters, ignore_crafts)
             else:
                 print_debug(f'Executing >> {command[0]} {command[1:]} <<')
                 ignore_barters = True
                 ignore_crafts = True
                 pattern = ' '.join(command[1:])
-                search(tracker_file, pattern, ignore_barters, ignore_crafts)
+                search(tracker_file, directory, pattern, ignore_barters, ignore_crafts)
     # Requires
     elif (command[0] == 'requires'):
         if (len(command) < 2):
@@ -307,25 +307,25 @@ def parser(tracker_file, command):
                 ignore_barters = False
                 ignore_crafts = True
                 pattern = ' '.join(command[1:-1])
-                required_search(tracker_file, pattern, ignore_barters, ignore_crafts)
+                required_search(tracker_file, directory, pattern, ignore_barters, ignore_crafts)
             elif (command[-1] == 'crafts'):
                 print_debug(f'Executing >> {command[0]} {command[1:-1]} {command[-1]} <<')
                 ignore_barters = True
                 ignore_crafts = False
                 pattern = ' '.join(command[1:-1])
-                required_search(tracker_file, pattern, ignore_barters, ignore_crafts)
+                required_search(tracker_file, directory, pattern, ignore_barters, ignore_crafts)
             elif (command[-1] == 'all'):
                 print_debug(f'Executing >> {command[0]} {command[1:-1]} {command[-1]} <<')
                 ignore_barters = False
                 ignore_crafts = False
                 pattern = ' '.join(command[1:-1])
-                required_search(tracker_file, pattern, ignore_barters, ignore_crafts)
+                required_search(tracker_file, directory, pattern, ignore_barters, ignore_crafts)
             else:
                 print_debug(f'Executing >> {command[0]} {command[1:]} <<')
                 ignore_barters = True
                 ignore_crafts = True
                 pattern = ' '.join(command[1:])
-                required_search(tracker_file, pattern, ignore_barters, ignore_crafts)
+                required_search(tracker_file, directory, pattern, ignore_barters, ignore_crafts)
     # Track
     elif (command[0] == 'track'):
         if (len(command) < 2):
@@ -336,7 +336,7 @@ def parser(tracker_file, command):
             print_message(TRACK_HELP)
         else:
             print_debug(f'Executing >> {command[0]} {command[1:]} <<')
-            track(tracker_file, ' '.join(command[1:]))
+            track(tracker_file, directory, ' '.join(command[1:]))
     elif (command[0] == 'untrack'):
         if (len(command) < 2):
             print_debug(f'Failed >> {command[0]} <<')
@@ -346,7 +346,7 @@ def parser(tracker_file, command):
             print_message(UNTRACK_HELP)
         else:
             print_debug(f'Executing >> {command[0]} {command[1:]} <<')
-            untrack(tracker_file, ' '.join(command[1:]))
+            untrack(tracker_file, directory, ' '.join(command[1:]))
     # Complete
     elif (command[0] == 'complete'):
         if (len(command) < 2):
@@ -373,7 +373,7 @@ def parser(tracker_file, command):
                 recurse = False
                 argument = ' '.join(command[1:])
 
-            complete(tracker_file, argument, force, recurse)
+            complete(tracker_file, directory, argument, force, recurse)
     # Restart
     elif (command[0] == 'restart'):
         if (len(command) < 2):
@@ -381,7 +381,7 @@ def parser(tracker_file, command):
             print_error('Command not recognized')
         elif (command[1]):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
-            restart(tracker_file, command[1])
+            restart(tracker_file, directory, command[1])
         elif (command[1] == 'help' or command[1] == 'h'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
             print_message(RESTART_HELP)
@@ -407,12 +407,12 @@ def parser(tracker_file, command):
                 print_debug(f'Executing >> {command[0]} {command[1]} {command[2:-1]} {command[-1]} <<')
                 count = int(command[1])
                 argument = ' '.join(command[2:-1])
-                write_item_fir(tracker_file, count, argument = argument)
+                write_item_fir(tracker_file, directory, count, argument = argument)
             else:
                 print_debug(f'Executing >> {command[0]} {command[1]} {command[2:]} <<')
                 count = int(command[1])
                 argument = ' '.join(command[2:])
-                write_item_nir(tracker_file, count, argument = argument)
+                write_item_nir(tracker_file, directory, count, argument = argument)
     # Delete
     elif (command[0] == 'del'):
         if (len(command) < 2):
@@ -432,18 +432,18 @@ def parser(tracker_file, command):
                 print_debug(f'Executing >> {command[0]} {command[1]} {command[2:-1]} {command[-1]} <<')
                 count = int(command[1])
                 argument = ' '.join(command[2:-1])
-                unwrite_item_fir(tracker_file, count, argument = argument)
+                unwrite_item_fir(tracker_file, directory, count, argument = argument)
             else:
                 print_debug(f'Executing >> {command[0]} {command[1]} {command[2:]} <<')
                 count = int(command[1])
                 argument = ' '.join(command[2:])
-                unwrite_item_nir(tracker_file, count, argument = argument)
+                unwrite_item_nir(tracker_file, directory, count, argument = argument)
     # Level
     elif (command[0] == 'level'):
         if (len(command) > 1):
             if (command[1] == 'up'):
                 print_debug(f'Executing >> {command[0]} {command[1]} <<')
-                level_up(tracker_file)
+                level_up(tracker_file, directory)
             elif (command[1] == 'help' or command[1] == 'h'):
                 print_debug(f'Executing >> {command[0]} {command[1]} <<')
                 print_message(LEVEL_HELP)
@@ -451,7 +451,7 @@ def parser(tracker_file, command):
                 if (len(command) == 3):
                     if (command[2].isdigit() and int(command[2]) > 0):
                         print_debug(f'Executing >> {command[0]} {command[1]} {command[2]} <<')
-                        set_level(tracker_file, int(command[2]))
+                        set_level(tracker_file, directory, int(command[2]))
                     else:
                         print_debug(f'Failed >> {command[0]} {command[1]} {command[2]} <<')
                         print_error('Command not recognized')
@@ -463,7 +463,7 @@ def parser(tracker_file, command):
                 print_error('Command not recognized')
         else:
             print_debug(f'Executing >> {command[0]} <<')
-            check_level(tracker_file)
+            check_level(tracker_file, directory)
     # Clear
     elif (command[0] == 'clear'):
         if (len(command) == 1):
@@ -482,7 +482,7 @@ def parser(tracker_file, command):
             _confirmation_ = input('> ').lower()
 
             if (_confirmation_ == 'y'):
-                import_data(tracker_file)
+                import_data(tracker_file, directory)
             else:
                 print_debug(f'Abort >> {command[0]} << because >> {_confirmation_} <<')
                 print_message('Aborted')
@@ -491,18 +491,18 @@ def parser(tracker_file, command):
             print_message(IMPORT_HELP)
         elif (command[1] == 'prices'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
-            database = open_database(tracker_file)
+            database = open_database(tracker_file, directory)
             database = import_items(database, {
                 'Content-Tyoe': 'application/json'
             })
             print_message('Price data refreshed')
-            write_database(tracker_file, database)
+            write_database(tracker_file, directory, database)
         elif (command[1] == 'delta'):
             print_warning('Import new data without overwriting? (Y/N)')
             _confirmation_ = input('> ').lower()
 
             if (_confirmation_ == 'y'):
-                delta(tracker_file)
+                delta(tracker_file, directory)
             else:
                 print_debug(f'Abort >> {command[0]} << because >> {_confirmation_} <<')
                 print_message('Aborted')
@@ -513,7 +513,7 @@ def parser(tracker_file, command):
     elif (command[0] == 'backup'):
         if (len(command) == 1):
             print_debug(f'Executing >> {command[0]} <<')
-            backup(tracker_file)
+            backup(tracker_file, directory)
         elif (command[1] == 'help' or command[1] == 'h'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
             print_message(BACKUP_HELP)
@@ -524,7 +524,7 @@ def parser(tracker_file, command):
     elif (command[0] == 'restore'):
         if (len(command) == 1):
             print_debug(f'Executing >> {command[0]} <<')
-            restore(tracker_file)
+            restore(tracker_file, directory)
         elif (command[1] == 'help' or command[1] == 'h'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
             print_message(RESTORE_HELP)
@@ -538,7 +538,7 @@ def parser(tracker_file, command):
     # Exit
     elif (command[0] == 'stop' or command[0] == 's' or command[0] == 'quit' or command[0] == 'q' or command[0] == 'exit'):
         print_debug(f'Executing >> {command[0]} <<')
-        database = open_database(tracker_file)
+        database = open_database(tracker_file, directory)
 
         if (tracker_file == 'debug.json'):
             file = 'debug'
@@ -551,7 +551,7 @@ def parser(tracker_file, command):
         if (f'{file}.curr.bak' in listdir('.')):
             rename(f'{file}.curr.bak', f'{file}.prev.bak')
 
-        write_database(f'{file}.curr.bak', database)
+        write_database(f'{file}.curr.bak', directory, database)
         print_message(f'Backup saved')
         return False
     # Error
@@ -562,9 +562,9 @@ def parser(tracker_file, command):
     return True
 
 # Database editing
-def open_database(file_path):
+def open_database(file_path, directory):
     try:
-        with open(file_path, 'r', encoding = 'utf-8') as open_file:
+        with open(f'{directory}\\{file_path}', 'r', encoding = 'utf-8') as open_file:
             print_debug(f'Opened file >> {file_path} <<')
             file = json.load(open_file)
     except FileNotFoundError:
@@ -573,8 +573,8 @@ def open_database(file_path):
     
     return file
 
-def write_database(file_path, data):
-    with open(file_path, 'w', encoding = 'utf-8') as open_file:
+def write_database(file_path, directory, data):
+    with open(f'{directory}\\{file_path}', 'w', encoding = 'utf-8') as open_file:
         open_file.write(json.dumps(data))
         print_debug(f'Wrote file >> {file_path} <<')
     return
@@ -1315,27 +1315,27 @@ def get_untracked(database, ignore_kappa):
     
     return untracked
 
-def get_saves(file):
-    files = listdir()
+def get_saves(tracker_file, directory):
+    files = listdir(directory)
     saves = []
-    print_debug(f'Compiling save files for >> {file} <<')
+    print_debug(f'Compiling save files for >> {tracker_file} <<')
 
-    if (f'{file}.curr.bak' in files):
-        print_debug(f'Found current autosave >> {file}.curr.bak <<')
-        saves.append(f'{file}.curr.bak')
+    if (f'{tracker_file}.curr.bak' in files):
+        print_debug(f'Found current autosave >> {tracker_file}.curr.bak <<')
+        saves.append(f'{tracker_file}.curr.bak')
     else:
         print_debug('Current autosave not found')
         saves.append('')
 
-    if (f'{file}.prev.bak' in files):
-        print_debug(f'Found previous autosave >> {file}.prev.bak <<')
-        saves.append(f'{file}.prev.bak')
+    if (f'{tracker_file}.prev.bak' in files):
+        print_debug(f'Found previous autosave >> {tracker_file}.prev.bak <<')
+        saves.append(f'{tracker_file}.prev.bak')
     else:
         print_debug('Previous autosave not found')
         saves.append('')
 
     for save in files:
-        if (file in save and save != f'{file}.json' and save != f'{file}.curr.bak' and save != f'{file}.prev.bak'):
+        if (tracker_file in save and save != tracker_file and save != f'{tracker_file}.curr.bak' and save != f'{tracker_file}.prev.bak'):
             print_debug(f'Found save >> {save} <<')
             saves.append(save)
     
@@ -2956,8 +2956,8 @@ def display_search(database, tasks, hideout, barters, crafts, items, traders, ma
 
 
 # Inventory
-def inventory(tracker_file):
-    database = open_database(tracker_file)
+def inventory(tracker_file, directory):
+    database = open_database(tracker_file, directory)
 
     if (not database):
         return False
@@ -2965,8 +2965,8 @@ def inventory(tracker_file):
     display_inventory(get_inventory(database))
     return True
 
-def inventory_tasks(tracker_file):
-    database = open_database(tracker_file)
+def inventory_tasks(tracker_file, directory):
+    database = open_database(tracker_file, directory)
 
     if (not database):
         return False
@@ -2980,8 +2980,8 @@ def inventory_tasks(tracker_file):
 
     return True
 
-def inventory_hideout(tracker_file):
-    database = open_database(tracker_file)
+def inventory_hideout(tracker_file, directory):
+    database = open_database(tracker_file, directory)
 
     if (not database):
         return False
@@ -2995,8 +2995,8 @@ def inventory_hideout(tracker_file):
 
     return True
 
-def inventory_barters(tracker_file):
-    database = open_database(tracker_file)
+def inventory_barters(tracker_file, directory):
+    database = open_database(tracker_file, directory)
 
     if (not database):
         return False
@@ -3010,8 +3010,8 @@ def inventory_barters(tracker_file):
 
     return True
 
-def inventory_crafts(tracker_file):
-    database = open_database(tracker_file)
+def inventory_crafts(tracker_file, directory):
+    database = open_database(tracker_file, directory)
 
     if (not database):
         return False
@@ -3025,8 +3025,8 @@ def inventory_crafts(tracker_file):
 
     return True
 
-def inventory_have(tracker_file):
-    database = open_database(tracker_file)
+def inventory_have(tracker_file, directory):
+    database = open_database(tracker_file, directory)
 
     if (not database):
         return False
@@ -3040,8 +3040,8 @@ def inventory_have(tracker_file):
 
     return True
 
-def inventory_need(tracker_file):
-    database = open_database(tracker_file)
+def inventory_need(tracker_file, directory):
+    database = open_database(tracker_file, directory)
 
     if (not database):
         return False
@@ -3056,8 +3056,8 @@ def inventory_need(tracker_file):
     return True
 
 # List
-def list_tasks(tracker_file, argument):
-    database = open_database(tracker_file)
+def list_tasks(tracker_file, directory, argument):
+    database = open_database(tracker_file, directory)
 
     if (not database):
         print_error('No database file found')
@@ -3075,8 +3075,8 @@ def list_tasks(tracker_file, argument):
     display_tasks(database, tasks)
     return True
 
-def list_stations(tracker_file):
-    database = open_database(tracker_file)
+def list_stations(tracker_file, directory):
+    database = open_database(tracker_file, directory)
 
     if (not database):
         print_error('No database file found')
@@ -3091,8 +3091,8 @@ def list_stations(tracker_file):
     
     return True
 
-def list_barters(tracker_file, argument):
-    database = open_database(tracker_file)
+def list_barters(tracker_file, directory, argument):
+    database = open_database(tracker_file, directory)
 
     if (not database):
         print_error('No database file found')
@@ -3110,8 +3110,8 @@ def list_barters(tracker_file, argument):
     display_barters(database, barters)
     return True
 
-def list_crafts(tracker_file):
-    database = open_database(tracker_file)
+def list_crafts(tracker_file, directory):
+    database = open_database(tracker_file, directory)
 
     if (not database):
         print_error('No database file found')
@@ -3126,8 +3126,8 @@ def list_crafts(tracker_file):
     
     return True
 
-def list_untracked(tracker_file, ignore_kappa):
-    database = open_database(tracker_file)
+def list_untracked(tracker_file, directory, ignore_kappa):
+    database = open_database(tracker_file, directory)
 
     if (not database):
         print_error('No database file found')
@@ -3144,8 +3144,8 @@ def list_untracked(tracker_file, ignore_kappa):
 
     return True
 
-def list_maps(tracker_file):
-    database = open_database(tracker_file)
+def list_maps(tracker_file, directory):
+    database = open_database(tracker_file, directory)
 
     if (not database):
         print_error('No database file found')
@@ -3154,8 +3154,8 @@ def list_maps(tracker_file):
     maps = ', '.join(map['normalizedName'] for guid, map in database['maps'].items()).strip(', ')
     print_message(f'Accepted map names are: {maps}')
 
-def list_traders(tracker_file):
-    database = open_database(tracker_file)
+def list_traders(tracker_file, directory):
+    database = open_database(tracker_file, directory)
 
     if (not database):
         print_error('No database file found')
@@ -3165,8 +3165,8 @@ def list_traders(tracker_file):
     print_message(f'Accepted trader names are: {traders}')
 
 # Search
-def search(tracker_file, argument, ignore_barters, ignore_crafts):
-    database = open_database(tracker_file)
+def search(tracker_file, directory, argument, ignore_barters, ignore_crafts):
+    database = open_database(tracker_file, directory)
 
     if (not database):
         print_error('No database file found')
@@ -3177,7 +3177,7 @@ def search(tracker_file, argument, ignore_barters, ignore_crafts):
         database = import_items(database, headers = {
             'Content-Type': 'application/json'
         })
-        write_database(tracker_file, database)
+        write_database(tracker_file, directory, database)
         print_message('Complete')
 
     tasks = search_tasks(argument, database)
@@ -3207,8 +3207,8 @@ def search(tracker_file, argument, ignore_barters, ignore_crafts):
     display_search(database, tasks, hideout, barters, crafts, items, traders, maps)
     return True
 
-def required_search(tracker_file, argument, ignore_barters, ignore_crafts):
-    database = open_database(tracker_file)
+def required_search(tracker_file, directory, argument, ignore_barters, ignore_crafts):
+    database = open_database(tracker_file, directory)
 
     if (not database):
         print_error('No database file found')
@@ -3219,7 +3219,7 @@ def required_search(tracker_file, argument, ignore_barters, ignore_crafts):
         database = import_items(database, headers = {
             'Content-Type': 'application/json'
         })
-        write_database(tracker_file, database)
+        write_database(tracker_file, directory, database)
         print_message('Complete')
     
     tasks = search_tasks_by_item(argument, database)
@@ -3237,8 +3237,8 @@ def required_search(tracker_file, argument, ignore_barters, ignore_crafts):
     return True
 
 # Track
-def track(tracker_file, argument):
-    database = open_database(tracker_file)
+def track(tracker_file, directory, argument):
+    database = open_database(tracker_file, directory)
 
     if (not database):
         print_error('No database file found')
@@ -3259,11 +3259,11 @@ def track(tracker_file, argument):
     else:
         database = track_craft(database, guid)
     
-    write_database(tracker_file, database)
+    write_database(tracker_file, directory, database)
     return True
 
-def untrack(tracker_file, argument):
-    database = open_database(tracker_file)
+def untrack(tracker_file, directory, argument):
+    database = open_database(tracker_file, directory)
 
     if (not database):
         print_error('No database file found')
@@ -3284,12 +3284,12 @@ def untrack(tracker_file, argument):
     else:
         database = untrack_craft(database, guid)
     
-    write_database(tracker_file, database)
+    write_database(tracker_file, directory, database)
     return True
 
 # Complete
-def complete(tracker_file, argument, force, recurse):
-    database = open_database(tracker_file)
+def complete(tracker_file, directory, argument, force, recurse):
+    database = open_database(tracker_file, directory)
 
     if (not database):
         print_error('No database file found')
@@ -3319,14 +3319,14 @@ def complete(tracker_file, argument, force, recurse):
         database = complete_craft(database, guid, force)
 
     if (database):
-        write_database(tracker_file, database)
+        write_database(tracker_file, directory, database)
         return True
     
     return False
 
 # Restart
-def restart(tracker_file, argument):
-    database = open_database(tracker_file)
+def restart(tracker_file, directory, argument):
+    database = open_database(tracker_file, directory)
 
     if (not database):
         print_error('No database file found')
@@ -3344,14 +3344,14 @@ def restart(tracker_file, argument):
         database = restart_craft(database, guid)
 
     if (database):
-        write_database(tracker_file, database)
+        write_database(tracker_file, directory, database)
         return True
     
     return False
 
 # Add
-def write_item_fir(tracker_file, count, argument):
-    database = open_database(tracker_file)
+def write_item_fir(tracker_file, directory, count, argument):
+    database = open_database(tracker_file, directory)
     guid = find_item(argument, database)
 
     if (not guid):
@@ -3363,11 +3363,11 @@ def write_item_fir(tracker_file, count, argument):
     if (not database):
         return False
 
-    write_database(tracker_file, database)
+    write_database(tracker_file, directory, database)
     return True
 
-def write_item_nir(tracker_file, count, argument):
-    database = open_database(tracker_file)
+def write_item_nir(tracker_file, directory, count, argument):
+    database = open_database(tracker_file, directory)
     guid = find_item(argument, database)
 
     if (not guid):
@@ -3379,12 +3379,12 @@ def write_item_nir(tracker_file, count, argument):
     if (not database):
         return False
 
-    write_database(tracker_file, database)
+    write_database(tracker_file, directory, database)
     return True
 
 # Delete
-def unwrite_item_fir(tracker_file, count, argument):
-    database = open_database(tracker_file)
+def unwrite_item_fir(tracker_file, directory, count, argument):
+    database = open_database(tracker_file, directory)
     guid = find_item(argument, database)
 
     if (not guid):
@@ -3396,11 +3396,11 @@ def unwrite_item_fir(tracker_file, count, argument):
     if (not database):
         return False
 
-    write_database(tracker_file, database)
+    write_database(tracker_file, directory, database)
     return True
 
-def unwrite_item_nir(tracker_file, count, argument):
-    database = open_database(tracker_file)
+def unwrite_item_nir(tracker_file, directory, count, argument):
+    database = open_database(tracker_file, directory)
     guid = find_item(argument, database)
 
     if (not guid):
@@ -3412,12 +3412,12 @@ def unwrite_item_nir(tracker_file, count, argument):
     if (not database):
         return False
 
-    write_database(tracker_file, database)
+    write_database(tracker_file, directory, database)
     return True
 
 # Level
-def check_level(tracker_file):
-    database = open_database(tracker_file)
+def check_level(tracker_file, directory):
+    database = open_database(tracker_file, directory)
 
     if (not database):
         print_error('No database file found')
@@ -3426,27 +3426,27 @@ def check_level(tracker_file):
     print_message(f'You are level {database["player_level"]}')
     return True
 
-def set_level(tracker_file, level):
-    database = open_database(tracker_file)
+def set_level(tracker_file, directory, level):
+    database = open_database(tracker_file, directory)
 
     if (not database):
         print_error('No database file found')
         return False
     
     database['player_level'] = level
-    write_database(tracker_file, database)
+    write_database(tracker_file, directory, database)
     print_message(f'Your level is now {level}')
     return True
 
-def level_up(tracker_file):
-    database = open_database(tracker_file)
+def level_up(tracker_file, directory):
+    database = open_database(tracker_file, directory)
 
     if (not database):
         print_error('No database file found')
         return False
     
     database['player_level'] = database['player_level'] + 1
-    write_database(tracker_file, database)
+    write_database(tracker_file, directory, database)
     print_message(f'Level up! Your level is now {database["player_level"]}')
     return True
 
@@ -3456,7 +3456,7 @@ def clear():
     return True
 
 # Import
-def import_data(tracker_file):
+def import_data(tracker_file, directory):
     database = {
         'tasks': {},
         'hideout': {},
@@ -3515,24 +3515,24 @@ def import_data(tracker_file):
         return False
     
     database = calculate_inventory(database)
-    write_database(tracker_file, database)
+    write_database(tracker_file, directory, database)
     print_message(f'Finished importing game data and saved to {tracker_file}')
     return True
 
-def delta(tracker_file):
-    previous = open_database(tracker_file)
+def delta(tracker_file, directory):
+    previous = open_database(tracker_file, directory)
     delta = import_data(tracker_file)
 
     if (not delta):
         print_error('Encountered an error while importing the database. Aborted')
-        write_database(tracker_file, previous)
+        write_database(tracker_file, directory, previous)
         return False
 
-    database = open_database(tracker_file)
+    database = open_database(tracker_file, directory)
 
     if (not database):
         print_error('Something went wrong opening the database. Aborted')
-        write_database(tracker_file, previous)
+        write_database(tracker_file, directory, previous)
         return False
 
     # Tasks    
@@ -3545,7 +3545,7 @@ def delta(tracker_file):
                 continue
 
             print_message('Aborted')
-            write_database(tracker_file, previous)
+            write_database(tracker_file, directory, previous)
             return False
 
         delta_task = database['tasks'][guid]
@@ -3560,7 +3560,7 @@ def delta(tracker_file):
 
                 if (_confirmation_ != 'y'):
                     print_message('Aborted')
-                    write_database(tracker_file, previous)
+                    write_database(tracker_file, directory, previous)
                     return False
 
                 database = untrack_task(database, guid)
@@ -3570,7 +3570,7 @@ def delta(tracker_file):
 
                 if (_confirmation_ != 'y'):
                     print_message('Aborted')
-                    write_database(tracker_file, previous)
+                    write_database(tracker_file, directory, previous)
                     return False
                 
             elif (task['kappaRequired'] and not task['tracked']):
@@ -3581,7 +3581,7 @@ def delta(tracker_file):
                 database = track_task(database, guid)
             else:
                 print_error('Unhandled error with (un)tracked tasks. Aborted')
-                write_database(tracker_file, previous)
+                write_database(tracker_file, directory, previous)
                 return False
                         
     print_message('Completed tasks delta import')
@@ -3596,7 +3596,7 @@ def delta(tracker_file):
                 continue
 
             print_message('Aborted')
-            write_database(tracker_file, previous)
+            write_database(tracker_file, directory, previous)
             return False
 
         delta_station = database['hideout'][guid]
@@ -3769,7 +3769,7 @@ def delta(tracker_file):
                 continue
 
             print_message('Aborted')
-            write_database(tracker_file, previous)
+            write_database(tracker_file, directory, previous)
             return False
         
         if (database['items'][guid]['have_nir'] != item['have_nir']):
@@ -3788,28 +3788,24 @@ def delta(tracker_file):
     database['player_level'] = previous['player_level']
     database['refresh'] = previous['refresh']
     print_message('Restored player level and price refresh data')
-    write_database(tracker_file, database)
+    write_database(tracker_file, directory, database)
     print_message('Completed database delta import')
     return True
 
 # Backup
-def backup(tracker_file):
-    if (tracker_file == 'debug.json'):
-        file = 'debug'
-    else:
-        file = 'database'
-
-    saves = get_saves(file)
+def backup(tracker_file, directory):
+    saves = get_saves(tracker_file, directory)
+    print(saves)
     
     if ((saves[0] != '' and saves[1] != '' and len(saves) == 7)
-        or ((saves[0] == '' and saves[1] != '') or (saves[0] != '' and saves[1] == '') and len(saves) == 6)
+        or (((saves[0] == '' and saves[1] != '') or (saves[0] != '' and saves[1] == '')) and len(saves) == 6)
         or (saves[0] == '' and saves[1] == '' and len(saves) == 5)):
         print_message(f'You are only allowed 5 save files. Please choose a file to overwrite!')
         _display_ = '\n'
 
         for index, save in enumerate(saves):
             if (index < 2):
-                if (save == f'{file}.curr.bak'):
+                if (save == f'{tracker_file}.curr.bak'):
                     _save_ = 'Current autosave (1 exit ago)'
                 else:
                     _save_ = 'Previous autosave (2 exits ago)'
@@ -3833,20 +3829,20 @@ def backup(tracker_file):
         print_message(f'Overwriting save file {overwrite}')
         remove(overwrite)
 
-    database = open_database(tracker_file)
-    filename = f'{file}.{datetime.now().strftime('%Y-%m-%d.%H-%M-%S')}.bak'
-    write_database(filename, database)
+    database = open_database(tracker_file, directory)
+    filename = f'{tracker_file}.{datetime.now().strftime('%Y-%m-%d.%H-%M-%S')}.bak'
+    write_database(filename, directory, database)
     print_message(f'Created new save file {filename}')
     return True
 
 # Restore
-def restore(tracker_file):
+def restore(tracker_file, directory):
     if (tracker_file == 'debug.json'):
-        file = 'debug'
+        file = directory + '\\debug.json'
     else:
-        file = 'database'
+        file = directory + '\\database.json'
 
-    saves = get_saves(file)
+    saves = get_saves(file, directory)
     print_message('Please choose a save file to restore from')
     _display_ = '\n'
 
@@ -3874,8 +3870,8 @@ def restore(tracker_file):
     
     restore = saves[int(restore) - 1]
     print_message(f'Restoring from save file {restore}')
-    restore_database = open_database(restore)
-    write_database(tracker_file, restore_database)
+    restore_database = open_database(restore, directory)
+    write_database(tracker_file, directory, restore_database)
     return True
 
 
@@ -3898,12 +3894,12 @@ def main(args):
 
         print_message('Welcome to the TARkov Tracker (TART)!')
         print_debug('RUNNING IN DEBUG MODE. All changes will affect only the debug database file!')
-        tracker_file = directory + '\\debug.json'
+        tracker_file = 'debug.json'
     else:
         print_message('Welcome to the TARkov Tracker (TART)! Type help for usage')
-        tracker_file = directory + '\\database.json'
+        tracker_file = 'database.json'
 
-    database = open_database(tracker_file)
+    database = open_database(tracker_file, directory)
 
     if (database):
         if ('version' not in database.keys() or database['version'] != VERSION):
@@ -3911,7 +3907,7 @@ def main(args):
 
     while(True):
         command = input('> ')
-        running = parser(tracker_file, command)
+        running = parser(tracker_file, directory, command)
         
         if (not running):
             print_message('Goodbye.')

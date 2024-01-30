@@ -1,25 +1,149 @@
+Windows 10/11
+
+This is a lightweight, CLI application intended to be used a companion for Escape From Tarkov. If used correctly, this can be a strong tool to help streamline your raiding experience by completing tasks faster, staying on top of the hideout, and knowing what items you need for desirable barters and crafts.
+
 Installation instructions
 
-First, ensure that at least Python v3.11.0 is installed on your system. You can download the latest version here: https://www.python.org/downloads/. While installing Python, verify that the pip optional feature is included and that "Add Python to environment variables" is checked. I also recommend precompiling the standard library.
+    1. Install at least Python v3.11.0 on your computer (https://python.org/downloads/).
+    2. Choose to include pip during your installation, as this will be needed.
+    3. Select "Add Python to environment varibales" during installation, as well. This will make it easier to launch the application.
+    4. Download the github repository as a zip or make a clone of it.
+    5. Extract the repository source files to anywhere of your choosing that you will remember.
+    6. Open a terminal of your choosing and navigate the working directory to the installation folder.
 
-After installation, open a terminal and navigate to the directory of this file. You can use the "cd" command to change directories, i.e., if this is saved in C:\Users\Me\Downloads, you can use "cd" to switch to that directory by typing:
+    cd {DRIVE:\INSTALLATION\FOLDER\PATH}
 
-cd C:\Users\Me\Downloads
+    7. Perform the following command to install the required modules for the application.
 
-Next, install the required dependencies. A requirements file has been included with this application and can be used to install all dependencies. Use pip to do this from the terminal while in the current directory.
+    pip install -r requirements.txt
 
-pip install -r requirements.txt
+    8. Run the program by typing
 
-Finally, you're ready to run the program. From the same terminal in the current directory, use Python to interpret and execute the .py application.
+    python tart.py
 
-python .\tart.py
+Advanced installation
 
-If you have done everything correctly, the application should launch and welcome you. You will be presented with a cursor to begin typing commands:
+    1. For easier use in the future, ensure that Python is the default program for .py and add the program path to your environment variables.
+    2. Open "Default apps" in your system settings.
+    3. Search for ".py" under "Set a default for a file type or link type".
+    4. Choose the Python executable as the default app for .py files.
+    5. Open "Advanced System Settings" on your computer via Control Panel or This PC (or search for "Environment Variables").
+    6. In the Advanced tab of the System Properties window, select "Environment Variables...".
+    7. Under either User or System variables, select "Path" and click "Edit...".
+    8. In the editor, select "New" and type the path location of the application. You can easily get this by right-clicking the application and selecting "Copy as path".
+    9. Save changes and open a new terminal.
+    10. Simply type the below command to launch the application in the future.
 
->
+    tart
 
-If you receive an error regarding "The term 'python' is not recognized as a name of a cmdlet, function, script file, or executable program," then you likely did not check to "Add Python to environment variables" during installation. The location of the python executable must be on your PATH environment variable. Add this manually or reinstall Python.
+Usage instructions
 
-If you receive a message from the application that a required module is not installed, then either you did not install the modules found in requirements.txt, or your version of Python is not compatible and is missing a module from the standard library.
+    1. Launch the application and you will be met with a prompt. This is intended to be run in a fullscreen terminal window.
 
-You can use 'q', 'quit', 's', or 'stop', or 'exit' to leave the application at any time. Use 'clear' to refresh the screen.
+    > 
+
+    2. Type the following command for detailed information on interacting with the app
+
+    > help
+
+    3. You can drill down further into specifics commands by typing the command followed by help.
+
+    > command help
+
+    4. After first-time setup, import the current game data to get started.
+
+    > import
+
+    5. Watch for any messages which look like (ERROR) or (WARNING). These are important messages that give you information on something that may have gone wrong while running the application.
+
+    6. Exit from the application gracefully using "q", "quit", "s", "stop", or "exit". This will save a backup of your current data before quitting.
+
+    7. Clear the screen at any time by typing "clear".
+
+    8. Pull in updated game data at any time without overwriting your progress by typing
+
+    import delta
+
+    9. !! NOTE !! that most special characters can be safely ignored. Characters such as -, _, ., and excess spaces are not required to be typed. Most name inputs, such as task and item names, are best guess and do not need to be complete!
+
+FAQ
+
+    Q: How do I report a bug?
+
+    A: You can do this using the "Issues" function built into the github repository. However, I am not a developer and I do not code full-time, so I might not get to it.
+
+    Q: How do I request a new feature?
+
+    A: You can use the "Issues" function built into the github repository for this, as well. However, as mentioned, I am not a developer and may not implement it.
+
+    Q: Your app sucks and I can do it better.. or I simply want to steal some of your logic for my own app.
+
+    A: You are free to do whatever you wish with this code. I made this in my freetime to help learn some coding skills and to help my own in-game experience. I find most of the available online tools to be too cumbersome to navigate and tend to prefer CLI tools.
+    
+    Q: What are NIR and FIR?
+
+    A: FIR means Found In Raid. This is a tag used within the game to denote if an item was found during a raid and successfully extracted, or if an item was received as a task or craft reward. NIR, in the context of this app, means Not found In Raid. This tag is implicitly used in the game, but explicitly stated in the app. This helps make it clear when an item is needed or owned as Found In Raid or Not found In Raid.
+    
+    Q: Explain tracking.
+
+    A: Tracking is what tells the application whether or not a task, hideout station, barter, or craft should be considered when doing calculations and within the inventory. If a task, for example, is tracked, then it will show up when you list your tasks, it can be completed, and items required for the task will be calculated in the inventory. By default, no task not required for Kappa is tracked and no barters or crafts are tracked. You can track and untrack tasks, hideout stations, barters, and crafts by using the available command. Barters and crafts are tracked by GUID.
+    
+    Q: Explain the inventory.
+
+    A: The inventory keeps track of all items that you are required to collect for tracked tasks, hideout stations, barters, and crafts. It is smart enough to know if an item is needed as Found In Raid (FIR) or Not found In Raid (NIR). Generally, items that are NIR will not be surrounded by parenthesis (), whereas items that are FIR will be surrounded by parenthesis.
+
+    There are three numbers displayed for each item for both FIR and NIR in most inventories. These numbers are separated with forward slashes and mean different things. The first number is the number of that item you have Available in the inventory. This means these items are available to be used in a task, hideout station, barter, or craft. The second number is the total number of that item you have in the inventory. This is the total number of that item that you have added to the app, whether by finding it in raid, crafting it, or buying it from a vendor or the flea. The third number is the number of that item that you need overall. With all tracked tasks, hideout stations, barters, and crafts combined, this is the total number of that item needed to complete all of these.
+
+    For example, if I need 58 NIR and 15 FIR CPU fans across all of my tasks, hideout stations, barters, and crafts, then the inv will show 0/0/58 (0/0/15). I have 0 available, 0 total, and 58 needed NIR, and 0 available, 0 total, and 15 needed FIR. If I later get 32 CPU fans NIR and 6 FIR, then the number will then look like 32/32/58 (6/6/15). However, if I then turn in 4 as FIR for a task and use 12 for a hideout station, I have then consumed those and that amount is subtracted from the available number. Now, it will look like 20/32/58 (2/6/15).
+
+    Q: How do I get items into the inventory?
+
+    A: You must manually add items that you collect in the game, whether through looting, trading, crafting, or purchasing. Of course, not all items will need to be added, as not every item that you get is required for a task, hideout station, barter, or craft (i.e., most weapons). In that case, you do not need to add those items to the inventory, as they are irrelevant. If you try to add an item that is irrelevant, it will tell you so and fail to add. After some experience with the game, you will learn what items to add to the inventory and what not. If you're unsure, feel free to add it and the app will tell you if it's needed. Use the following command for information about adding items:
+
+    add help
+
+    Q: I accidentally added an item to the inventory or consumed an item in the game for something else. How do I remove it from the inventory?
+
+    A: There is rarely a case that you should need to manually remove an item from the inventory. For the most part, the app is smart enough to know when an item is consumed based on what you mark as completed. However, there are times that you may mistype a number when adding, or that you may decide to use an item in the inventory for something else in the game (such as a daily task). In that case, items can easily be removed with the del command. Find help for it by typing:
+
+    del help
+
+    Q: Explain the ls (list) function?
+
+    A: ls is a very powerful tool for seeing information on your active tasks, hideout stations, barters, crafts, and others. This information is pulled from what the app knows based on what you have told it. If there is inaccurate information, it's either because you have not provided the app some information on player level or items collected, or the source data that it is pulling from online (tarkov.dev) has not been updated.
+
+    Using this function, you can see what tasks are currently available, but also filter down by map or trader. This will respect player level, task prerequisites, tracking status, and only show tasks that you currently have available to you within the game. This same logic applies to hideout stations.
+
+    You can also use this to view anything that you have untracked.
+
+    Q: How do I find stuff with this, like items, tasks, hideout stations, barters, and crafts?
+
+    A: The search and requires functions are powerful utilities to let you search just about anything in the game.
+
+    First, let's focus on search. You can use this to find any item in the game, including detailed information such as the item GUID, inventory info for that item, who to sell the item to and for how much, and where to buy the item from and for how much. Furthermore, you can search for any task, hideout station, barter, or craft in the game regardless if it's tracked or not. This will give you nearly all relevant information that you might want on these items.
+
+    Requires does the same thing as search, however, it will only return things, like tasks or hideout stations, that require the searched item. For example, if you want to see which everything that requires bolts, you can use this command which will tell you every task and hideout station that requires this item.
+
+    For both search and requires, barters and crafts are ignored by default. If you want to include these in your search, you can append either term on the end of the search. Or, you can simply append "all" to search everything. Using the normal "search" function will show you barters and crafts that either require or reward the specified item. Using the "requires" function will show barters and crafts that only require the specified item.
+
+    Q: How do I find a barter or craft GUID to track it?
+
+    A: You can find GUIDs by searching for the barter or craft following the above question. Search for barters or crafts by the item that they reward or require, depending on your search, and you will see the GUID listed. Copy this GUID by highlighting it with your mouse and right-clicking. Right-click again to paste it in the track or untrack command.
+
+    Q: Why do I need to keep track of my player level?
+
+    A: A lot of tasks require your player to be a certain level. Therefore, you must maintain your player level in the app alongside the game.
+
+    Q: What is "restart" for?
+
+    A: If you wish to repeat a barter or craft, you can use the restart command to do so. This will increase the items for that barter or craft needed within your inventory again to maintain consistent inventory data.
+
+    Q: I don't see some tasks in the app that I have in the game.
+
+    A: They are probably not required for Kappa and must be manually tracked. A lot of Streets tasks are not required for Kappa. Otherwise, you may not have updated your player level. As a last resort, it's possible shortly after a new wipe that the game data this app relies on has not yet been updated. You can use the following command to pull in new data.
+
+    import delta
+
+    Q: How do I save my data?
+
+    A: Data is automatically saved in your AppData folder. However, you can take manual saves using the backup and restore commands.

@@ -177,7 +177,6 @@ BUFFER = '----------------------------------------------------------------------
 ###################################################
 
 
-#TODO: Add ready to complete notifications
 # Command parsing
 def parser(tracker_file, directory, command):
     command = command.lower().split(' ')

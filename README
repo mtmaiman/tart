@@ -2,7 +2,7 @@ Windows 10/11
 
 This is a lightweight, CLI application intended to be used a companion for Escape From Tarkov. If used correctly, this can be a strong tool to help streamline your raiding experience by completing tasks faster, staying on top of the hideout, and knowing what items you need for desirable barters and crafts.
 
-Installation instructions
+[==] Installation instructions
 
     1. Install at least Python v3.11.0 on your computer (https://python.org/downloads/).
     2. Choose to include pip during your installation, as this will be needed.
@@ -22,7 +22,7 @@ Installation instructions
 
     tart
 
-Usage instructions
+[==] Usage instructions
 
     1. Launch the application and you will be met with a prompt. This is intended to be run in a fullscreen terminal window.
 
@@ -48,11 +48,11 @@ Usage instructions
 
     8. Pull in updated game data at any time without overwriting your progress by typing
 
-    import delta
+    > import delta
 
     9. !! NOTE !! that most special characters can be safely ignored. Characters such as -, _, ., and excess spaces are not required to be typed. Most name inputs, such as task and item names, are best guess and do not need to be complete!
 
-FAQ
+[==] FAQ
 
     Q: How do I report a bug?
 

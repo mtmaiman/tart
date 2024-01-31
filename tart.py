@@ -1,15 +1,16 @@
-# Standard library
+from datetime import datetime, timedelta
+from os import system, name, rename, remove, listdir, path, mkdir, getcwd, environ
+import subprocess
+import json
+import sys
+import re
+
 try:
-    from datetime import datetime, timedelta
-    from os import system, name, rename, remove, listdir, path, mkdir
-    import json
-    import sys
-    import re
-    # Imported libraries
     import requests
-except ModuleNotFoundError as exception:
-    print('Failed to find a required module. Please use "pip install -r requirements.txt" to install required modules and verify your version of Python.')
-    exit(1)
+except ModuleNotFoundError:
+    with open('requirements.txt') as requirements:
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', '-r', 'requirements.txt'])
+        import requests
 
 
 VERSION = 'cucumber'
@@ -562,6 +563,10 @@ def open_database(file_path, directory):
         with open(f'{directory}\\{file_path}', 'r', encoding = 'utf-8') as open_file:
             print_debug(f'Opened file >> {file_path} <<')
             file = json.load(open_file)
+
+            if (file['version'] != VERSION):
+                print_error('Incorrect database version detected. Please update with a delta import! Aborting')
+                return False
     except FileNotFoundError:
         print_error('Database not found')
         return False
@@ -3903,31 +3908,38 @@ def restore(tracker_file, directory):
 
 
 def main(args):
-    directory = path.expanduser('~\\AppData\\Local\\Programs\\Tart')
+    database_directory = path.expanduser('~\\AppData\\Local\\Programs\\Tart')
+    app_directory = getcwd()
 
-    if (not path.isdir(directory)):
-        mkdir(directory)
+    if (not path.isdir(database_directory)):
+        mkdir(database_directory)
 
     if (len(args) > 1 and args[1] == 'debug'):
         global DEBUG
         DEBUG = True
-
-        print_message('Welcome to the TARkov Tracker (TART)!')
-        print_debug('RUNNING IN DEBUG MODE. All changes will affect only the debug database file!')
+        print_debug('Debug mode enabled')
         tracker_file = 'debug.json'
     else:
-        print_message('Welcome to the TARkov Tracker (TART)! Type help for usage')
         tracker_file = 'database.json'
 
-    database = open_database(tracker_file, directory)
+    if (app_directory not in environ.get('PATH')):
+        user_env = subprocess.check_output(['reg', 'query', 'HKEY_CURRENT_USER\\Environment']).decode('UTF-8')
+        user_env = re.sub(' +', ' ', user_env[int(user_env.find('Path')):]).replace('\r\n', '').split(' ')[2]
+        user_env = user_env + ';' + app_directory
+        _child_ = subprocess.run(['SETX', 'PATH', user_env], capture_output = True, text = True)
 
-    if (database):
-        if ('version' not in database.keys() or database['version'] != VERSION):
-            print_warning('Your database is out of date. Please perform a delta import!')
+        if (_child_.stderr):
+            print_error(f'Encountered an error while adjusting $env:PATH for user: {_child_.stderr}')
+            return False
+        else:
+            print_message('Successfully added TART to your $env:PATH. Restart your terminal and you can now type \'tart\' to run this program!')
+            return True
+
+    print_message('Welcome to the TARkov Tracker (TART)! Type help for usage')
 
     while(True):
         command = input('> ')
-        running = parser(tracker_file, directory, command)
+        running = parser(tracker_file, database_directory, command)
         
         if (not running):
             print_message('Goodbye.')

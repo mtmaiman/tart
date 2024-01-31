@@ -7,32 +7,18 @@ Installation instructions
     1. Install at least Python v3.11.0 on your computer (https://python.org/downloads/).
     2. Choose to include pip during your installation, as this will be needed.
     3. Select "Add Python to environment varibales" during installation, as well. This will make it easier to launch the application.
-    4. Download the github repository as a zip or make a clone of it.
-    5. Extract the repository source files to anywhere of your choosing that you will remember.
-    6. Open a terminal of your choosing and navigate the working directory to the installation folder.
+    4. Set Python as the default app for .py files.
+    5. Download the github repository as a zip or make a clone of it.
+    6. Extract the repository source files to anywhere of your choosing that you will remember.
+    7. Open a terminal of your choosing and navigate the working directory to the installation folder.
 
     cd {DRIVE:\INSTALLATION\FOLDER\PATH}
 
-    7. Perform the following command to install the required modules for the application.
-
-    pip install -r requirements.txt
-
-    8. Run the program by typing
+    8. Run the program by typing the following. First-time setup will install required modules and set environment variables
 
     python tart.py
 
-Advanced installation
-
-    1. For easier use in the future, ensure that Python is the default program for .py and add the program path to your environment variables.
-    2. Open "Default apps" in your system settings.
-    3. Search for ".py" under "Set a default for a file type or link type".
-    4. Choose the Python executable as the default app for .py files.
-    5. Open "Advanced System Settings" on your computer via Control Panel or This PC (or search for "Environment Variables").
-    6. In the Advanced tab of the System Properties window, select "Environment Variables...".
-    7. Under either User or System variables, select "Path" and click "Edit...".
-    8. In the editor, select "New" and type the path location of the application. You can easily get this by right-clicking the application and selecting "Copy as path".
-    9. Save changes and open a new terminal.
-    10. Simply type the below command to launch the application in the future.
+    9. After running the program once, in the future you can simply type the name of the app to run it, without needing to change your working directory.
 
     tart
 

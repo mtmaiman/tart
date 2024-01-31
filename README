@@ -163,3 +163,7 @@ This is a lightweight, CLI application intended to be used a companion for Escap
         Similar to the above question, instead of "force", you can use the flag "recurse". This ONLY works with tasks, but it will complete the specified task and all prerequisite tasks, including adding the needed items to the inventory (if you don't already have them). This is a powerful command, be careful using it. You CANNOT currently uncomplete anything!! See below
 
         complete background check recurse
+
+    Q: Why did you write your own argument parser instead of using a library?
+
+        I just kind of felt like it. I'm not a big fan of the argparse library.

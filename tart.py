@@ -2802,15 +2802,19 @@ def display_hideout(database, stations):
 
         for item in station['itemRequirements']:
             item_guid = item['item']['id']
-            have_available_nir = database['items'][item_guid]['have_nir'] - database['items'][item_guid]['consumed_nir']
-            have_available_fir = database['items'][item_guid]['have_fir'] - database['items'][item_guid]['consumed_fir']
-            short_name = database['items'][item_guid]['shortName']
             count = item['count']
-            display = display + f'--> {have_available_nir}/{count} {short_name} available'
+            short_name = database['items'][item_guid]['shortName']
 
-            if (have_available_fir > 0):
-                display = display + f' ({have_available_fir}/{count}) FIR'
+            if (station['status'] == 'incomplete'):
+                have_available_nir = database['items'][item_guid]['have_nir'] - database['items'][item_guid]['consumed_nir']
+                have_available_fir = database['items'][item_guid]['have_fir'] - database['items'][item_guid]['consumed_fir']
+                display = display + f'--> {have_available_nir}/{count} {short_name} available'
 
+                if (have_available_fir > 0):
+                    display = display + f' ({have_available_fir}/{count}) FIR'
+            else:
+                display = display + f'--> {count}/{count} {short_name} consumed'
+            
             display = display + '\n'
         
         display = display + '\n\n'
@@ -2827,14 +2831,18 @@ def display_barters(database, barters):
         for item in barter['requiredItems']:
             item_guid = item['item']['id']
             item_name = database['items'][item_guid]['shortName']
-            have_available_nir = database['items'][item_guid]['have_nir'] - database['items'][item_guid]['consumed_nir']
-            have_available_fir = database['items'][item_guid]['have_fir'] - database['items'][item_guid]['consumed_fir']
             count = item['count']
-            display = display + f'--> Give {have_available_nir}/{count} {item_name} available'
 
-            if (have_available_fir > 0):
-                display = display + f' ({have_available_fir}/{count}) FIR'
+            if (barter['status'] == 'incomplete'):
+                have_available_nir = database['items'][item_guid]['have_nir'] - database['items'][item_guid]['consumed_nir']
+                have_available_fir = database['items'][item_guid]['have_fir'] - database['items'][item_guid]['consumed_fir']
+                display = display + f'--> Give {have_available_nir}/{count} {item_name} available'
 
+                if (have_available_fir > 0):
+                    display = display + f' ({have_available_fir}/{count}) FIR'
+            else:
+                display = display + f'--> {count}/{count} {item_name} consumed'
+            
             display = display + '\n'
 
         for item in barter['rewardItems']:
@@ -2860,13 +2868,17 @@ def display_crafts(database, crafts):
         for item in craft['requiredItems']:
             item_guid = item['item']['id']
             item_name = database['items'][item_guid]['shortName']
-            have_available_nir = database['items'][item_guid]['have_nir'] - database['items'][item_guid]['consumed_nir']
-            have_available_fir = database['items'][item_guid]['have_fir'] - database['items'][item_guid]['consumed_fir']
             count = item['count']
-            display = display + f'--> Give {have_available_nir}/{count} {item_name} available'
 
-            if (have_available_fir > 0):
-                display = display + f' ({have_available_fir}/{count}) FIR'
+            if (craft['status'] == 'incomplete'):
+                have_available_nir = database['items'][item_guid]['have_nir'] - database['items'][item_guid]['consumed_nir']
+                have_available_fir = database['items'][item_guid]['have_fir'] - database['items'][item_guid]['consumed_fir']
+                display = display + f'--> Give {have_available_nir}/{count} {item_name} available'
+
+                if (have_available_fir > 0):
+                    display = display + f' ({have_available_fir}/{count}) FIR'
+            else:
+                display = display + f'--> {count}/{count} {item_name} consumed' 
 
             display = display + '\n'
 

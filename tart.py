@@ -71,7 +71,7 @@ iterables
 \tcrafts : Lists all tracked crafts
 \tuntracked : Lists all untracked tasks and hideout stations
 \t\tfilters
-\t\t\tkappa : Includes non-Kappa required tasks, otherwise ignored
+\t\t\tnokappa : Includes non-Kappa required tasks, otherwise ignored
 \tmaps : Lists all maps
 \ttraders : Lists all traders
 '''
@@ -136,14 +136,14 @@ Displays the player level\n
 operations
 \tup : Increments the player level by one (1)
 \tset : Sets the player level to {level}
-level : The integer value greater than 0 to set the player level at
+\t\tlevel : The integer value greater than 0 to set the player level at
 '''
 CLEAR_HELP = '''
 > clear\n
 Clears the terminal
 '''
 IMPORT_HELP = '''
-> import {prices}\n
+> import {type}\n
 Pulls latest Escape From Tarkov game data from api.tarkov.dev and overwrites all application files (WARNING: This will reset all progress!)\n
 prices : Manually imports only item price data (Does not reset any progress)
 delta : Performs a delta import, attempting to save all current data, including task, hideout, barter, and craft progress while importing updated game data (WARNING: This may corrupt some data!)
@@ -240,7 +240,7 @@ def parser(tracker_file, directory, command):
             if (len(command) == 3):
                 print_debug(f'Executing >> {command[0]} {command[1]} {command[2]} <<')
                 
-                if (command[2] == 'kappa'):
+                if (command[2] == 'nokappa'):
                     list_untracked(tracker_file, directory, True)
                 else:
                     print_debug(f'Failed >> {command[0]} {command[1]} <<')
@@ -539,6 +539,9 @@ def parser(tracker_file, directory, command):
     elif (command[0] == 'stop' or command[0] == 's' or command[0] == 'quit' or command[0] == 'q' or command[0] == 'exit'):
         print_debug(f'Executing >> {command[0]} <<')
         database = open_database(tracker_file, directory)
+
+        if (not database):
+            return False
 
         if (f'{tracker_file}.prev.bak' in listdir('.')):
             remove(f'{tracker_file}.prev.bak')
@@ -3934,7 +3937,7 @@ def main(args):
             print_message('Successfully added TART to your $env:PATH. Restart your terminal and you can now type \'tart\' to run this program!')
             return True
 
-    print_message('Welcome to the TARkov Tracker (TART)! Type help for usage')
+    print_message('Welcome to the TARkov Tracker (TART)! Type help for usage. Enter "import" to get started')
 
     while(True):
         command = input('> ')

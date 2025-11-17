@@ -1034,8 +1034,6 @@ def print_error(message):
     print(f'>> (ERROR) {message}!')
     return True
 
-# Ready status
-
 
 ###################################################
 #                                                 #

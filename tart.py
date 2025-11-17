@@ -2165,6 +2165,7 @@ def import_tasks(database, headers):
         print_message('Retrieved latest task data from the api.tarkov.dev server')
 
     nonKappa = 0
+    imported_tasks = 0
 
     for task in response.json()['data']['tasks']:
         guid = task['id']
@@ -2185,9 +2186,10 @@ def import_tasks(database, headers):
             task['tracked'] = False
             nonKappa = nonKappa + 1
 
+        imported_tasks = imported_tasks + 1
         database['tasks'][guid] = task
 
-    print_message(f'Successfully loaded task data into the database! {nonKappa} non-Kappa required tasks have been automatically untracked')
+    print_message(f'Successfully loaded {imported_tasks} tasks into the database! {nonKappa} non-Kappa required tasks have been automatically untracked')
     return database
 
 def import_hideout(database, headers):
@@ -2390,7 +2392,10 @@ def import_items(database, headers):
     else:
         if ('errors' in response.json().keys()):
             print_warning(f'Errors detected {json.dumps(response.json()["errors"])}')
-            return False
+            
+            for error in response.json()['errors']:
+                if ('fleaMarketFee' not in error['path']):
+                    return False
 
         items = response.json()['data']['items']
 
@@ -2447,6 +2452,7 @@ def import_items(database, headers):
                 sell_flea_currency = this_currency
 
                 if (this_price_roubles > sell_price_roubles):
+                    sell_price_roubles = this_price_roubles
                     sell_to = 'flea'
 
             elif (this_price_roubles > sell_price_roubles):
@@ -2487,6 +2493,7 @@ def import_items(database, headers):
                 buy_flea_currency = this_currency
 
                 if (this_price_roubles < buy_price_roubles):
+                    buy_price_roubles = this_price_roubles
                     buy_from = 'flea'
 
             elif (this_price_roubles < buy_price_roubles):

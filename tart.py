@@ -3495,7 +3495,7 @@ def level_up(tracker_file, directory):
     print_message(f'Level up! Your level is now {database["player_level"]}')
     return True
 
-#Clear
+# Clear
 def clear():
     system('cls' if name == 'nt' else 'clear')
     return True

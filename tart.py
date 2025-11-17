@@ -2379,6 +2379,7 @@ def import_items(database, headers):
                         price
                         currency
                     }
+                    avg24hPrice
                     fleaMarketFee
                 }
             }
@@ -2415,94 +2416,101 @@ def import_items(database, headers):
 
     for item in items:
         guid = item['id']
-        sell_price = 0
-        sell_price_roubles = 0
-        sell_flea = 0
-        sell_flea_currency = 'N/A'
-        sell_trader = 'N/A'
-        sell_currency = 'N/A'
-        sell_to = 'N/A'
-        buy_price = 0
-        buy_price_roubles = sys.maxsize
-        buy_flea = 0
-        buy_flea_currency = 'N/A'
-        buy_trader = 'N/A'
-        buy_currency = 'N/A'
-        buy_from = 'N/A'
-        
-        for vendor in item['sellFor']:
-            this_price = int(vendor['price'])
-            this_price_roubles = 0
-            this_currency = vendor['currency']
 
-            if (this_currency.lower() == 'usd'):
-                this_price_roubles = this_price * usd_to_roubles
-            elif (this_currency.lower() == 'euro'):
-                this_price_roubles = this_price * euro_to_roubles
-            else:
-                this_price_roubles = this_price
-
-            if (vendor['vendor']['normalizedName'] == 'flea-market'):
-                if (item['fleaMarketFee'] is None):
-                    print_warning(f'Found an invalid flea market value (Will be corrected): {item['normalizedName']}')
-                    item['fleaMarketFee'] = 100000000
-                
-                this_price_roubles = this_price_roubles - item['fleaMarketFee']
-                sell_flea = this_price
-                sell_flea_currency = this_currency
-
-                if (this_price_roubles > sell_price_roubles):
-                    sell_price_roubles = this_price_roubles
-                    sell_to = 'flea'
-
-            elif (this_price_roubles > sell_price_roubles):
-                sell_price = this_price
-                sell_price_roubles = this_price_roubles
-                sell_trader = vendor['vendor']['normalizedName']
-                sell_currency = this_currency
-                sell_to = sell_trader
-
-        if ('sell_flea' not in item.keys()):
-            item['sell_flea'] = 0
-            item['sell_flea_currency'] = 'N/A'
-
-        if (sell_price == 0):
-            item['sell_trader'] = ''
-            item['sell_trade'] = 0
-            item['sell_trade_currency'] = 'N/A'
+        # Flea vars
+        if ('avg24hPrice' in item.keys() and item['avg24hPrice'] is not None):
+            flea_price = item['avg24hPrice']
+            flea_currency = 'RUB'
         else:
-            item['sell_trader'] = sell_trader
-            item['sell_trade'] = sell_price
-            item['sell_trade_currency'] = sell_currency
+            flea_price = 0
+            flea_currency = 'N/A'
 
-        for vendor in item['buyFor']:
+        # Selling vars
+        best_sell = 'N/A'
+        best_trader_sell = 'N/A'
+        best_trader_sell_price = 0
+        best_trader_sell_currency = 'N/A'
+
+        # Buying vars
+        best_buy = 'N/A'
+        best_trader_buy = 'N/A'
+        best_trader_buy_price = 0
+        best_trader_buy_currency = 'N/A'
+        
+        # Checks for empty or invalid flea market fee values
+        if (item['fleaMarketFee'] is None):
+            print_warning(f'Found an invalid flea market fee value (will be corrected): {item['normalizedName']}')
+            item['fleaMarketFee'] = sys.maxsize
+
+        # Sell logic
+
+        max_sell = 0
+
+        # Finds best trader to sell to
+        for vendor in item['sellFor']:
+            if ('flea' in vendor['vendor']['normalizedName']):
+                continue
+
             this_price = int(vendor['price'])
-            this_price_roubles = sys.maxsize
             this_currency = vendor['currency']
+            this_price_converted = 0
 
+            # Normalizes all prices to roubles
             if (this_currency.lower() == 'usd'):
-                this_price_roubles = this_price * usd_to_roubles
+                this_price_converted = this_price * usd_to_roubles
             elif (this_currency.lower() == 'euro'):
-                this_price_roubles = this_price * euro_to_roubles
+                this_price_converted = this_price * euro_to_roubles
             else:
-                this_price_roubles = this_price
+                this_price_converted = this_price
 
-            if (vendor['vendor']['normalizedName'] == 'flea-market'):                
-                this_price_roubles = this_price_roubles
-                buy_flea = this_price
-                buy_flea_currency = this_currency
+            # Sets best trader sell
+            if (this_price_converted > max_sell):
+                best_trader_sell_price = this_price
+                best_trader_sell = vendor['vendor']['normalizedName']
+                best_trader_sell_currency = this_currency
+                max_sell = this_price_converted
 
-                if (this_price_roubles < buy_price_roubles):
-                    buy_price_roubles = this_price_roubles
-                    buy_from = 'flea'
+        # Calculating best sell option
+        if (flea_price - item['fleaMarketFee'] > max_sell):
+            best_sell = 'flea'
+        else:
+            best_sell = best_trader_sell
 
-            elif (this_price_roubles < buy_price_roubles):
-                buy_price = this_price
-                buy_price_roubles = this_price_roubles
-                buy_trader = vendor['vendor']['normalizedName']
-                buy_currency = this_currency
-                buy_from = buy_trader
+        # Buy logic
 
+        min_buy = sys.maxsize
+
+        # Finds best trader to buy from
+        for vendor in item['buyFor']:
+            if ('flea' in vendor['vendor']['normalizedName']):
+                continue
+
+            this_price = int(vendor['price'])
+            this_currency = vendor['currency']
+            this_price_converted = 0
+
+            # Normalizes all prices to roubles
+            if (this_currency.lower() == 'usd'):
+                this_price_converted = this_price * usd_to_roubles
+            elif (this_currency.lower() == 'euro'):
+                this_price_converted = this_price * euro_to_roubles
+            else:
+                this_price_converted = this_price
+
+            # Sets best trader buy
+            if (this_price_converted < min_buy):
+                best_trader_buy_price = this_price
+                best_trader_buy = vendor['vendor']['normalizedName']
+                best_trader_buy_currency = this_currency
+                min_buy = this_price_converted
+
+        # Calculating best buy option
+        if (flea_price < min_buy and flea_price > 0):
+            best_buy = 'flea'
+        else:
+            best_buy = best_trader_buy
+
+        # Setting inventory values
         if (guid not in database['items'].keys()):
             database['items'][guid] = {
                 'need_fir': 0,
@@ -2513,20 +2521,17 @@ def import_items(database, headers):
                 'consumed_nir': 0
             }
 
+        # Updating item in database
         database['items'][guid]['normalizedName'] = item['normalizedName']
         database['items'][guid]['shortName'] = item['shortName']
-        database['items'][guid]['sell_flea'] = sell_flea
-        database['items'][guid]['sell_flea_currency'] = sell_flea_currency
-        database['items'][guid]['sell_trader'] = sell_trader
-        database['items'][guid]['sell_trade'] = sell_price
-        database['items'][guid]['sell_trade_currency'] = sell_currency
-        database['items'][guid]['buy_flea'] = buy_flea
-        database['items'][guid]['buy_flea_currency'] = buy_flea_currency
-        database['items'][guid]['buy_trader'] = buy_trader
-        database['items'][guid]['buy_trade'] = buy_price
-        database['items'][guid]['buy_trade_currency'] = buy_currency
-        database['items'][guid]['sell_to'] = sell_to
-        database['items'][guid]['buy_from'] = buy_from
+        database['items'][guid]['flea_price'] = flea_price
+        database['items'][guid]['flea_currency'] = flea_currency
+        database['items'][guid]['best_trader_sell_price'] = best_trader_sell_price
+        database['items'][guid]['best_trader_sell_currency'] = best_trader_sell_currency
+        database['items'][guid]['best_trader_buy_price'] = best_trader_buy_price
+        database['items'][guid]['best_trader_buy_currency'] = best_trader_buy_currency
+        database['items'][guid]['best_sell'] = best_sell
+        database['items'][guid]['best_buy'] = best_buy
 
     database['refresh'] = datetime.now().isoformat()
     print_message(f'Successfully loaded item data into the database!')
@@ -2934,9 +2939,10 @@ def display_items(items):
         except KeyError:
             print(item)
             return False
-        sell_price = f'{format_price(item["sell_trade"], item["sell_trade_currency"])} / {format_price(item["sell_flea"], item["sell_flea_currency"])}'
-        buy_price = f'{format_price(item["buy_trade"], item["buy_trade_currency"])} / {format_price(item["buy_flea"], item["buy_flea_currency"])}'
-        display = display + '{:<25} {:<60} {:<25} {:<15} {:<12} {:<20} {:<12} {:<20}\n'.format(item['shortName'], item['normalizedName'], guid, item_display, item['sell_to'], sell_price, item['buy_from'], buy_price)
+        flea_price = format_price(item["flea_price"], item["flea_currency"])
+        sell_price = f'{format_price(item["best_trader_sell_price"], item["best_trader_sell_currency"])} / {flea_price}'
+        buy_price = f'{format_price(item["best_trader_buy_price"], item["best_trader_buy_currency"])} / {flea_price}'
+        display = display + '{:<25} {:<60} {:<25} {:<15} {:<12} {:<20} {:<12} {:<20}\n'.format(item['shortName'], item['normalizedName'], guid, item_display, item['best_sell'], sell_price, item['best_buy'], buy_price)
 
     display = display + '\n\n'
     print_message(f'\n{display}')

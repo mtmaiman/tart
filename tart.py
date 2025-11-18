@@ -3481,7 +3481,7 @@ def set_level(tracker_file, directory, level):
     
     database['player_level'] = level
     write_database(tracker_file, directory, database)
-    print_message(f'Your level is now {level}')
+    print_message(f'\nYour level is now {level}\n')
     return True
 
 def level_up(tracker_file, directory):
@@ -3493,7 +3493,7 @@ def level_up(tracker_file, directory):
     
     database['player_level'] = database['player_level'] + 1
     write_database(tracker_file, directory, database)
-    print_message(f'Level up! Your level is now {database["player_level"]}')
+    print_message(f'\nLevel up! Your level is now {database["player_level"]}\n')
     return True
 
 # Clear

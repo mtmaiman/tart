@@ -3276,6 +3276,9 @@ def required_search(tracker_file, directory, argument, ignore_barters, ignore_cr
     if (not ignore_crafts):
         crafts = search_crafts_by_item(argument, database, required_only = True)
 
+    if (not tasks and not hideout and not barters and not crafts):
+        print_message('\nItem not required\n')
+
     display_search(database, tasks, hideout, barters, crafts, False, False, False)
     return True
 
@@ -3466,7 +3469,7 @@ def check_level(tracker_file, directory):
         print_error('No database file found')
         return False
     
-    print_message(f'You are level {database["player_level"]}')
+    print_message(f'\nYou are level {database["player_level"]}\n')
     return True
 
 def set_level(tracker_file, directory, level):

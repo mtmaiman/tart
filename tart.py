@@ -1484,10 +1484,13 @@ def search_hideout_by_item(text, database):
 
     return hideout
 
-def search_barters_by_item(text, database, required_only = False):
+def search_barters_by_item(text, database, required_only = False, tracked_only = False):
     barters = {}
 
     for guid, barter in database['barters'].items():
+        if (tracked_only and not barter['tracked']):
+            continue
+        
         for item_guid in barter['requiredItems']:
             item_guid = item_guid['item']['id']
 
@@ -1506,10 +1509,13 @@ def search_barters_by_item(text, database, required_only = False):
         
     return barters
 
-def search_crafts_by_item(text, database, required_only = False):
+def search_crafts_by_item(text, database, required_only = False, tracked_only = False):
     crafts = {}
 
     for guid, craft in database['crafts'].items():
+        if (tracked_only and not craft['tracked']):
+            continue
+
         for item_guid in craft['requiredItems']:
             item_guid = item_guid['item']['id']
 
@@ -3267,14 +3273,16 @@ def required_search(tracker_file, directory, argument, ignore_barters, ignore_cr
     
     tasks = search_tasks_by_item(argument, database)
     hideout = search_hideout_by_item(argument, database)
-    barters = False
-    crafts = False
 
     if (not ignore_barters):
         barters = search_barters_by_item(argument, database, required_only = True)
+    else:
+        barters = search_barters_by_item(argument, database, tracked_only = True)
 
     if (not ignore_crafts):
         crafts = search_crafts_by_item(argument, database, required_only = True)
+    else:
+        crafts = search_crafts_by_item(argument, database, tracked_only = True)
 
     if (not tasks and not hideout and not barters and not crafts):
         print_message('\nItem not required\n')

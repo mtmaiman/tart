@@ -156,7 +156,7 @@ RESTORE_HELP = '''
 > restore\n
 Allows you to restore from a backup file. You can choose one of the two autosave backups or any manual backup within the 5 save slots
 '''
-ITEM_HEADER = '{:<25} {:<60} {:<25} {:<15} {:<12} {:<20} {:<12} {:<20}\n'.format('Item Short Name', 'Item Normalized Name', 'Item GUID', 'A/T/N (FIR)', 'Sell To', 'Trade / Flea', 'Buy From', 'Trade / Flea')
+ITEM_HEADER = '{:<35} {:<75} {:<28} {:<15} {:<12} {:<25} {:<20} {:<25} {:<25}\n'.format('Item Short Name', 'Item Normalized Name', 'Item GUID', 'A/T/N (FIR)', 'Sell To', 'Trade / Flea', 'Buy From', 'Trade / Flea', 'Buy Req.')
 MAP_HEADER = '{:<30} {:<20}\n'.format('Map Normalized Name', 'Map GUID')
 TRADER_HEADER = '{:<30} {:<20}\n'.format('Trader Normalized Name', 'Trader GUID')
 INVENTORY_HEADER = '{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} \n'.format('Item', 'A/T/N (FIR)', 'Item', 'A/T/N (FIR)', 'Item', 'A/T/N (FIR)', 'Item', 'A/T/N (FIR)')
@@ -167,7 +167,7 @@ HIDEOUT_HEADER = '{:<40} {:<20} {:<20} {:<40}\n'.format('Station Name', 'Station
 BARTER_HEADER = '{:<40} {:<20} {:<20} {:<20} {:<20} {:20}\n'.format('Barter GUID', 'Trader', 'Loyalty Level', 'Barter Status', 'Tracked', 'Restarts')
 CRAFT_HEADER = '{:<40} {:<30} {:<20} {:<20} {:<20}\n'.format('Craft Recipe GUID', 'Station', 'Craft Status', 'Tracked', 'Restarts')
 UNTRACKED_HEADER = '{:<40} {:<20} {:<20} {:<20}\n'.format('Entity Name', 'Type', 'Tracked', 'Kappa?')
-BUFFER = '-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n'
+BUFFER = '-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n'
 
 
 ###################################################
@@ -2379,6 +2379,12 @@ def import_items(database, headers):
                     buyFor {
                         vendor {
                             normalizedName
+                            ... on TraderOffer {
+                                minTraderLevel
+                                taskUnlock {
+                                    normalizedName
+                                }
+                            }
                         }
                         price
                         currency
@@ -2440,6 +2446,8 @@ def import_items(database, headers):
         best_trader_buy = 'N/A'
         best_trader_buy_price = 0
         best_trader_buy_currency = 'N/A'
+        best_trader_level = 0
+        best_trader_task_req = 'N/A'
         
         # Checks for empty or invalid flea market fee values
         if (item['fleaMarketFee'] is None):
@@ -2506,6 +2514,13 @@ def import_items(database, headers):
                 best_trader_buy_price = this_price
                 best_trader_buy = vendor['vendor']['normalizedName']
                 best_trader_buy_currency = this_currency
+                best_trader_level = vendor['vendor']['minTraderLevel']
+
+                if (vendor['vendor']['taskUnlock']):
+                    best_trader_task_req = vendor['vendor']['taskUnlock']['normalizedName']
+                else:
+                    best_trader_task_req = 'N/A'
+
                 min_buy = this_price_converted
 
         # Calculating best buy option
@@ -2534,6 +2549,8 @@ def import_items(database, headers):
         database['items'][guid]['best_trader_sell_currency'] = best_trader_sell_currency
         database['items'][guid]['best_trader_buy_price'] = best_trader_buy_price
         database['items'][guid]['best_trader_buy_currency'] = best_trader_buy_currency
+        database['items'][guid]['best_trader_level'] = best_trader_level
+        database['items'][guid]['best_trader_task_req'] = best_trader_task_req
         database['items'][guid]['best_sell'] = best_sell
         database['items'][guid]['best_buy'] = best_buy
 
@@ -2946,7 +2963,18 @@ def display_items(items):
         flea_price = format_price(item["flea_price"], item["flea_currency"])
         sell_price = f'{format_price(item["best_trader_sell_price"], item["best_trader_sell_currency"])} / {flea_price}'
         buy_price = f'{format_price(item["best_trader_buy_price"], item["best_trader_buy_currency"])} / {flea_price}'
-        display = display + '{:<25} {:<60} {:<25} {:<15} {:<12} {:<20} {:<12} {:<20}\n'.format(item['shortName'], item['normalizedName'], guid, item_display, item['best_sell'], sell_price, item['best_buy'], buy_price)
+
+        if (item['best_trader_task_req'] != 'N/A'):
+            buy_req = f'Complete {item["best_trader_task_req"]}'
+        else:
+            buy_req = 'None'
+
+        if (item['best_buy'] != 'flea' and item['best_buy'] != 'N/A'):
+            best_buy = item['best_buy'] + ' LL' + str(item['best_trader_level'])
+        else:
+            best_buy = item['best_buy']
+
+        display = display + '{:<35} {:<75} {:<28} {:<15} {:<12} {:<25} {:<20} {:<25} {:<25}\n'.format(item['shortName'], item['normalizedName'], guid, item_display, item['best_sell'], sell_price, best_buy, buy_price, buy_req)
 
     display = display + '\n\n'
     print_message(f'\n{display}')

@@ -2715,7 +2715,7 @@ def display_inventory(items, filtered = False):
         elif (_invalid_):
             prefix = '[>!!!<] '
         elif (_overstock_):
-            prefix = '[!]'
+            prefix = '[!] '
 
         if (nir and fir):
             display = display + '{:<20} {:<20} '.format(f'{prefix}{item["shortName"]}', f'{nir} ({fir})')

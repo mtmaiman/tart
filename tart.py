@@ -997,15 +997,22 @@ def hideout_readiness(database, guid = False):
             for requirement in station['itemRequirements']:
                 this_guid = requirement['item']['id']
 
-                if (database['items'][this_guid]['have_nir'] - database['items'][this_guid]['consumed_nir'] < requirement['count']):
-                    ready = False
-                    break
-                elif (guid and requirement['item']['id'] == guid):
-                    ready = True
+                if (requirement['attributes']['type'] == 'foundInRaid' and requirement['attributes']['value']):
+                    if (database['items'][this_guid]['have_fir'] - database['items'][this_guid]['consumed_fir'] < requirement['count']):
+                        ready = False
+                        break
+                    elif (guid and requirement['item']['id'] == guid):
+                        ready = True
+                else:
+                    if (database['items'][this_guid]['have_nir'] - database['items'][this_guid]['consumed_nir'] < requirement['count']):
+                        ready = False
+                        break
+                    elif (guid and requirement['item']['id'] == guid):
+                        ready = True
             else:
                 if (ready or not guid):
                     print_message(f'{station['normalizedName']} is ready to complete')
-            
+    
     return True
 
 # Console output
@@ -1072,7 +1079,11 @@ def calculate_inventory(database):
 
         for requirement in station['itemRequirements']:
             item_guid = requirement['item']['id']
-            database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_nir'] + requirement['count']
+
+            if (requirement['attributes']['type'] == 'foundInRaid' and requirement['attributes']['value']):
+                database['items'][item_guid]['need_fir'] = database['items'][item_guid]['need_fir'] + requirement['count']
+            else:
+                database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_nir'] + requirement['count']
 
     print_message('Added all items required for tracked hideout stations to the database')
 
@@ -1168,7 +1179,10 @@ def get_inventory_hideout(database):
                 items[item_guid]['need_fir'] = 0
                 items[item_guid]['need_nir'] = 0
 
-            items[item_guid]['need_nir'] = items[item_guid]['need_nir'] + requirement['count']
+            if (requirement['attributes']['type'] == 'foundInRaid' and requirement['attributes']['value']):
+                items[item_guid]['need_fir'] = items[item_guid]['need_fir'] + requirement['count']
+            else:
+                items[item_guid]['need_nir'] = items[item_guid]['need_nir'] + requirement['count']
 
     return items
 
@@ -2209,6 +2223,10 @@ def import_hideout(database, headers):
                         itemRequirements {
                             id
                             count
+                            attributes {
+                                type
+                                value
+                            }
                             item {
                                 id
                             }
@@ -2848,10 +2866,14 @@ def display_hideout(database, stations):
             if (station['status'] == 'incomplete'):
                 have_available_nir = database['items'][item_guid]['have_nir'] - database['items'][item_guid]['consumed_nir']
                 have_available_fir = database['items'][item_guid]['have_fir'] - database['items'][item_guid]['consumed_fir']
-                display = display + f'--> {have_available_nir}/{count} {short_name} available'
 
-                if (have_available_fir > 0):
-                    display = display + f' ({have_available_fir}/{count}) FIR'
+                if (item['attributes']['type'] == 'foundInRaid' and item['attributes']['value']):
+                    display = display + f'--> ({have_available_fir}/{count}) FIR {short_name} needed'
+                else:
+                    display = display + f'--> {have_available_nir}/{count} {short_name} needed'
+
+                    if (have_available_fir > 0):
+                        display = display + f' ({have_available_fir}/{count}) FIR available'
             else:
                 display = display + f'--> {count}/{count} {short_name} consumed'
             
@@ -3877,7 +3899,6 @@ def delta(tracker_file, directory):
 # Backup
 def backup(tracker_file, directory):
     saves = get_saves(tracker_file, directory)
-    print(saves)
     
     if (('curr.null' in saves and 'prev.null' in saves and len(saves) > 4) or
         (('curr.null' in saves and 'prev.null' not in saves) or ('prev.null' in saves and 'curr.null' not in saves) and len(saves) > 5) or

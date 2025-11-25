@@ -996,8 +996,13 @@ def hideout_readiness(database, guid = False):
         if (type(verify_station(database, station)) is not str):
             for requirement in station['itemRequirements']:
                 this_guid = requirement['item']['id']
+                foundInRaid = False
 
-                if (requirement['attributes']['type'] == 'foundInRaid' and requirement['attributes']['value']):
+                for attribute in requirement['attributes']:
+                    if (attribute['type'] == 'foundInRaid' and attribute['value'] == 'true'):
+                        foundInRaid = True
+
+                if (foundInRaid):
                     if (database['items'][this_guid]['have_fir'] - database['items'][this_guid]['consumed_fir'] < requirement['count']):
                         ready = False
                         break
@@ -1079,8 +1084,13 @@ def calculate_inventory(database):
 
         for requirement in station['itemRequirements']:
             item_guid = requirement['item']['id']
+            foundInRaid = False
 
-            if (requirement['attributes']['type'] == 'foundInRaid' and requirement['attributes']['value']):
+            for attribute in requirement['attributes']:
+                if (attribute['type'] == 'foundInRaid' and attribute['value'] == 'true'):
+                    foundInRaid = True
+
+            if (foundInRaid):
                 database['items'][item_guid]['need_fir'] = database['items'][item_guid]['need_fir'] + requirement['count']
             else:
                 database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_nir'] + requirement['count']
@@ -1173,13 +1183,18 @@ def get_inventory_hideout(database):
 
         for requirement in station['itemRequirements']:
             item_guid = requirement['item']['id']
+            foundInRaid = False
 
             if (item_guid not in items.keys()):
                 items[item_guid] = database['items'][item_guid]
                 items[item_guid]['need_fir'] = 0
                 items[item_guid]['need_nir'] = 0
 
-            if (requirement['attributes']['type'] == 'foundInRaid' and requirement['attributes']['value']):
+            for attribute in requirement['attributes']:
+                if (attribute['type'] == 'foundInRaid' and attribute['value'] == 'true'):
+                    foundInRaid = True
+
+            if (foundInRaid):
                 items[item_guid]['need_fir'] = items[item_guid]['need_fir'] + requirement['count']
             else:
                 items[item_guid]['need_nir'] = items[item_guid]['need_nir'] + requirement['count']
@@ -2862,12 +2877,17 @@ def display_hideout(database, stations):
             item_guid = item['item']['id']
             count = item['count']
             short_name = database['items'][item_guid]['shortName']
+            foundInRaid = False
 
             if (station['status'] == 'incomplete'):
                 have_available_nir = database['items'][item_guid]['have_nir'] - database['items'][item_guid]['consumed_nir']
                 have_available_fir = database['items'][item_guid]['have_fir'] - database['items'][item_guid]['consumed_fir']
 
-                if (item['attributes']['type'] == 'foundInRaid' and item['attributes']['value']):
+                for attribute in item['attributes']:
+                    if (attribute['type'] == 'foundInRaid' and attribute['value'] == 'true'):
+                        foundInRaid = True
+
+                if (foundInRaid):
                     display = display + f'--> ({have_available_fir}/{count}) FIR {short_name} needed'
                 else:
                     display = display + f'--> {have_available_nir}/{count} {short_name} needed'

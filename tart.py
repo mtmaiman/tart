@@ -2676,7 +2676,7 @@ def display_inventory(items, filtered = False):
         nir, fir = False, False
         _completed_ = 0
         _overstock_ = False
-        _invalid_ = True
+        _invalid_ = False
         prefix = ''
 
         # Skip currencies
@@ -2684,7 +2684,7 @@ def display_inventory(items, filtered = False):
             continue
 
         if ((item['need_nir'] > 0 or item['have_nir'] > 0) and not (filtered and item['need_nir'] == 0)):
-            if (item['have_nir'] < 0 or item['consumed_nir'] < 0 or item['have_nir'] - item['consumed'] < 0 or item['have_fir'] < 0 or item['consumed_fir'] < 0 or item['have_fir'] - item['consumed'] < 0):
+            if (item['consumed_nir'] > item['have_nir'] or item['consumed_fir'] > item['have_fir']):
                 _invalid_ = True
             if (item['have_nir'] > item['need_nir']):
                 _overstock_ = True
@@ -2695,7 +2695,7 @@ def display_inventory(items, filtered = False):
             nir = f'{item["have_nir"] - item["consumed_nir"]}/{item["have_nir"]}/{item["need_nir"]}'
         
         if ((item['have_fir'] > 0 or item['need_fir'] > 0) and not (filtered and item['need_fir'] == 0)):
-            if (item['have_nir'] < 0 or item['consumed_nir'] < 0 or item['have_nir'] - item['consumed'] < 0 or item['have_fir'] < 0 or item['consumed_fir'] < 0 or item['have_fir'] - item['consumed'] < 0):
+            if (item['consumed_nir'] > item['have_nir'] or item['consumed_fir'] > item['have_fir']):
                 _invalid_ = True
             if (item['have_fir'] > item['need_fir']):
                 _overstock_ = True

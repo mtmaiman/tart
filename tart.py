@@ -2706,12 +2706,16 @@ def display_inventory(items, filtered = False):
             fir = f'{item["have_fir"] - item["consumed_fir"]}/{item["have_fir"]}/{item["need_fir"]}'
 
         if ((_completed_ == 1 and item['need_fir'] == 0) or (_completed_ == 2 and item['need_nir'] == 0) or _completed_ == 3):
-            if (_overstock_ or _invalid_):
+            if (_invalid_):
+                prefix = '[>!!!<][*] '
+            elif (_overstock_):
                 prefix = '[!][*] '
             else:
                 prefix = '[*] '
-        elif (_overstock_ or _invalid_):
-            prefix = '[!] '
+        elif (_invalid_):
+            prefix = '[>!!!<] '
+        elif (_overstock_):
+            prefix = '[!]'
 
         if (nir and fir):
             display = display + '{:<20} {:<20} '.format(f'{prefix}{item["shortName"]}', f'{nir} ({fir})')

@@ -1847,35 +1847,57 @@ def complete_station(database, guid, force):
         item_name = database['items'][item_guid]['shortName']
         available_fir = database['items'][item_guid]['have_fir'] - database['items'][item_guid]['consumed_fir']
         available_nir = database['items'][item_guid]['have_nir'] - database['items'][item_guid]['consumed_nir']
-        need_nir = requirement['count']
-        _remainder_ = need_nir - available_nir
+        need = requirement['count']
+        foundInRaid = False
+
+        for attribute in requirement['attributes']:
+            if (attribute['type'] == 'foundInRaid' and attribute['value'] == 'true'):
+                foundInRaid = True
+
+        if (foundInRaid):
+            _remainder_ = need - available_fir
+        else:
+            _remainder_ = need - available_nir
 
         if (_remainder_ > 0):
-            if (available_fir < _remainder_ and not force):
-                print_error(f'{_remainder_} more {item_name} required')
-                return False
-            elif (force):
-                database = add_item_nir(database, _remainder_, guid = item_guid)
-
-                if (not database):
-                    print_error(f'Encountered an error. All item changes for this hideout station have been aborted')
+            if (not foundInRaid):
+                if (available_fir < _remainder_ and not force):
+                    print_error(f'{_remainder_} more {item_name} required')
                     return False
-            else:
-                print_message(f'{_remainder_} more {item_name} required. Consume {_remainder_} (FIR) instead? (Y/N)')
-                _confirmation_ = input('> ').lower()
-
-                if (_confirmation_ == 'y'):
-                    database = del_item_fir(database, _remainder_, guid = item_guid)
+                elif (force):
                     database = add_item_nir(database, _remainder_, guid = item_guid)
 
                     if (not database):
                         print_error(f'Encountered an error. All item changes for this hideout station have been aborted')
                         return False
                 else:
-                    print_error('All item changes for this hideout station have been aborted')
+                    print_message(f'{_remainder_} more {item_name} required. Consume {_remainder_} (FIR) instead? (Y/N)')
+                    _confirmation_ = input('> ').lower()
+
+                    if (_confirmation_ == 'y'):
+                        database = del_item_fir(database, _remainder_, guid = item_guid)
+                        database = add_item_nir(database, _remainder_, guid = item_guid)
+
+                        if (not database):
+                            print_error(f'Encountered an error. All item changes for this hideout station have been aborted')
+                            return False
+                    else:
+                        print_error('All item changes for this hideout station have been aborted')
+                        return False
+            else:
+                if (not force):
+                    print_error(f'{_remainder_} more {item_name} (FIR) required')
                     return False
-            
-        database['items'][item_guid]['consumed_nir'] = database['items'][item_guid]['consumed_nir'] + need_nir
+                else:
+                    database = add_item_fir(database, _remainder_, guid = item_guid)
+
+                    if (not database):
+                        print_error(f'Encountered an error. All item changes for this hideout station have been aborted')
+                        return False
+        elif (foundInRaid):
+            database['items'][item_guid]['consumed_fir'] = database['items'][item_guid]['consumed_fir'] + need
+        else:
+            database['items'][item_guid]['consumed_nir'] = database['items'][item_guid]['consumed_nir'] + need
     
     database['hideout'][guid]['status'] = 'complete'
     print_message(f'{station["normalizedName"]} completed')

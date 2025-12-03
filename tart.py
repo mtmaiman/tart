@@ -1894,7 +1894,8 @@ def complete_station(database, guid, force):
                     if (not database):
                         print_error(f'Encountered an error. All item changes for this hideout station have been aborted')
                         return False
-        elif (foundInRaid):
+        
+        if (foundInRaid):
             database['items'][item_guid]['consumed_fir'] = database['items'][item_guid]['consumed_fir'] + need
         else:
             database['items'][item_guid]['consumed_nir'] = database['items'][item_guid]['consumed_nir'] + need
@@ -2872,7 +2873,7 @@ def display_tasks(database, tasks):
                 objective_string = objective_string + f' ({objective["count"]})'
 
             if ('skillLevel' in objective):
-                objective_string = objective_string + f'({objective["skillLevel"]["level"]})'
+                objective_string = objective_string + f' ({objective["skillLevel"]["level"]})'
 
             if ('exitStatus' in objective):
                 objective_string = objective_string + f' with exit status {objective["exitStatus"]}'

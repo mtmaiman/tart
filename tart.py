@@ -2603,6 +2603,11 @@ def import_items(database, headers):
                 best_trader_sell_currency = this_currency
                 max_sell = this_price_converted
 
+                if (this_currency not in ['usd', 'euro']):
+                    best_trader_sell_roubles = this_price_converted
+                else:
+                    best_trader_sell_roubles = False
+
         # Buy logic
 
         min_buy = sys.maxsize
@@ -2638,6 +2643,11 @@ def import_items(database, headers):
 
                 min_buy = this_price_converted
 
+                if (this_currency not in ['usd', 'euro']):
+                    best_trader_buy_roubles = this_price_converted
+                else:
+                    best_trader_buy_roubles = False
+
         # Setting inventory values
         if (guid not in database['items'].keys()):
             database['items'][guid] = {
@@ -2663,6 +2673,12 @@ def import_items(database, headers):
         database['items'][guid]['best_trader_level'] = best_trader_level
         database['items'][guid]['best_trader_task_req'] = best_trader_task_req
         database['items'][guid]['flea_level'] = flea_level
+
+        if (best_trader_sell_roubles):
+            database['items'][guid]['best_trader_sell_roubles'] = best_trader_sell_roubles
+
+        if (best_trader_buy_roubles):
+            database['items'][guid]['best_trader_buy_roubles'] = best_trader_buy_roubles
 
     database['refresh'] = datetime.now().isoformat()
     print(f'Successfully loaded item data into the database!')
@@ -3108,8 +3124,16 @@ def display_items(items):
 
         flea_price = format_price(item["flea_price"], item["flea_currency"])
         flea_level = f'Level {item["flea_level"]}'
-        sell_price = format_price(item["best_trader_sell_price"], item["best_trader_sell_currency"])
-        buy_price = format_price(item["best_trader_buy_price"], item["best_trader_buy_currency"])
+
+        if ('best_trader_sell_roubles' in item.keys()):
+            sell_price = format_price(item["best_trader_sell_price"], item["best_trader_sell_currency"]) + f' ({format_price(item["best_trader_sell_roubles"], 'roubles')})'
+        else:
+            sell_price = format_price(item["best_trader_sell_price"], item["best_trader_sell_currency"])
+
+        if ('best_tarder_buy_roubles' in item.keys()):
+            buy_price = format_price(item["best_trader_buy_price"], item["best_trader_buy_currency"]) + f' ({format_price(item["best_trader_buy_roubles"], 'roubles')})'
+        else:
+            buy_price = format_price(item["best_trader_buy_price"], item["best_trader_buy_currency"])
 
         if (item['best_trader_task_req'] != 'N/A'):
             buy_req = f'Complete {item["best_trader_task_req"]}'

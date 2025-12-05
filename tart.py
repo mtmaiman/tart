@@ -3,7 +3,6 @@ from os import system, name, rename, remove, listdir, path, mkdir, getcwd, envir
 from shutil import get_terminal_size
 import subprocess
 import json
-import math
 import sys
 import re
 
@@ -548,11 +547,11 @@ def parser(tracker_file, directory, command):
         if (not database):
             return False
 
-        if (f'{tracker_file}.prev.bak' in listdir('.')):
-            remove(f'{tracker_file}.prev.bak')
+        if (f'{tracker_file}.prev.bak' in listdir(directory)):
+            remove(f'{directory}\\{tracker_file}.prev.bak')
         
-        if (f'{tracker_file}.curr.bak' in listdir('.')):
-            rename(f'{tracker_file}.curr.bak', f'{tracker_file}.prev.bak')
+        if (f'{tracker_file}.curr.bak' in listdir(directory)):
+            rename(f'{directory}\\{tracker_file}.curr.bak', f'{directory}\\{tracker_file}.prev.bak')
 
         write_database(f'{tracker_file}.curr.bak', directory, database)
         print_message(f'Backup saved')
@@ -572,8 +571,8 @@ def open_database(file_path, directory):
             file = json.load(open_file)
 
             if (file['version'] != VERSION):
-                print_error('Incorrect database version detected. Please update with a delta import! Aborting')
-                return False
+                print_warning('Incorrect database version detected. Please update with a delta import')
+                return file
     except FileNotFoundError:
         print_error('Database not found')
         return False
@@ -2880,6 +2879,7 @@ def display_need(items):
 def display_tasks(database, tasks):
     table_rows = []
     duplicates = [] # There are some duplicate tasks for USEC and BEAR (i.e., Textile Part 1 and 2)
+    maps = {}
 
     # Setting up the map display
     for guid, task in tasks.items():
@@ -2889,9 +2889,15 @@ def display_tasks(database, tasks):
             map = 'any'
         else:
             map = database['maps'][task['maps'][0]]['normalizedName']
+
+        if (map in maps.keys()):
+            maps[map] = maps[map] + 1
+        else:
+            maps[map] = 1
         
         task['map'] = map
 
+    maps = dict(sorted(maps.items(), key = lambda item: item[1], reverse = True))
     tasks = alphabetize_tasks(tasks)
     
     for guid, task in tasks.items():
@@ -2944,10 +2950,16 @@ def display_tasks(database, tasks):
                     table_rows.append([key_string])
 
         table_rows.append([])
+    
+    map_string = ''
+
+    for map_name, hits in maps.items():
+        map_string = map_string + f'{map_name}: {hits} | '
 
     if (not table_wrapper(table_rows, headers = TASK_TABLE, max_chunks = 1)):
         print('Something went wrong.')
 
+    print('\n' + map_string.strip(' |'))
     print('\n')
     return True
 
@@ -3282,7 +3294,7 @@ def list_tasks(tracker_file, directory, argument):
     database = open_database(tracker_file, directory)
 
     if (not database):
-        print_error('No database file found')
+        print_error('Failed to open database')
         return False
     
     if (argument == 'all'):
@@ -3301,7 +3313,7 @@ def list_stations(tracker_file, directory):
     database = open_database(tracker_file, directory)
 
     if (not database):
-        print_error('No database file found')
+        print_error('Failed to open database')
         return False
     
     stations = get_hideout(database)
@@ -3317,7 +3329,7 @@ def list_barters(tracker_file, directory, argument):
     database = open_database(tracker_file, directory)
 
     if (not database):
-        print_error('No database file found')
+        print_error('Failed to open database')
         return False
     
     if (argument == 'all'):
@@ -3336,7 +3348,7 @@ def list_crafts(tracker_file, directory):
     database = open_database(tracker_file, directory)
 
     if (not database):
-        print_error('No database file found')
+        print_error('Failed to open database')
         return False
     
     crafts = get_crafts(database)
@@ -3352,7 +3364,7 @@ def list_untracked(tracker_file, directory, ignore_kappa):
     database = open_database(tracker_file, directory)
 
     if (not database):
-        print_error('No database file found')
+        print_error('Failed to open database')
         return False
     
     untracked = get_untracked(database, ignore_kappa)
@@ -3370,7 +3382,7 @@ def list_maps(tracker_file, directory):
     database = open_database(tracker_file, directory)
 
     if (not database):
-        print_error('No database file found')
+        print_error('Failed to open database')
         return False
     
     maps = ', '.join(map['normalizedName'] for guid, map in database['maps'].items()).strip(', ')
@@ -3380,7 +3392,7 @@ def list_traders(tracker_file, directory):
     database = open_database(tracker_file, directory)
 
     if (not database):
-        print_error('No database file found')
+        print_error('Failed to open database found')
         return False
     
     traders = ', '.join(trader['normalizedName'] for guid, trader in database['traders'].items()).strip(', ')
@@ -3391,7 +3403,7 @@ def search(tracker_file, directory, argument, ignore_barters, ignore_crafts):
     database = open_database(tracker_file, directory)
 
     if (not database):
-        print_error('No database file found')
+        print_error('Failed to open database found')
         return False
 
     if (datetime.fromisoformat(database['refresh']) < (datetime.now() - timedelta(hours = 24))):
@@ -3433,7 +3445,7 @@ def required_search(tracker_file, directory, argument, ignore_barters, ignore_cr
     database = open_database(tracker_file, directory)
 
     if (not database):
-        print_error('No database file found')
+        print_error('Failed to open database found')
         return False
     
     if (datetime.fromisoformat(database['refresh']) < (datetime.now() - timedelta(hours = 24))):
@@ -3468,7 +3480,7 @@ def track(tracker_file, directory, argument):
     database = open_database(tracker_file, directory)
 
     if (not database):
-        print_error('No database file found')
+        print_error('Failed to open database found')
         return False
     
     guid = find_completable(argument, database)
@@ -3493,7 +3505,7 @@ def untrack(tracker_file, directory, argument):
     database = open_database(tracker_file, directory)
 
     if (not database):
-        print_error('No database file found')
+        print_error('Failed to open database found')
         return False
     
     guid = find_completable(argument, database)
@@ -3519,7 +3531,7 @@ def complete(tracker_file, directory, argument, force, recurse):
     database = open_database(tracker_file, directory)
 
     if (not database):
-        print_error('No database file found')
+        print_error('Failed to open database found')
         return False
     
     guid = find_completable(argument, database)
@@ -3556,7 +3568,7 @@ def restart(tracker_file, directory, argument):
     database = open_database(tracker_file, directory)
 
     if (not database):
-        print_error('No database file found')
+        print_error('Failed to open database found')
         return False
     
     guid = find_restartable(argument, database)
@@ -3647,7 +3659,7 @@ def check_level(tracker_file, directory):
     database = open_database(tracker_file, directory)
 
     if (not database):
-        print_error('No database file found')
+        print_error('Failed to open database found')
         return False
     
     print_message(f'\nYou are level {database["player_level"]}\n')
@@ -3657,7 +3669,7 @@ def set_level(tracker_file, directory, level):
     database = open_database(tracker_file, directory)
 
     if (not database):
-        print_error('No database file found')
+        print_error('Failed to open database found')
         return False
     
     database['player_level'] = level
@@ -3669,7 +3681,7 @@ def level_up(tracker_file, directory):
     database = open_database(tracker_file, directory)
 
     if (not database):
-        print_error('No database file found')
+        print_error('Failed to open database found')
         return False
     
     database['player_level'] = database['player_level'] + 1

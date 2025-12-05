@@ -162,19 +162,17 @@ RESTORE_HELP = '''
 > restore\n
 Allows you to restore from a backup file. You can choose one of the two autosave backups or any manual backup within the 5 save slots
 '''
-ITEM_TABLE = ['Item Short Name', 'Item Normalized Name', 'Item GUID', 'A/T/N (FIR)', 'Sell To', 'Trade / Flea', 'Buy From', 'Trade / Flea', 'Buy Req.']
-MAP_HEADER = '{:<30} {:<20}\n'.format('Map Normalized Name', 'Map GUID')
-TRADER_HEADER = '{:<30} {:<20}\n'.format('Trader Normalized Name', 'Trader GUID')
-INVENTORY_HEADER = '{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} \n'.format('Item', 'A/T/N (FIR)', 'Item', 'A/T/N (FIR)', 'Item', 'A/T/N (FIR)', 'Item', 'A/T/N (FIR)')
+ITEM_TABLE = ['Item Short Name', 'Item Normalized Name', 'Item GUID', 'A/T/N (FIR)', 'Best Trader Sell', 'Best Trader Buy', 'Flea', 'Task Req.']
+MAP_TABLE = ['Map Normalized Name', 'Map GUID']
+TRADER_TABLE = ['Trader Normalized Name', 'Trader GUID']
 INVENTORY_TABLE = ['Item', 'A/T/N (FIR)']
-INVENTORY_HAVE_HEADER = '{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} \n'.format('Item', 'Have (FIR)', 'Item', 'Have (FIR)', 'Item', 'Have (FIR)', 'Item', 'Have (FIR)')
-INVENTORY_NEED_HEADER = '{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} \n'.format('Item', 'Need (FIR)', 'Item', 'Need (FIR)', 'Item', 'Need (FIR)', 'Item', 'Need (FIR)')
-TASK_HEADER = '{:<40} {:<20} {:<20} {:<20} {:<20} {:<20} {:<40}\n'.format('Task Title', 'Task Giver', 'Task Status', 'Tracked', 'Kappa?', 'Map', 'Task GUID')
-HIDEOUT_HEADER = '{:<40} {:<20} {:<20} {:<40}\n'.format('Station Name', 'Station Status', 'Tracked', 'Station GUID')
-BARTER_HEADER = '{:<40} {:<20} {:<20} {:<20} {:<20} {:20}\n'.format('Barter GUID', 'Trader', 'Loyalty Level', 'Barter Status', 'Tracked', 'Restarts')
-CRAFT_HEADER = '{:<40} {:<30} {:<20} {:<20} {:<20}\n'.format('Craft Recipe GUID', 'Station', 'Craft Status', 'Tracked', 'Restarts')
-UNTRACKED_HEADER = '{:<40} {:<20} {:<20} {:<20}\n'.format('Entity Name', 'Type', 'Tracked', 'Kappa?')
-BUFFER = '-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n'
+INVENTORY_HAVE_TABLE = ['Item', 'Have (FIR)']
+INVENTORY_NEED_TABLE = ['Item', 'Need (FIR)']
+TASK_TABLE = ['Task Name', 'Task Giver', 'Task Status', 'Tracked', 'Kappa Required', 'Map', 'Task GUID']
+HIDEOUT_TABLE = ['Station Name', 'Station Status', 'Tracked', 'Station GUID']
+BARTER_TABLE = ['Barter GUID', 'Trader', 'Loyalty Level', 'Barter Status', 'Tracked', 'Restarts']
+CRAFTS_TABLE = ['Craft GUID', 'Station', 'Craft Status', 'Tracked', 'Restarts']
+UNTRACKED_TABLE = ['Entity Name', 'Type', 'Tracked', 'Kappa Required']
 
 
 ###################################################
@@ -1055,7 +1053,7 @@ def print_error(message):
     return True
 
 def table_wrapper(rows, headers = None, padding = 3, max_chunks = 0):
-    table = Table(expand = True, show_edge = False, show_lines = False)
+    table = Table(expand = False, show_edge = False, show_lines = False)
     rows = [list(map(str, row)) for row in rows]
 
     if (not rows):
@@ -1075,8 +1073,10 @@ def table_wrapper(rows, headers = None, padding = 3, max_chunks = 0):
     width = sum(max_column_widths) + padding * (columns - 1)
     resolution = get_terminal_size().columns
 
-    if (len(rows) == 1 or width + padding > resolution or max_chunks == 1):
+    if (len(rows) == 1 or width + padding > resolution):
         max_chunks = 1
+    elif (max_chunks > 0):
+        max_chunks = max_chunks
     else:
         max_chunks = max(1, resolution // (width + padding))
 
@@ -2495,6 +2495,9 @@ def import_items(database, headers):
                     sellFor {
                         vendor {
                             normalizedName
+                            ... on FleaMarket {
+                                minPlayerLevel
+                            }
                         }
                         price
                         currency
@@ -2559,13 +2562,12 @@ def import_items(database, headers):
             flea_currency = 'N/A'
 
         # Selling vars
-        best_sell = 'N/A'
         best_trader_sell = 'N/A'
         best_trader_sell_price = 0
         best_trader_sell_currency = 'N/A'
+        flea_level = 0
 
         # Buying vars
-        best_buy = 'N/A'
         best_trader_buy = 'N/A'
         best_trader_buy_price = 0
         best_trader_buy_currency = 'N/A'
@@ -2584,6 +2586,7 @@ def import_items(database, headers):
         # Finds best trader to sell to
         for vendor in item['sellFor']:
             if ('flea' in vendor['vendor']['normalizedName']):
+                flea_level = vendor['vendor']['minPlayerLevel']
                 continue
 
             this_price = int(vendor['price'])
@@ -2604,12 +2607,6 @@ def import_items(database, headers):
                 best_trader_sell = vendor['vendor']['normalizedName']
                 best_trader_sell_currency = this_currency
                 max_sell = this_price_converted
-
-        # Calculating best sell option
-        if (flea_price - item['fleaMarketFee'] > max_sell):
-            best_sell = 'flea'
-        else:
-            best_sell = best_trader_sell
 
         # Buy logic
 
@@ -2646,12 +2643,6 @@ def import_items(database, headers):
 
                 min_buy = this_price_converted
 
-        # Calculating best buy option
-        if (flea_price < min_buy and flea_price > 0):
-            best_buy = 'flea'
-        else:
-            best_buy = best_trader_buy
-
         # Setting inventory values
         if (guid not in database['items'].keys()):
             database['items'][guid] = {
@@ -2668,14 +2659,15 @@ def import_items(database, headers):
         database['items'][guid]['shortName'] = item['shortName']
         database['items'][guid]['flea_price'] = flea_price
         database['items'][guid]['flea_currency'] = flea_currency
+        database['items'][guid]['best_trader_sell'] = best_trader_sell
         database['items'][guid]['best_trader_sell_price'] = best_trader_sell_price
         database['items'][guid]['best_trader_sell_currency'] = best_trader_sell_currency
+        database['items'][guid]['best_trader_buy'] = best_trader_buy
         database['items'][guid]['best_trader_buy_price'] = best_trader_buy_price
         database['items'][guid]['best_trader_buy_currency'] = best_trader_buy_currency
         database['items'][guid]['best_trader_level'] = best_trader_level
         database['items'][guid]['best_trader_task_req'] = best_trader_task_req
-        database['items'][guid]['best_sell'] = best_sell
-        database['items'][guid]['best_buy'] = best_buy
+        database['items'][guid]['flea_level'] = flea_level
 
     database['refresh'] = datetime.now().isoformat()
     print_message(f'Successfully loaded item data into the database!')
@@ -2827,8 +2819,7 @@ def display_inventory(items, filtered = False):
 
 def display_have(items):
     items = alphabetize_items(items)
-    display = INVENTORY_HAVE_HEADER + BUFFER
-    _row_ = 1
+    table_rows = []
     
     for guid, item in items.items():
         nir, fir = False, False
@@ -2840,28 +2831,25 @@ def display_have(items):
             fir = f'{item["have_fir"]}'
 
         if (nir and fir):
-            display = display + '{:<20} {:<20} '.format(f'{item["shortName"]}', f'{nir} ({fir})')
+            inv_text = f'{nir} ({fir})'
         elif (nir):
-            display = display + '{:<20} {:<20} '.format(f'{item["shortName"]}', nir)
+            inv_text = nir
         elif (fir):
-            display = display + '{:<20} {:<20} '.format(f'{item["shortName"]}', f'({fir})')
+            inv_text = f'({fir})'
         else:
             continue
         
-        if (_row_ == 4):
-            display = display.strip(' ') + '\n'
-            _row_ = 0
-
-        _row_ = _row_ + 1
+        table_rows.append([item['shortName'], inv_text])
     
-    display = display + '\n\n'
-    print_message(f'\n{display}')
+    if (not table_wrapper(table_rows, headers = INVENTORY_HAVE_TABLE)):
+        print('Something went wrong.')
+
+    print('\n')
     return True
 
 def display_need(items):
     items = alphabetize_items(items)
-    display = INVENTORY_NEED_HEADER + BUFFER
-    _row_ = 1
+    table_rows = []
     
     for guid, item in items.items():
         nir, fir = False, False
@@ -2873,28 +2861,25 @@ def display_need(items):
             fir = f'{item["need_fir"]}'
 
         if (nir and fir):
-            display = display + '{:<20} {:<20} '.format(f'{item["shortName"]}', f'{nir} ({fir})')
+            inv_text = f'{nir} ({fir})'
         elif (nir):
-            display = display + '{:<20} {:<20} '.format(f'{item["shortName"]}', nir)
+            inv_text = nir
         elif (fir):
-            display = display + '{:<20} {:<20} '.format(f'{item["shortName"]}', f'({fir})')
+            inv_text = f'({fir})'
         else:
             continue
         
-        if (_row_ == 4):
-            display = display.strip(' ') + '\n'
-            _row_ = 0
-
-        _row_ = _row_ + 1
+        table_rows.append([item['shortName'], inv_text])
     
-    display = display + '\n\n'
-    print_message(f'\n{display}')
+    if (not table_wrapper(table_rows, headers = INVENTORY_NEED_TABLE)):
+        print('Something went wrong.')
+
+    print('\n')
     return True
 
 def display_tasks(database, tasks):
-    display = TASK_HEADER + BUFFER
-    # There are some duplicate tasks for USEC and BEAR (i.e., Textile Part 1 and 2)
-    duplicates = []
+    table_rows = []
+    duplicates = [] # There are some duplicate tasks for USEC and BEAR (i.e., Textile Part 1 and 2)
 
     # Setting up the map display
     for guid, task in tasks.items():
@@ -2915,7 +2900,7 @@ def display_tasks(database, tasks):
             continue
 
         duplicates.append(task['name'])
-        display = display + '{:<40} {:<20} {:<20} {:<20} {:<20} {:<20} {:<40}\n'.format(task['name'], database['traders'][task['trader']['id']]['normalizedName'], task['status'], display_bool(task['tracked']), display_bool(task['kappaRequired']), task['map'], guid)
+        table_rows.append([task['name'], database['traders'][task['trader']['id']]['normalizedName'], task['status'], display_bool(task['tracked']), display_bool(task['kappaRequired']), task['map'], guid])
 
         for objective in task['objectives']:
             objective_string = '-->'
@@ -2944,8 +2929,7 @@ def display_tasks(database, tasks):
             if ('exitStatus' in objective):
                 objective_string = objective_string + f' with exit status {objective["exitStatus"]}'
 
-            objective_string = objective_string + '\n'
-            display = display + objective_string
+            table_rows.append([objective_string])
         
         if (task['neededKeys'] is not None and len(task['neededKeys']) > 0):
             for _key_ in task['neededKeys']:
@@ -2957,19 +2941,21 @@ def display_tasks(database, tasks):
                     if (database['items'][key_guid]['have_nir'] - database['items'][key_guid]['consumed_nir'] > 0):
                         key_string = key_string + ' (have)'
                     
-                    key_string = key_string + '\n'
-                    display = display + key_string
-    
-        display = display + '\n\n'
+                    table_rows.append([key_string])
 
-    print_message(f'\n{display}')
+        table_rows.append([])
+
+    if (not table_wrapper(table_rows, headers = TASK_TABLE, max_chunks = 1)):
+        print('Something went wrong.')
+
+    print('\n')
     return True
 
 def display_hideout(database, stations):
-    display = HIDEOUT_HEADER + BUFFER
+    table_rows = []
 
     for guid, station in stations.items():
-        display = display + '{:<40} {:<20} {:<20} {:<40}\n'.format(station['normalizedName'], station['status'], display_bool(station['tracked']), guid)
+        table_rows.append([station['normalizedName'], station['status'], display_bool(station['tracked']), guid])
 
         for item in station['itemRequirements']:
             item_guid = item['item']['id']
@@ -2986,27 +2972,30 @@ def display_hideout(database, stations):
                         foundInRaid = True
 
                 if (foundInRaid):
-                    display = display + f'--> ({have_available_fir}/{count}) FIR {short_name} needed'
+                    table_rows.append([f'--> ({have_available_fir}/{count}) FIR {short_name} needed'])
                 else:
-                    display = display + f'--> {have_available_nir}/{count} {short_name} needed'
+                    display = f'--> {have_available_nir}/{count} {short_name} needed'
 
                     if (have_available_fir > 0):
                         display = display + f' ({have_available_fir}/{count}) FIR available'
-            else:
-                display = display + f'--> {count}/{count} {short_name} consumed'
-            
-            display = display + '\n'
-        
-        display = display + '\n\n'
 
-    print_message(f'\n{display}')
+                    table_rows.append([display])
+            else:
+                table_rows.append([f'--> {count}/{count} {short_name} consumed'])
+
+        table_rows.append([])
+            
+    if (not table_wrapper(table_rows, headers = HIDEOUT_TABLE, max_chunks = 1)):
+        print('Something went wrong.')
+
+    print('\n')
     return True
 
 def display_barters(database, barters):
-    display = BARTER_HEADER + BUFFER
+    table_rows = []
 
     for guid, barter in barters.items():
-        display = display + '{:<40} {:<20} {:<20} {:<20} {:<20} {:<20}\n'.format(guid, database['traders'][barter['trader']['id']]['normalizedName'], barter['level'], barter['status'], display_bool(barter['tracked']), barter['restarts'])
+        table_rows.append([guid, database['traders'][barter['trader']['id']]['normalizedName'], barter['level'], barter['status'], display_bool(barter['tracked']), barter['restarts']])
 
         for item in barter['requiredItems']:
             item_guid = item['item']['id']
@@ -3016,34 +3005,37 @@ def display_barters(database, barters):
             if (barter['status'] == 'incomplete'):
                 have_available_nir = database['items'][item_guid]['have_nir'] - database['items'][item_guid]['consumed_nir']
                 have_available_fir = database['items'][item_guid]['have_fir'] - database['items'][item_guid]['consumed_fir']
-                display = display + f'--> Give {have_available_nir}/{count} {item_name} available'
+                display = f'--> Give {have_available_nir}/{count} {item_name} available'
 
                 if (have_available_fir > 0):
                     display = display + f' ({have_available_fir}/{count}) FIR'
+
+                table_rows.append([display])
             else:
-                display = display + f'--> {count}/{count} {item_name} consumed'
-            
-            display = display + '\n'
+                table_rows.append([f'--> {count}/{count} {item_name} consumed'])
 
         for item in barter['rewardItems']:
             item_guid = item['item']['id']
             item_name = database['items'][item_guid]['shortName']
             count = item['count']
-            display = display + f'--> Receive {count} {item_name}\n'
+            table_rows.append([f'--> Receive {count} {item_name}'])
 
         if (barter['taskUnlock'] is not None):
-            display = display + f'--> Requires task {database['tasks'][barter["taskUnlock"]["id"]]['name']}\n'
+            table_rows.append([f'--> Requires task {database['tasks'][barter["taskUnlock"]["id"]]['name']}'])
 
-        display = display + '\n\n'
+        table_rows.append([])
 
-    print_message(f'\n{display}')
+    if (not table_wrapper(table_rows, headers = BARTER_TABLE, max_chunks = 1)):
+        print('Something went wrong.')
+
+    print('\n')
     return True
 
 def display_crafts(database, crafts):
-    display = CRAFT_HEADER + BUFFER
+    table_rows = []
 
     for guid, craft in crafts.items():
-        display = display + '{:<40} {:<30} {:<20} {:<20} {:<20}\n'.format(guid, database['hideout'][craft['station']['id'] + '-' + str(craft['level'])]['normalizedName'], craft['status'], display_bool(craft['tracked']), craft['restarts'])
+        table_rows.append([guid, database['hideout'][craft['station']['id'] + '-' + str(craft['level'])]['normalizedName'], craft['status'], display_bool(craft['tracked']), craft['restarts']])
 
         for item in craft['requiredItems']:
             item_guid = item['item']['id']
@@ -3053,40 +3045,45 @@ def display_crafts(database, crafts):
             if (craft['status'] == 'incomplete'):
                 have_available_nir = database['items'][item_guid]['have_nir'] - database['items'][item_guid]['consumed_nir']
                 have_available_fir = database['items'][item_guid]['have_fir'] - database['items'][item_guid]['consumed_fir']
-                display = display + f'--> Give {have_available_nir}/{count} {item_name} available'
+                display = f'--> Give {have_available_nir}/{count} {item_name} available'
 
                 if (have_available_fir > 0):
                     display = display + f' ({have_available_fir}/{count}) FIR'
-            else:
-                display = display + f'--> {count}/{count} {item_name} consumed' 
 
-            display = display + '\n'
+                table_rows.append([display])
+            else:
+                table_rows.append([f'--> {count}/{count} {item_name} consumed'])
 
         for item in craft['rewardItems']:
             item_guid = item['item']['id']
             item_name = database['items'][item_guid]['shortName']
             count = item['count']
-            display = display + f'--> Receive {count} {item_name}\n'
+            table_rows.append([f'--> Receive {count} {item_name}'])
 
         if (craft['taskUnlock'] is not None):
-            display = display + f'--> Requires task {database['tasks'][craft["taskUnlock"]["id"]]['name']}\n'
+            table_rows.append([f'--> Requires task {database['tasks'][craft["taskUnlock"]["id"]]['name']}'])
 
-        display = display + f'--> Takes {str(timedelta(seconds = craft["duration"]))} to complete\n'
-        display = display + '\n\n'
+        table_rows.append([f'--> Takes {str(timedelta(seconds = craft["duration"]))} to complete'])
 
-    print_message(f'\n{display}')
+    if (not table_wrapper(table_rows, headers = CRAFTS_TABLE, max_chunks = 1)):
+        print('Something went wrong.')
+
+    print('\n')
     return True
 
 def display_untracked(database, untracked):
-    display = UNTRACKED_HEADER + BUFFER
+    table_rows = []
 
     for guid, entry in untracked.items():
         if (guid in database['tasks'].keys()):
-            display = display + '{:<40} {:<20} {:<20} {:<20}\n'.format(entry['name'], 'task', display_bool(entry['tracked']), display_bool(entry['kappaRequired']))
+            table_rows.append([entry['name'], 'task', display_bool(entry['tracked']), display_bool(entry['kappaRequired'])])
         else:
-            display = display + '{:<40} {:<20} {:<20}\n'.format(entry['normalizedName'], 'hideout station', display_bool(entry['tracked']))
-        
-    print_message(f'\n{display}')
+            table_rows.append([entry['normalizedName'], 'hideout station', display_bool(entry['tracked'])])
+
+    if (not table_wrapper(table_rows, headers = UNTRACKED_TABLE, max_chunks = 1)):
+        print('Something went wrong.')
+
+    print('\n')
     return True
 
 def display_items(items):
@@ -3102,20 +3099,21 @@ def display_items(items):
             return False
 
         flea_price = format_price(item["flea_price"], item["flea_currency"])
-        sell_price = f'{format_price(item["best_trader_sell_price"], item["best_trader_sell_currency"])} / {flea_price}'
-        buy_price = f'{format_price(item["best_trader_buy_price"], item["best_trader_buy_currency"])} / {flea_price}'
+        flea_level = f'Level {item["flea_level"]}'
+        sell_price = format_price(item["best_trader_sell_price"], item["best_trader_sell_currency"])
+        buy_price = format_price(item["best_trader_buy_price"], item["best_trader_buy_currency"])
 
         if (item['best_trader_task_req'] != 'N/A'):
             buy_req = f'Complete {item["best_trader_task_req"]}'
         else:
             buy_req = 'None'
 
-        if (item['best_buy'] != 'flea' and item['best_buy'] != 'N/A'):
-            best_buy = item['best_buy'] + ' LL' + str(item['best_trader_level'])
+        if (item['best_trader_buy'] != 'N/A'):
+            best_buy = item['best_trader_buy'] + ' LL' + str(item['best_trader_level'])
         else:
-            best_buy = item['best_buy']
+            best_buy = 'N/A'
 
-        table_rows.append([item['shortName'], item['normalizedName'], guid, item_display, item['best_sell'], sell_price, best_buy, buy_price, buy_req])
+        table_rows.append([item['shortName'], item['normalizedName'], guid, item_display, '{:<12} {:<12}'.format(sell_price, item['best_trader_sell']), '{:<12} {:<12}'.format(buy_price, best_buy), '{:<12} {:<8}'.format(flea_price, flea_level), buy_req])
 
     if (not table_wrapper(table_rows, headers = ITEM_TABLE, max_chunks = 1)):
         print('Something went wrong.')
@@ -3124,23 +3122,27 @@ def display_items(items):
     return True
 
 def display_maps(maps):
-    display = MAP_HEADER + BUFFER
+    table_rows = []
 
     for guid, map in maps.items():
-        display = display + '{:<30} {:<20}\n'.format(map['normalizedName'], guid)
+        table_rows.append([map['normalizedName'], guid])
 
-    display = display + '\n\n'
-    print_message(f'\n{display}')
+    if (not table_wrapper(table_rows, headers = MAP_TABLE, max_chunks = 1)):
+        print('Something went wrong.')
+
+    print('\n')
     return True
 
 def display_traders(traders):
-    display = TRADER_HEADER + BUFFER
+    table_rows = []
 
     for guid, trader in traders.items():
-        display = display + '{:<30} {:<20}\n'.format(trader['normalizedName'], guid)
+        table_rows.append([trader['normalizedName'], guid])
 
-    display = display + '\n\n'
-    print_message(f'\n{display}')
+    if (not table_wrapper(table_rows, headers = TRADER_TABLE, max_chunks = 1)):
+        print('Something went wrong.')
+
+    print('\n')
     return True
 
 def display_search(database, tasks, hideout, barters, crafts, items, traders, maps):

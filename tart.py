@@ -211,7 +211,7 @@ def parser(tracker_file, directory, command):
             inventory_need(tracker_file, directory)
         elif (command[1] == 'help' or command[1] == 'h'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
-            print_message(INV_HELP)
+            print(INV_HELP)
         else:
             print_debug(f'Failed >> {command[0]} {command[1]} <<')
             print_error('Command not recognized')
@@ -260,7 +260,7 @@ def parser(tracker_file, directory, command):
             list_traders(tracker_file, directory)
         elif (command[1] == 'help' or command[1] == 'h'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
-            print_message(LS_HELP)
+            print(LS_HELP)
         else:
             print_debug(f'Failed >> {command[0]} {command[1]} <<')
             print_error('Command not recognized')
@@ -272,7 +272,7 @@ def parser(tracker_file, directory, command):
         else:
             if (command[1] == 'help' or command[1] == 'h'):
                 print_debug(f'Executing >> {command[0]} {command[1]} <<')
-                print_message(SEARCH_HELP)
+                print(SEARCH_HELP)
             elif (command[-1] == 'barters'):
                 print_debug(f'Executing >> {command[0]} {command[1:-1]} {command[-1]} <<')
                 ignore_barters = False
@@ -305,7 +305,7 @@ def parser(tracker_file, directory, command):
         else:
             if (command[1] == 'help' or command[1] == 'h'):
                 print_debug(f'Executing >> {command[0]} {command[1]} <<')
-                print_message(REQUIRES_HELP)
+                print(REQUIRES_HELP)
             elif (command[-1] == 'barters'):
                 print_debug(f'Executing >> {command[0]} {command[1:-1]} {command[-1]} <<')
                 ignore_barters = False
@@ -337,7 +337,7 @@ def parser(tracker_file, directory, command):
             print_error('Command not recognized')
         elif (command[1] == 'help' or command[1] == 'h'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
-            print_message(TRACK_HELP)
+            print(TRACK_HELP)
         else:
             print_debug(f'Executing >> {command[0]} {command[1:]} <<')
             track(tracker_file, directory, ' '.join(command[1:]))
@@ -347,7 +347,7 @@ def parser(tracker_file, directory, command):
             print_error('Command not recognized')
         elif (command[1] == 'help' or command[1] == 'h'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
-            print_message(UNTRACK_HELP)
+            print(UNTRACK_HELP)
         else:
             print_debug(f'Executing >> {command[0]} {command[1:]} <<')
             untrack(tracker_file, directory, ' '.join(command[1:]))
@@ -359,7 +359,7 @@ def parser(tracker_file, directory, command):
         else:
             if (command[1] == 'help' or command[1] == 'h'):
                 print_debug(f'Executing >> {command[0]} {command[1:]} <<')
-                print_message(COMPLETE_HELP)
+                print(COMPLETE_HELP)
                 return True
             elif (command[-1] == 'force'):
                 print_debug(f'Executing >> {command[0]} {command[1:-1]} {command[-1]} <<')
@@ -388,7 +388,7 @@ def parser(tracker_file, directory, command):
             restart(tracker_file, directory, command[1])
         elif (command[1] == 'help' or command[1] == 'h'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
-            print_message(RESTART_HELP)
+            print(RESTART_HELP)
         else:
             print_debug(f'Failed >> {command[0]} {command[1]} <<')
             print_error('Command not recognized')
@@ -400,7 +400,7 @@ def parser(tracker_file, directory, command):
         else:
             if (command[1] == 'help' or command[1] == 'h'):
                 print_debug(f'Executing >> {command[0]} {command[1]} <<')
-                print_message(ADD_HELP)
+                print(ADD_HELP)
             elif (len(command) < 3):
                 print_debug(f'Failed >> {command[0]} <<')
                 print_error('Command not recognized')
@@ -425,7 +425,7 @@ def parser(tracker_file, directory, command):
         else:
             if (command[1] == 'help' or command[1] == 'h'):
                 print_debug(f'Executing >> {command[0]} {command[1]} <<')
-                print_message(DELETE_HELP)
+                print(DELETE_HELP)
             elif (len(command) < 3):
                 print_debug(f'Failed >> {command[0]} <<')
                 print_error('Command not recognized')
@@ -450,7 +450,7 @@ def parser(tracker_file, directory, command):
                 level_up(tracker_file, directory)
             elif (command[1] == 'help' or command[1] == 'h'):
                 print_debug(f'Executing >> {command[0]} {command[1]} <<')
-                print_message(LEVEL_HELP)
+                print(LEVEL_HELP)
             elif (command[1] == 'set'):
                 if (len(command) == 3):
                     if (command[2].isdigit() and int(command[2]) > 0):
@@ -475,7 +475,7 @@ def parser(tracker_file, directory, command):
             clear()
         elif (command[1] == 'help' or command[1] == 'h'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
-            print_message(CLEAR_HELP)
+            print(CLEAR_HELP)
         else:
             print_debug(f'Failed >> {command[0]} {command[1]} <<')
             print_error('Command not recognized')
@@ -489,17 +489,17 @@ def parser(tracker_file, directory, command):
                 import_data(tracker_file, directory)
             else:
                 print_debug(f'Abort >> {command[0]} << because >> {_confirmation_} <<')
-                print_message('Aborted')
+                print('Aborted')
         elif (command[1] == 'help' or command[1] == 'h'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
-            print_message(IMPORT_HELP)
+            print(IMPORT_HELP)
         elif (command[1] == 'prices'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
             database = open_database(tracker_file, directory)
             database = import_items(database, {
                 'Content-Tyoe': 'application/json'
             })
-            print_message('Price data refreshed')
+            print('Price data refreshed')
             write_database(tracker_file, directory, database)
         elif (command[1] == 'delta'):
             print_warning('Import new data without overwriting? (Y/N)')
@@ -509,7 +509,7 @@ def parser(tracker_file, directory, command):
                 delta(tracker_file, directory)
             else:
                 print_debug(f'Abort >> {command[0]} << because >> {_confirmation_} <<')
-                print_message('Aborted')
+                print('Aborted')
         else:
             print_debug(f'Failed >> {command[0]} {command[1]} <<')
             print_error('Command not recognized')
@@ -520,7 +520,7 @@ def parser(tracker_file, directory, command):
             backup(tracker_file, directory)
         elif (command[1] == 'help' or command[1] == 'h'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
-            print_message(BACKUP_HELP)
+            print(BACKUP_HELP)
         else:
             print_debug(f'Failed >> {command[0]} {command[1]} <<')
             print_error('Command not recognized')
@@ -531,14 +531,14 @@ def parser(tracker_file, directory, command):
             restore(tracker_file, directory)
         elif (command[1] == 'help' or command[1] == 'h'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
-            print_message(RESTORE_HELP)
+            print(RESTORE_HELP)
         else:
             print_debug(f'Failed >> {command[0]} {command[1]} <<')
             print_error('Command not recognized')
     # Help
     elif (command[0] == 'help' or command[0] == 'h'):
         print_debug(f'Executing >> {command[0]} <<')
-        print_message(USAGE)
+        print(USAGE)
     # Exit
     elif (command[0] == 'stop' or command[0] == 's' or command[0] == 'quit' or command[0] == 'q' or command[0] == 'exit'):
         print_debug(f'Executing >> {command[0]} <<')
@@ -554,7 +554,7 @@ def parser(tracker_file, directory, command):
             rename(f'{directory}\\{tracker_file}.curr.bak', f'{directory}\\{tracker_file}.prev.bak')
 
         write_database(f'{tracker_file}.curr.bak', directory, database)
-        print_message(f'Backup saved')
+        print(f'Backup saved')
         return False
     # Error
     else:
@@ -592,7 +592,7 @@ def disambiguate(matches):
 
     for guid, match in matches.items():
         options.append(guid)
-        print_message(f'[{index + 1}] {match['normalizedName']} ({guid})')
+        print(f'[{index + 1}] {match['normalizedName']} ({guid})')
         index = index + 1
     
     _choice_ = input('> ')
@@ -901,26 +901,26 @@ def add_item_fir(database, count, guid):
     item_name = database['items'][guid]['normalizedName']
 
     if (database['items'][guid]['need_nir'] == 0 and database['items'][guid]['need_fir'] == 0):
-        print_message(f'{item_name} is not needed')
+        print(f'{item_name} is not needed')
         return False
 
     if (database['items'][guid]['need_fir'] == 0):
-        print_message(f'{item_name} (FIR) is not needed')
+        print(f'{item_name} (FIR) is not needed')
         database = add_item_nir(database, count, guid)
     elif (database['items'][guid]['have_fir'] == database['items'][guid]['need_fir']):
-        print_message(f'{item_name} (FIR) already found')
+        print(f'{item_name} (FIR) already found')
         database = add_item_nir(database, count, guid)
     elif (database['items'][guid]['have_fir'] + count > database['items'][guid]['need_fir']):
         _remainder_ = database['items'][guid]['have_fir'] + count - database['items'][guid]['need_fir']
-        print_message(f'Added {count - _remainder_} {item_name} (FIR) (COMPLETED)')
+        print(f'Added {count - _remainder_} {item_name} (FIR) (COMPLETED)')
         database = add_item_nir(database, _remainder_, guid)
         database['items'][guid]['have_fir'] = database['items'][guid]['need_fir']
     elif (database['items'][guid]['have_fir'] + count == database['items'][guid]['need_fir']):
         database['items'][guid]['have_fir'] = database['items'][guid]['need_fir']
-        print_message(f'Added {count} {item_name} (FIR) (COMPLETED)')
+        print(f'Added {count} {item_name} (FIR) (COMPLETED)')
     else:
         database['items'][guid]['have_fir'] = database['items'][guid]['have_fir'] + count
-        print_message(f'Added {count} {item_name} (FIR)')
+        print(f'Added {count} {item_name} (FIR)')
 
     if (not database):
         print_error('Something went wrong. Aborted')
@@ -932,23 +932,23 @@ def add_item_nir(database, count, guid):
     item_name = database['items'][guid]['normalizedName']
 
     if (database['items'][guid]['need_nir'] == 0 and database['items'][guid]['need_fir'] == 0):
-        print_message(f'{item_name} is not needed')
+        print(f'{item_name} is not needed')
         return False
 
     if (database['items'][guid]['need_nir'] == 0):
-        print_message(f'{item_name} (NIR) is not needed')
+        print(f'{item_name} (NIR) is not needed')
     elif (database['items'][guid]['have_nir'] == database['items'][guid]['need_nir']):
-        print_message(f'{item_name} (NIR) already found')
+        print(f'{item_name} (NIR) already found')
     elif (database['items'][guid]['have_nir'] + count > database['items'][guid]['need_nir']):
         _remainder_ = database['items'][guid]['have_nir'] + count - database['items'][guid]['need_nir']
         database['items'][guid]['have_nir'] = database['items'][guid]['need_nir']
-        print_message(f'Added {count - _remainder_} {item_name} (NIR) (COMPLETED). Skipped {_remainder_} items')
+        print(f'Added {count - _remainder_} {item_name} (NIR) (COMPLETED). Skipped {_remainder_} items')
     elif (database['items'][guid]['have_nir'] + count == database['items'][guid]['need_nir']):
         database['items'][guid]['have_nir'] = database['items'][guid]['need_nir']
-        print_message(f'Added {count} {item_name} (NIR) (COMPLETED)')
+        print(f'Added {count} {item_name} (NIR) (COMPLETED)')
     else:
         database['items'][guid]['have_nir'] = database['items'][guid]['have_nir'] + count
-        print_message(f'Added {count} {item_name} (NIR)')
+        print(f'Added {count} {item_name} (NIR)')
 
     hideout_readiness(database, guid)
 
@@ -973,7 +973,7 @@ def del_item_fir(database, count, guid):
         database['items'][guid]['have_fir'] = database['items'][guid]['have_fir'] - count
 
     remaining = database['items'][guid]['have_fir']
-    print_message(f'Removed {count} {item_name} (FIR) ({remaining} remaining FIR)')
+    print(f'Removed {count} {item_name} (FIR) ({remaining} remaining FIR)')
     return database
 
 def del_item_nir(database, count, guid):
@@ -990,7 +990,7 @@ def del_item_nir(database, count, guid):
         database['items'][guid]['have_nir'] = database['items'][guid]['have_nir'] - count
 
     remaining = database['items'][guid]['have_nir']
-    print_message(f'Removed {count} {item_name} (NIR) ({remaining} remaining NIR)')
+    print(f'Removed {count} {item_name} (NIR) ({remaining} remaining NIR)')
     return database
 
 # Hideout Readiness
@@ -1021,7 +1021,7 @@ def hideout_readiness(database, guid = False):
                         ready = True
             else:
                 if (ready or not guid):
-                    print_message(f'{station['normalizedName']} is ready to complete')
+                    print(f'{station['normalizedName']} is ready to complete')
     
     return True
 
@@ -1038,10 +1038,6 @@ def print_debug(message):
         return True
     
     return False
-
-def print_message(message):
-    print(f'{message}')
-    return True
 
 def print_warning(message):
     print(f'>> (WARNING) {message}')
@@ -1142,7 +1138,7 @@ def calculate_inventory(database):
                     item_guid = key['id']
                     database['items'][item_guid]['need_nir'] = 1
     
-    print_message('Added all items required for tracked tasks to the database')
+    print('Added all items required for tracked tasks to the database')
 
     for guid, station in database['hideout'].items():
         if (not station['tracked']):
@@ -1161,7 +1157,7 @@ def calculate_inventory(database):
             else:
                 database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_nir'] + requirement['count']
 
-    print_message('Added all items required for tracked hideout stations to the database')
+    print('Added all items required for tracked hideout stations to the database')
 
     for guid, barter in database['barters'].items():
         if (not barter['tracked']):
@@ -1171,7 +1167,7 @@ def calculate_inventory(database):
             item_guid = requirement['item']['id']
             database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_nir'] + requirement['count']
 
-    print_message('Added all items required for tracked barters to the database')
+    print('Added all items required for tracked barters to the database')
 
     for guid, craft in database['crafts'].items():
         if (not craft['tracked']):
@@ -1181,7 +1177,7 @@ def calculate_inventory(database):
             item_guid = requirement['item']['id']
             database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_nir'] + requirement['count']
 
-    print_message('Added all items required for tracked crafts to the database')
+    print('Added all items required for tracked crafts to the database')
     return database
 
 def get_inventory(database):
@@ -1635,7 +1631,7 @@ def track_task(database, guid):
     task = database['tasks'][guid]
 
     if (task['tracked']):
-        print_message(f'Already tracking {task["name"]}')
+        print(f'Already tracking {task["name"]}')
         return database
     
     for objective in task['objectives']:
@@ -1648,14 +1644,14 @@ def track_task(database, guid):
             if (objective['foundInRaid']):
                 print_debug('FIR')
                 database['items'][item_guid]['need_fir'] = database['items'][item_guid]['need_fir'] + count
-                print_message(f'{count} more {item_name} (FIR) now needed')
+                print(f'{count} more {item_name} (FIR) now needed')
             else:
                 print_debug('NIR')
                 database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_nir'] + count
-                print_message(f'{count} more {item_name} (NIR) now needed')
+                print(f'{count} more {item_name} (NIR) now needed')
 
     database['tasks'][guid]['tracked'] = True
-    print_message(f'Tracked {task["name"]}')
+    print(f'Tracked {task["name"]}')
     return database
 
 def track_station(database, guid):
@@ -1663,7 +1659,7 @@ def track_station(database, guid):
     station = database['hideout'][guid]
 
     if (station['tracked']):
-        print_message(f'Already tracking {station["normalizedName"]}')
+        print(f'Already tracking {station["normalizedName"]}')
         return database
     
     for requirement in station['itemRequirements']:
@@ -1672,10 +1668,10 @@ def track_station(database, guid):
         count = requirement['count']
         print_debug(f'Adding >> {count} << of >> {item_guid} << for requirement >> {requirement["id"]} <<')
         database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_nir'] + count
-        print_message(f'{count} more {item_name} (NIR) now needed')
+        print(f'{count} more {item_name} (NIR) now needed')
 
     database['hideout'][guid]['tracked'] = True
-    print_message(f'Tracked {station["normalizedName"]}')
+    print(f'Tracked {station["normalizedName"]}')
     return database
 
 def track_barter(database, guid):
@@ -1683,7 +1679,7 @@ def track_barter(database, guid):
     barter = database['barters'][guid]
 
     if (barter['tracked']):
-        print_message(f'Already tracking {guid}')
+        print(f'Already tracking {guid}')
         return database
     
     for requirement in barter['requiredItems']:
@@ -1692,10 +1688,10 @@ def track_barter(database, guid):
         count = requirement['count']
         database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_nir'] + count
         print_debug(f'Adding >> {count} << of >> {item_guid} << for requirement')
-        print_message(f'{count} more {item_name} (NIR) now needed')
+        print(f'{count} more {item_name} (NIR) now needed')
 
     database['barters'][guid]['tracked'] = True
-    print_message(f'Tracked {guid}')          
+    print(f'Tracked {guid}')          
     return database
 
 def track_craft(database, guid):
@@ -1703,7 +1699,7 @@ def track_craft(database, guid):
     craft = database['crafts'][guid]
 
     if (craft['tracked']):
-        print_message(f'Already tracking {guid}')
+        print(f'Already tracking {guid}')
         return database
     
     for requirement in craft['requiredItems']:
@@ -1712,10 +1708,10 @@ def track_craft(database, guid):
         count = requirement['count']
         database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_nir'] + count
         print_debug(f'Adding >> {count} << of >> {item_guid} << for requirement')
-        print_message(f'{count} more {item_name} (NIR) now needed')
+        print(f'{count} more {item_name} (NIR) now needed')
 
     database['crafts'][guid]['tracked'] = True
-    print_message(f'Tracked {guid}')          
+    print(f'Tracked {guid}')          
     return database
 
 def untrack_task(database, guid):
@@ -1723,7 +1719,7 @@ def untrack_task(database, guid):
     task = database['tasks'][guid]
 
     if (not task['tracked']):
-        print_message(f'{task["name"]} is already untracked')
+        print(f'{task["name"]} is already untracked')
         return database
     
     for objective in task['objectives']:
@@ -1736,14 +1732,14 @@ def untrack_task(database, guid):
             if (objective['foundInRaid']):
                 print_debug('FIR')
                 database['items'][item_guid]['need_fir'] = database['items'][item_guid]['need_fir'] - count
-                print_message(f'{count} less {item_name} (FIR) now needed')
+                print(f'{count} less {item_name} (FIR) now needed')
             else:
                 print_debug('NIR')
                 database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_nir'] - count
-                print_message(f'{count} less {item_name} (NIR) now needed')
+                print(f'{count} less {item_name} (NIR) now needed')
 
     database['tasks'][guid]['tracked'] = False
-    print_message(f'Untracked {task["name"]}')
+    print(f'Untracked {task["name"]}')
     return database
 
 def untrack_station(database, guid):
@@ -1751,7 +1747,7 @@ def untrack_station(database, guid):
     station = database['hideout'][guid]
 
     if (not station['tracked']):
-        print_message(f'{station["normalizedName"]} is already untracked')
+        print(f'{station["normalizedName"]} is already untracked')
         return database
     
     for requirement in station['itemRequirements']:
@@ -1760,10 +1756,10 @@ def untrack_station(database, guid):
         count = requirement['count']
         print_debug(f'Removing >> {count} << of >> {item_guid} << for requirement >> {requirement["id"]} <<')
         database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_nir'] - count
-        print_message(f'{count} less {item_name} (NIR) now needed')
+        print(f'{count} less {item_name} (NIR) now needed')
 
     database['hideout'][guid]['tracked'] = False
-    print_message(f'Untracked {station["normalizedName"]}')
+    print(f'Untracked {station["normalizedName"]}')
     return database
 
 def untrack_barter(database, guid):
@@ -1771,7 +1767,7 @@ def untrack_barter(database, guid):
     barter = database['barters'][guid]
 
     if (not barter['tracked']):
-        print_message(f'{barter["id"]} is already untracked')
+        print(f'{barter["id"]} is already untracked')
         return database
     
     for requirement in barter['requiredItems']:
@@ -1780,10 +1776,10 @@ def untrack_barter(database, guid):
         count = requirement['count']
         database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_nir'] + count
         print_debug(f'Removing >> {count} << of >> {item_guid} << for requirement')
-        print_message(f'{count} less {item_name} (NIR) now needed')
+        print(f'{count} less {item_name} (NIR) now needed')
 
     database['barters'][guid]['tracked'] = False
-    print_message(f'Untracked {guid}')          
+    print(f'Untracked {guid}')          
     return database
 
 def untrack_craft(database, guid):
@@ -1791,7 +1787,7 @@ def untrack_craft(database, guid):
     craft = database['crafts'][guid]
 
     if (not craft['tracked']):
-        print_message(f'{craft["id"]} is already untracked')
+        print(f'{craft["id"]} is already untracked')
         return database
     
     for requirement in craft['requiredItems']:
@@ -1800,10 +1796,10 @@ def untrack_craft(database, guid):
         count = requirement['count']
         database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_nir'] + count
         print_debug(f'Removing >> {count} << of >> {item_guid} << for requirement')
-        print_message(f'{count} less {item_name} (NIR) now needed')
+        print(f'{count} less {item_name} (NIR) now needed')
 
     database['crafts'][guid]['tracked'] = False
-    print_message(f'Untracked {guid}')          
+    print(f'Untracked {guid}')          
     return database
 
 # Complete functions
@@ -1811,7 +1807,7 @@ def complete_task(database, guid, force):
     task = database['tasks'][guid]
 
     if (task['status'] == 'complete'):
-        print_message(f'{task["name"]} is already complete')
+        print(f'{task["name"]} is already complete')
         return False
 
     if (not task['tracked'] and not force):
@@ -1861,7 +1857,7 @@ def complete_task(database, guid, force):
                             print_error(f'Encountered an error. All item changes for this task have been aborted')
                             return False
                     else:
-                        print_message(f'{_remainder_} more {item_name} required. Consume {_remainder_} (FIR) instead? (Y/N)')
+                        print(f'{_remainder_} more {item_name} required. Consume {_remainder_} (FIR) instead? (Y/N)')
                         _confirmation_ = input('> ').lower()
 
                         if (_confirmation_ == 'y'):
@@ -1878,7 +1874,7 @@ def complete_task(database, guid, force):
                 database['items'][item_guid]['consumed_nir'] = database['items'][item_guid]['consumed_nir'] + need_nir
             
     database['tasks'][guid]['status'] = 'complete'
-    print_message(f'{task["name"]} completed')
+    print(f'{task["name"]} completed')
     return database
 
 def complete_recursive_task(database, guid, tasks = []):
@@ -1895,7 +1891,7 @@ def complete_station(database, guid, force):
     station = database['hideout'][guid]
 
     if (station['status'] == 'complete'):
-        print_message(f'{station["normalizedName"]} is already complete')
+        print(f'{station["normalizedName"]} is already complete')
         return False
 
     if (not station['tracked'] and not force):
@@ -1937,7 +1933,7 @@ def complete_station(database, guid, force):
                         print_error(f'Encountered an error. All item changes for this hideout station have been aborted')
                         return False
                 else:
-                    print_message(f'{_remainder_} more {item_name} required. Consume {_remainder_} (FIR) instead? (Y/N)')
+                    print(f'{_remainder_} more {item_name} required. Consume {_remainder_} (FIR) instead? (Y/N)')
                     _confirmation_ = input('> ').lower()
 
                     if (_confirmation_ == 'y'):
@@ -1967,7 +1963,7 @@ def complete_station(database, guid, force):
             database['items'][item_guid]['consumed_nir'] = database['items'][item_guid]['consumed_nir'] + need
     
     database['hideout'][guid]['status'] = 'complete'
-    print_message(f'{station["normalizedName"]} completed')
+    print(f'{station["normalizedName"]} completed')
     hideout_readiness(database)
     return database
 
@@ -1975,7 +1971,7 @@ def complete_barter(database, guid, force):
     barter = database['barters'][guid]
 
     if (barter['status'] == 'complete'):
-        print_message(f'{barter["id"]} is already complete')
+        print(f'{barter["id"]} is already complete')
         return False
     
     if (not barter['tracked'] and not force):
@@ -2007,7 +2003,7 @@ def complete_barter(database, guid, force):
                     print_error(f'Encountered an error. All item changes for this barter have been aborted')
                     return False
             else:
-                print_message(f'{_remainder_} more {item_name} required. Consume {available_fir} (FIR) instead? (Y/N)')
+                print(f'{_remainder_} more {item_name} required. Consume {available_fir} (FIR) instead? (Y/N)')
                 _confirmation_ = input('> ').lower()
 
                 if (_confirmation_ == 'y'):
@@ -2024,14 +2020,14 @@ def complete_barter(database, guid, force):
         database['items'][item_guid]['consumed_nir'] = database['items'][item_guid]['consumed_nir'] + need_nir
     
     database['barters'][guid]['status'] = 'complete'
-    print_message(f'{guid} completed')
+    print(f'{guid} completed')
     return database
 
 def complete_craft(database, guid, force):
     craft = database['crafts'][guid]
 
     if (craft['status'] == 'complete'):
-        print_message(f'{craft["id"]} is already complete')
+        print(f'{craft["id"]} is already complete')
         return False
     
     if (not craft['tracked'] and not force):
@@ -2063,7 +2059,7 @@ def complete_craft(database, guid, force):
                     print_error(f'Encountered an error. All item changes for this craft have been aborted')
                     return False
             else:
-                print_message(f'{_remainder_} more {item_name} required. Consume {available_fir} (FIR) instead? (Y/N)')
+                print(f'{_remainder_} more {item_name} required. Consume {available_fir} (FIR) instead? (Y/N)')
                 _confirmation_ = input('> ').lower()
 
                 if (_confirmation_ == 'y'):
@@ -2080,7 +2076,7 @@ def complete_craft(database, guid, force):
         database['items'][item_guid]['consumed_nir'] = database['items'][item_guid]['consumed_nir'] + need_nir
     
     database['crafts'][guid]['status'] = 'complete'
-    print_message(f'{guid} completed')
+    print(f'{guid} completed')
     return database
 
 # Restart functions
@@ -2088,7 +2084,7 @@ def restart_barter(database, guid):
     barter = database['barters'][guid]
 
     if (barter['status'] == 'incomplete'):
-        print_message(f'{barter["id"]} is not complete')
+        print(f'{barter["id"]} is not complete')
         return False
     
     if (not barter['tracked']):
@@ -2101,18 +2097,18 @@ def restart_barter(database, guid):
         need_nir = requirement['count']
         database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_nir'] + need_nir
         print_debug(f'Adding >> {need_nir} << of >> {item_guid} << for requirement')
-        print_message(f'{need_nir} more {item_name} (NIR) now needed')
+        print(f'{need_nir} more {item_name} (NIR) now needed')
     
     database['barters'][guid]['status'] = 'incomplete'
     database['barters'][guid]['restarts'] = database['barters'][guid]['restarts'] + 1
-    print_message(f'{guid} restarted')
+    print(f'{guid} restarted')
     return database
 
 def restart_craft(database, guid):
     craft = database['crafts'][guid]
 
     if (craft['status'] == 'incomplete'):
-        print_message(f'{craft["id"]} is not complete')
+        print(f'{craft["id"]} is not complete')
         return False
     
     if (not craft['tracked']):
@@ -2125,11 +2121,11 @@ def restart_craft(database, guid):
         need_nir = requirement['count']
         database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_nir'] + need_nir
         print_debug(f'Adding >> {need_nir} << of >> {item_guid} << for requirement')
-        print_message(f'{need_nir} more {item_name} (NIR) now needed')
+        print(f'{need_nir} more {item_name} (NIR) now needed')
     
     database['crafts'][guid]['status'] = 'incomplete'
     database['crafts'][guid]['restarts'] = database['crafts'][guid]['restarts'] + 1
-    print_message(f'{guid} restarted')
+    print(f'{guid} restarted')
     return database
 
 # Import functions
@@ -2284,7 +2280,7 @@ def import_tasks(database, headers):
             print_error(f'Errors detected {json.dumps(response.json())}')
             return False
         
-        print_message('Retrieved latest task data from the api.tarkov.dev server')
+        print('Retrieved latest task data from the api.tarkov.dev server')
 
     nonKappa = 0
     imported_tasks = 0
@@ -2311,7 +2307,7 @@ def import_tasks(database, headers):
         imported_tasks = imported_tasks + 1
         database['tasks'][guid] = task
 
-    print_message(f'Successfully loaded {imported_tasks} tasks into the database! {nonKappa} non-Kappa required tasks have been automatically untracked')
+    print(f'Successfully loaded {imported_tasks} tasks into the database! {nonKappa} non-Kappa required tasks have been automatically untracked')
     return database
 
 def import_hideout(database, headers):
@@ -2356,7 +2352,7 @@ def import_hideout(database, headers):
             print_error(f'Errors detected {json.dumps(response.json())}')
             return False
         
-        print_message('Retrieved latest hideout data from the api.tarkov.dev server')
+        print('Retrieved latest hideout data from the api.tarkov.dev server')
         hideout = response.json()['data']['hideoutStations']
 
     for station in hideout:
@@ -2369,11 +2365,11 @@ def import_hideout(database, headers):
 
             if (level['normalizedName'] == 'stash-1'):
                 level['status'] = 'complete'
-                print_message('Completed stash-1 automatically')
+                print('Completed stash-1 automatically')
 
             database['hideout'][guid] = level
 
-    print_message(f'Successfully loaded hideout data into the database!')
+    print(f'Successfully loaded hideout data into the database!')
     return database
 
 def import_barters(database, headers):
@@ -2415,7 +2411,7 @@ def import_barters(database, headers):
                 print_error(f'Errors detected {json.dumps(response.json())}')
                 return False
 
-        print_message('Retrieved latest barter data from the api.tarkov.dev server')
+        print('Retrieved latest barter data from the api.tarkov.dev server')
         barters = response.json()['data']['barters']
 
     for barter in barters:
@@ -2426,7 +2422,7 @@ def import_barters(database, headers):
         barter['restarts'] = 0
         database['barters'][guid] = barter
 
-    print_message(f'Successfully loaded barter data into the database!')
+    print(f'Successfully loaded barter data into the database!')
     return database
 
 def import_crafts(database, headers):
@@ -2469,7 +2465,7 @@ def import_crafts(database, headers):
             print_error(f'Errors detected {json.dumps(response.json())}')
             return False
 
-        print_message('Retrieved latest craft data from the api.tarkov.dev server')
+        print('Retrieved latest craft data from the api.tarkov.dev server')
         crafts = response.json()['data']['crafts']
 
     for craft in crafts:
@@ -2480,7 +2476,7 @@ def import_crafts(database, headers):
         craft['restarts'] = 0
         database['crafts'][guid] = craft
     
-    print_message(f'Successfully loaded craft data into the database!')
+    print(f'Successfully loaded craft data into the database!')
     return database
 
 def import_items(database, headers):
@@ -2669,7 +2665,7 @@ def import_items(database, headers):
         database['items'][guid]['flea_level'] = flea_level
 
     database['refresh'] = datetime.now().isoformat()
-    print_message(f'Successfully loaded item data into the database!')
+    print(f'Successfully loaded item data into the database!')
     return database
 
 def import_maps(database, headers):
@@ -2693,7 +2689,7 @@ def import_maps(database, headers):
             print_error(f'Errors detected {json.dumps(response.json())}')
             return False
 
-        print_message('Retrieved latest map data from the api.tarkov.dev server')
+        print('Retrieved latest map data from the api.tarkov.dev server')
         maps = response.json()['data']['maps']
 
     for map in maps:
@@ -2707,7 +2703,7 @@ def import_maps(database, headers):
 
         database['maps'][guid] = map
 
-    print_message(f'Successfully loaded map data into the database!')
+    print(f'Successfully loaded map data into the database!')
     return database
 
 def import_traders(database, headers):
@@ -2731,7 +2727,7 @@ def import_traders(database, headers):
             print_error(f'Errors detected {json.dumps(response.json())}')
             return False
 
-        print_message('Retrieved latest trader data from the api.tarkov.dev server')
+        print('Retrieved latest trader data from the api.tarkov.dev server')
         traders = response.json()['data']['traders']
 
     for trader in traders:
@@ -2743,7 +2739,7 @@ def import_traders(database, headers):
 
         database['traders'][guid] = trader
 
-    print_message(f'Successfully loaded trader data into the database!')
+    print(f'Successfully loaded trader data into the database!')
     return database
 
 # Display
@@ -3208,7 +3204,7 @@ def inventory_tasks(tracker_file, directory):
     task_items = get_inventory_tasks(database)
 
     if (len(task_items) == 0):
-        print_message('No items are required for tasks')
+        print('No items are required for tasks')
     else:
         display_inventory(task_items, filtered = True)
 
@@ -3223,7 +3219,7 @@ def inventory_hideout(tracker_file, directory):
     hideout_items = get_inventory_hideout(database)
 
     if (len(hideout_items) == 0):
-        print_message('No items are required for the hideout')
+        print('No items are required for the hideout')
     else:
         display_inventory(hideout_items, filtered = True)
 
@@ -3238,7 +3234,7 @@ def inventory_barters(tracker_file, directory):
     barter_items = get_inventory_barters(database)
 
     if (len(barter_items) == 0):
-        print_message('No items are required for barters')
+        print('No items are required for barters')
     else:
         display_inventory(barter_items, filtered = True)
 
@@ -3253,7 +3249,7 @@ def inventory_crafts(tracker_file, directory):
     craft_items = get_inventory_crafts(database)
 
     if (len(craft_items) == 0):
-        print_message('No items are required for crafts')
+        print('No items are required for crafts')
     else:
         display_inventory(craft_items, filtered = True)
 
@@ -3268,7 +3264,7 @@ def inventory_have(tracker_file, directory):
     have_items = get_inventory_have(database)
     
     if (len(have_items) == 0):
-        print_message('You have not collected any items')
+        print('You have not collected any items')
     else:
         display_have(have_items)
 
@@ -3283,7 +3279,7 @@ def inventory_need(tracker_file, directory):
     need_items = get_inventory_need(database)
     
     if (len(need_items) == 0):
-        print_message('No items needed. CONGRATULATIONS!')
+        print('No items needed. CONGRATULATIONS!')
     else:
         display_need(need_items)
 
@@ -3303,7 +3299,7 @@ def list_tasks(tracker_file, directory, argument):
         tasks = get_tasks_filtered(database, argument)
 
     if (len(tasks) == 0):
-        print_message('No available or tracked tasks found')
+        print('No available or tracked tasks found')
         return False
     
     display_tasks(database, tasks)
@@ -3319,7 +3315,7 @@ def list_stations(tracker_file, directory):
     stations = get_hideout(database)
 
     if (len(stations) == 0):
-        print_message('No available or tracked hideout stations found')
+        print('No available or tracked hideout stations found')
     else:
         display_hideout(database, stations)
     
@@ -3338,7 +3334,7 @@ def list_barters(tracker_file, directory, argument):
         barters = get_barters_filtered(database, argument)
 
     if (len(barters) == 0):
-        print_message('No tracked barters found')
+        print('No tracked barters found')
         return False
     
     display_barters(database, barters)
@@ -3354,7 +3350,7 @@ def list_crafts(tracker_file, directory):
     crafts = get_crafts(database)
 
     if (len(crafts) == 0):
-        print_message('No tracked crafts found')
+        print('No tracked crafts found')
     else:
         display_crafts(database, crafts)
     
@@ -3370,9 +3366,9 @@ def list_untracked(tracker_file, directory, ignore_kappa):
     untracked = get_untracked(database, ignore_kappa)
 
     if (len(untracked) == 0 and ignore_kappa):
-        print_message('No untracked items (including Kappa tasks) found')
+        print('No untracked items (including Kappa tasks) found')
     elif (len(untracked) == 0):
-        print_message('No untracked items (excluding Kappa tasks) found')
+        print('No untracked items (excluding Kappa tasks) found')
     else:
         display_untracked(database, untracked)
 
@@ -3386,7 +3382,7 @@ def list_maps(tracker_file, directory):
         return False
     
     maps = ', '.join(map['normalizedName'] for guid, map in database['maps'].items()).strip(', ')
-    print_message(f'Accepted map names are: {maps}')
+    print(f'Accepted map names are: {maps}')
 
 def list_traders(tracker_file, directory):
     database = open_database(tracker_file, directory)
@@ -3396,7 +3392,7 @@ def list_traders(tracker_file, directory):
         return False
     
     traders = ', '.join(trader['normalizedName'] for guid, trader in database['traders'].items()).strip(', ')
-    print_message(f'Accepted trader names are: {traders}')
+    print(f'Accepted trader names are: {traders}')
 
 # Search
 def search(tracker_file, directory, argument, ignore_barters, ignore_crafts):
@@ -3407,12 +3403,12 @@ def search(tracker_file, directory, argument, ignore_barters, ignore_crafts):
         return False
 
     if (datetime.fromisoformat(database['refresh']) < (datetime.now() - timedelta(hours = 24))):
-        print_message('Item price data is over 24 hours old. Refreshing...')
+        print('Item price data is over 24 hours old. Refreshing...')
         database = import_items(database, headers = {
             'Content-Type': 'application/json'
         })
         write_database(tracker_file, directory, database)
-        print_message('Complete')
+        print('Complete')
 
     tasks = search_tasks(argument, database)
     hideout = search_hideout(argument, database)
@@ -3449,12 +3445,12 @@ def required_search(tracker_file, directory, argument, ignore_barters, ignore_cr
         return False
     
     if (datetime.fromisoformat(database['refresh']) < (datetime.now() - timedelta(hours = 24))):
-        print_message('Item price data is over 24 hours old. Refreshing...')
+        print('Item price data is over 24 hours old. Refreshing...')
         database = import_items(database, headers = {
             'Content-Type': 'application/json'
         })
         write_database(tracker_file, directory, database)
-        print_message('Complete')
+        print('Complete')
     
     tasks = search_tasks_by_item(argument, database)
     hideout = search_hideout_by_item(argument, database)
@@ -3470,7 +3466,7 @@ def required_search(tracker_file, directory, argument, ignore_barters, ignore_cr
         crafts = search_crafts_by_item(argument, database, tracked_only = True)
 
     if (not tasks and not hideout and not barters and not crafts):
-        print_message('\nItem not required\n')
+        print('\nItem not required\n')
 
     display_search(database, tasks, hideout, barters, crafts, False, False, False)
     return True
@@ -3662,7 +3658,7 @@ def check_level(tracker_file, directory):
         print_error('Failed to open database found')
         return False
     
-    print_message(f'\nYou are level {database["player_level"]}\n')
+    print(f'\nYou are level {database["player_level"]}\n')
     return True
 
 def set_level(tracker_file, directory, level):
@@ -3674,7 +3670,7 @@ def set_level(tracker_file, directory, level):
     
     database['player_level'] = level
     write_database(tracker_file, directory, database)
-    print_message(f'\nYour level is now {level}\n')
+    print(f'\nYour level is now {level}\n')
     return True
 
 def level_up(tracker_file, directory):
@@ -3686,7 +3682,7 @@ def level_up(tracker_file, directory):
     
     database['player_level'] = database['player_level'] + 1
     write_database(tracker_file, directory, database)
-    print_message(f'\nLevel up! Your level is now {database["player_level"]}\n')
+    print(f'\nLevel up! Your level is now {database["player_level"]}\n')
     return True
 
 # Clear
@@ -3755,7 +3751,7 @@ def import_data(tracker_file, directory):
     
     database = calculate_inventory(database)
     write_database(tracker_file, directory, database)
-    print_message(f'Finished importing game data and saved to {tracker_file}')
+    print(f'Finished importing game data and saved to {tracker_file}')
     return True
 
 def delta(tracker_file, directory):
@@ -3783,7 +3779,7 @@ def delta(tracker_file, directory):
             if (_confirmation_ == 'y'):
                 continue
 
-            print_message('Aborted')
+            print('Aborted')
             write_database(tracker_file, directory, previous)
             return False
 
@@ -3798,7 +3794,7 @@ def delta(tracker_file, directory):
                 _confirmation_ = input('> ').lower()
 
                 if (_confirmation_ != 'y'):
-                    print_message('Aborted')
+                    print('Aborted')
                     write_database(tracker_file, directory, previous)
                     return False
 
@@ -3808,7 +3804,7 @@ def delta(tracker_file, directory):
                 _confirmation_ = input('> ').lower()
 
                 if (_confirmation_ != 'y'):
-                    print_message('Aborted')
+                    print('Aborted')
                     write_database(tracker_file, directory, previous)
                     return False
                 
@@ -3823,7 +3819,7 @@ def delta(tracker_file, directory):
                 write_database(tracker_file, directory, previous)
                 return False
                         
-    print_message('Completed tasks delta import')
+    print('Completed tasks delta import')
     
     # Hideout stations    
     for guid, station in previous['hideout'].items():
@@ -3834,7 +3830,7 @@ def delta(tracker_file, directory):
             if (_confirmation_ == 'y'):
                 continue
 
-            print_message('Aborted')
+            print('Aborted')
             write_database(tracker_file, directory, previous)
             return False
 
@@ -3850,7 +3846,7 @@ def delta(tracker_file, directory):
                 print_warning(f'You had previously untracked hideout station {station["normalizedName"]} which will continue to be untracked')
                 database = untrack_station(database, guid)
 
-    print_message('Completed hideout delta import')
+    print('Completed hideout delta import')
 
     # Barters
     matched_guid = False
@@ -3918,12 +3914,12 @@ def delta(tracker_file, directory):
                     count = requirement['count']
                     database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_nir'] + count
                     print_debug(f'Adding >> {count} << of >> {item_guid} << for requirement')
-                    print_message(f'{count} more {item_name} (NIR) now needed')
+                    print(f'{count} more {item_name} (NIR) now needed')
             
             database['barters'][matched_guid]['restarts'] = previous_barter['restarts']
-            print_message(f'Barter {matched_guid} had been restarted {previous_barter["restarts"]} times. Item counts for this have been retained')
+            print(f'Barter {matched_guid} had been restarted {previous_barter["restarts"]} times. Item counts for this have been retained')
     
-    print_message('Completed barters delta import')
+    print('Completed barters delta import')
 
     # Crafts
     matched_guid = False
@@ -3991,12 +3987,12 @@ def delta(tracker_file, directory):
                     count = requirement['count']
                     database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_nir'] + count
                     print_debug(f'Adding >> {count} << of >> {item_guid} << for requirement')
-                    print_message(f'{count} more {item_name} (NIR) now needed')
+                    print(f'{count} more {item_name} (NIR) now needed')
             
             database['crafts'][matched_guid]['restarts'] = previous_craft['restarts']
-            print_message(f'Craft {matched_guid} had been restarted {previous_craft["restarts"]} times. Item counts for this have been retained')
+            print(f'Craft {matched_guid} had been restarted {previous_craft["restarts"]} times. Item counts for this have been retained')
     
-    print_message('Completed crafts delta import')
+    print('Completed crafts delta import')
 
     # Inventory
     for guid, item in previous['items'].items():
@@ -4007,7 +4003,7 @@ def delta(tracker_file, directory):
             if (_confirmation_ == 'y'):
                 continue
 
-            print_message('Aborted')
+            print('Aborted')
             write_database(tracker_file, directory, previous)
             return False
         
@@ -4023,12 +4019,12 @@ def delta(tracker_file, directory):
         if (database['items'][guid]['consumed_fir'] != item['consumed_fir']):
             database['items'][guid]['consumed_fir'] = item['consumed_fir']
     
-    print_message('Completed items delta import')
+    print('Completed items delta import')
     database['player_level'] = previous['player_level']
     database['refresh'] = previous['refresh']
-    print_message('Restored player level and price refresh data')
+    print('Restored player level and price refresh data')
     write_database(tracker_file, directory, database)
-    print_message('Completed database delta import')
+    print('Completed database delta import')
     return True
 
 # Backup
@@ -4038,7 +4034,7 @@ def backup(tracker_file, directory):
     if (('curr.null' in saves and 'prev.null' in saves and len(saves) > 4) or
         (('curr.null' in saves and 'prev.null' not in saves) or ('prev.null' in saves and 'curr.null' not in saves) and len(saves) > 5) or
         ('curr.null' not in saves and 'prev.null' not in saves and len(saves) > 6)):
-        print_message(f'You are only allowed 5 save files. Please choose a file to overwrite!')
+        print(f'You are only allowed 5 save files. Please choose a file to overwrite!')
         _display_ = '\n'
 
         for index, save in enumerate(saves):
@@ -4056,7 +4052,7 @@ def backup(tracker_file, directory):
                 _save_ = f'{_save_[2]} at {_save_[3]}'
                 _display_ = _display_ + f'[{index + 1}] {_save_}\n'
 
-        print_message(_display_)
+        print(_display_)
         overwrite = input('> ')
 
         if (not overwrite.isdigit() or int(overwrite) < 2 or int(overwrite) > len(saves)):
@@ -4064,19 +4060,19 @@ def backup(tracker_file, directory):
             return False
         
         overwrite = saves[int(overwrite) - 1]
-        print_message(f'Overwriting save file {overwrite}')
+        print(f'Overwriting save file {overwrite}')
         remove(directory + f'\\{overwrite}')
 
     database = open_database(tracker_file, directory)
     filename = f'{tracker_file}.{datetime.now().strftime('%Y-%m-%d.%H-%M-%S')}.bak'
     write_database(filename, directory, database)
-    print_message(f'Created new save file {filename}')
+    print(f'Created new save file {filename}')
     return True
 
 # Restore
 def restore(tracker_file, directory):
     saves = get_saves(tracker_file, directory)
-    print_message('Please choose a save file to restore from')
+    print('Please choose a save file to restore from')
     _display_ = '\n'
 
     for index, save in enumerate(saves):
@@ -4094,7 +4090,7 @@ def restore(tracker_file, directory):
             _save_ = f'{_save_[2]} at {_save_[3]}'
             _display_ = _display_ + f'[{index + 1}] {_save_}\n'
 
-    print_message(_display_)
+    print(_display_)
     restore = input('> ')
 
     if (not restore.isdigit() or int(restore) > len(saves) or int(restore) < 1):
@@ -4102,7 +4098,7 @@ def restore(tracker_file, directory):
         return False
     
     restore = saves[int(restore) - 1]
-    print_message(f'Restoring from save file {restore}')
+    print(f'Restoring from save file {restore}')
     restore_database = open_database(restore, directory)
     write_database(tracker_file, directory, restore_database)
     return True
@@ -4140,17 +4136,17 @@ def main(args):
             print_error(f'Encountered an error while adjusting $env:PATH for user: {_child_.stderr}')
             return False
         else:
-            print_message('Successfully added TART to your $env:PATH. Restart your terminal and you can now type \'tart\' to run this program!')
+            print('Successfully added TART to your $env:PATH. Restart your terminal and you can now type \'tart\' to run this program!')
             return True
 
-    print_message('Welcome to the TARkov Tracker (TART)! Type help for usage. Enter "import" to get started')
+    print('Welcome to the TARkov Tracker (TART)! Type help for usage. Enter "import" to get started')
 
     while(True):
         command = input('> ')
         running = parser(tracker_file, database_directory, command)
         
         if (not running):
-            print_message('Goodbye.')
+            print('Goodbye.')
             return True
 
 if (__name__ == '__main__'):

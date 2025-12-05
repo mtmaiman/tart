@@ -383,12 +383,12 @@ def parser(tracker_file, directory, command):
         if (len(command) < 2):
             print_debug(f'Failed >> {command[0]} <<')
             print_error('Command not recognized')
-        elif (command[1]):
-            print_debug(f'Executing >> {command[0]} {command[1]} <<')
-            restart(tracker_file, directory, command[1])
         elif (command[1] == 'help' or command[1] == 'h'):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
             print(RESTART_HELP)
+        elif (command[1]):
+            print_debug(f'Executing >> {command[0]} {command[1]} <<')
+            restart(tracker_file, directory, command[1])
         else:
             print_debug(f'Failed >> {command[0]} {command[1]} <<')
             print_error('Command not recognized')

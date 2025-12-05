@@ -1,9 +1,7 @@
 from datetime import datetime, timedelta
 from os import system, name, rename, remove, listdir, path, mkdir, getcwd, environ
-from shutil import get_terminal_size
 import subprocess
 import json
-import math
 import sys
 import re
 
@@ -162,11 +160,10 @@ RESTORE_HELP = '''
 > restore\n
 Allows you to restore from a backup file. You can choose one of the two autosave backups or any manual backup within the 5 save slots
 '''
-ITEM_TABLE = ['Item Short Name', 'Item Normalized Name', 'Item GUID', 'A/T/N (FIR)', 'Sell To', 'Trade / Flea', 'Buy From', 'Trade / Flea', 'Buy Req.']
+ITEM_HEADER = '{:<35} {:<75} {:<28} {:<15} {:<12} {:<25} {:<20} {:<25} {:<25}\n'.format('Item Short Name', 'Item Normalized Name', 'Item GUID', 'A/T/N (FIR)', 'Sell To', 'Trade / Flea', 'Buy From', 'Trade / Flea', 'Buy Req.')
 MAP_HEADER = '{:<30} {:<20}\n'.format('Map Normalized Name', 'Map GUID')
 TRADER_HEADER = '{:<30} {:<20}\n'.format('Trader Normalized Name', 'Trader GUID')
 INVENTORY_HEADER = '{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} \n'.format('Item', 'A/T/N (FIR)', 'Item', 'A/T/N (FIR)', 'Item', 'A/T/N (FIR)', 'Item', 'A/T/N (FIR)')
-INVENTORY_TABLE = ['Item', 'A/T/N (FIR)']
 INVENTORY_HAVE_HEADER = '{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} \n'.format('Item', 'Have (FIR)', 'Item', 'Have (FIR)', 'Item', 'Have (FIR)', 'Item', 'Have (FIR)')
 INVENTORY_NEED_HEADER = '{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20} \n'.format('Item', 'Need (FIR)', 'Item', 'Need (FIR)', 'Item', 'Need (FIR)', 'Item', 'Need (FIR)')
 TASK_HEADER = '{:<40} {:<20} {:<20} {:<20} {:<20} {:<20} {:<40}\n'.format('Task Title', 'Task Giver', 'Task Status', 'Tracked', 'Kappa?', 'Map', 'Task GUID')
@@ -1052,65 +1049,6 @@ def print_warning(message):
 
 def print_error(message):
     print(f'>> (ERROR) {message}!')
-    return True
-
-def table_wrapper(rows, headers = None, padding = 3, max_chunks = 0):
-    table = Table(expand = True, show_edge = False, show_lines = False)
-    rows = [list(map(str, row)) for row in rows]
-
-    if (not rows):
-        return False
-
-    columns = max(len(row) for row in rows)
-    max_column_widths = [0] * columns
-    
-    for row in rows:
-        for index, column in enumerate(row):
-            max_column_widths[index] = max(max_column_widths[index], len(column))
-
-    if (headers):
-        for index, header in enumerate(headers):
-            max_column_widths[index] = max(max_column_widths[index], len(header))
-
-    width = sum(max_column_widths) + padding * (columns - 1)
-    resolution = get_terminal_size().columns
-
-    if (len(rows) == 1 or width + padding > resolution or max_chunks == 1):
-        max_chunks = 1
-    else:
-        max_chunks = max(1, resolution // (width + padding))
-
-    padding_needed = (-len(rows)) % max_chunks
-    rows.extend([[''] * columns] * padding_needed)
-
-    chunked = [
-        rows[index : index + max_chunks]
-        for index in range(0, len(rows), max_chunks)
-    ]
-
-    wrapped_headers = []
-
-    if (headers):
-        for _ in range(max_chunks):
-            wrapped_headers.extend(headers)
-    
-    values = []
-
-    for chunk in chunked:
-        nrow = []
-
-        for row in chunk:
-            nrow.extend(row)
-
-        values.append(nrow)
-
-    for header in wrapped_headers:
-        table.add_column(header, no_wrap = False)
-
-    for value in values:
-        table.add_row(*value)
-
-    Console().print(table)
     return True
 
 
@@ -2757,9 +2695,10 @@ def import_traders(database, headers):
 
 # Display
 def display_inventory(items, filtered = False):
-    print('\nAvailable / Total / Need\n')
     items = alphabetize_items(items)
-    table_rows = []
+    display = 'Available / Total / Need\n\n'
+    display = display + INVENTORY_HEADER + BUFFER
+    _row_ = 1
     
     for guid, item in items.items():
         nir, fir = False, False
@@ -2806,23 +2745,23 @@ def display_inventory(items, filtered = False):
         elif (_overstock_):
             prefix = '[!] '
 
-        item_text = f'{prefix}{item["shortName"]}'
-
         if (nir and fir):
-            inv_text = f'{nir} ({fir})'
+            display = display + '{:<20} {:<20} '.format(f'{prefix}{item["shortName"]}', f'{nir} ({fir})')
         elif (nir):
-            inv_text = nir
+            display = display + '{:<20} {:<20} '.format(f'{prefix}{item["shortName"]}', nir)
         elif (fir):
-            inv_text = f'({fir})'
+            display = display + '{:<20} {:<20} '.format(f'{prefix}{item["shortName"]}', f'({fir})')
         else:
             continue
+        
+        if (_row_ == 4):
+            display = display.strip(' ') + '\n'
+            _row_ = 0
 
-        table_rows.append([item_text, inv_text])
+        _row_ = _row_ + 1
     
-    if (not table_wrapper(table_rows, headers = INVENTORY_TABLE)):
-        print('Something went wrong.')
-
-    print('\n')
+    display = display + '\n\n'
+    print_message(f'\n{display}')
     return True
 
 def display_have(items):
@@ -3090,9 +3029,9 @@ def display_untracked(database, untracked):
     return True
 
 def display_items(items):
-    print('\nAvailable / Total / Need\n')
+    display = 'Available / Total / Need\n\n'
+    display = display + ITEM_HEADER + BUFFER
     items = alphabetize_items(items)
-    table_rows = []
 
     for guid, item in items.items():
         try:
@@ -3100,7 +3039,6 @@ def display_items(items):
         except KeyError:
             print(item)
             return False
-
         flea_price = format_price(item["flea_price"], item["flea_currency"])
         sell_price = f'{format_price(item["best_trader_sell_price"], item["best_trader_sell_currency"])} / {flea_price}'
         buy_price = f'{format_price(item["best_trader_buy_price"], item["best_trader_buy_currency"])} / {flea_price}'
@@ -3115,12 +3053,10 @@ def display_items(items):
         else:
             best_buy = item['best_buy']
 
-        table_rows.append([item['shortName'], item['normalizedName'], guid, item_display, item['best_sell'], sell_price, best_buy, buy_price, buy_req])
+        display = display + '{:<35} {:<75} {:<28} {:<15} {:<12} {:<25} {:<20} {:<25} {:<25}\n'.format(item['shortName'], item['normalizedName'], guid, item_display, item['best_sell'], sell_price, best_buy, buy_price, buy_req)
 
-    if (not table_wrapper(table_rows, headers = ITEM_TABLE, max_chunks = 1)):
-        print('Something went wrong.')
-
-    print('\n')
+    display = display + '\n\n'
+    print_message(f'\n{display}')
     return True
 
 def display_maps(maps):

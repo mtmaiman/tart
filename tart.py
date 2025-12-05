@@ -19,7 +19,7 @@ except ModuleNotFoundError:
         from rich.console import Console
 
 
-VERSION = 'cucumber'
+VERSION = 'asparagus'
 
 DEBUG = False
 

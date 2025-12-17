@@ -8,7 +8,9 @@ import re
 
 try:
     import requests
+    from rich.text import Text
     from rich.table import Table
+    from rich.panel import Panel
     from rich.console import Console
 except ModuleNotFoundError:
     with open('requirements.txt') as requirements:
@@ -497,7 +499,7 @@ def parser(tracker_file, directory, command):
             print_debug(f'Executing >> {command[0]} {command[1]} <<')
             database = open_database(tracker_file, directory)
             database = import_items(database, {
-                'Content-Tyoe': 'application/json'
+                'Content-Type': 'application/json'
             })
             print('Price data refreshed')
             write_database(tracker_file, directory, database)
@@ -2568,11 +2570,6 @@ def import_items(database, headers):
         best_trader_buy_currency = 'N/A'
         best_trader_level = 0
         best_trader_task_req = 'N/A'
-        
-        # Checks for empty or invalid flea market fee values
-        if (item['fleaMarketFee'] is None):
-            print_warning(f'Found an invalid flea market fee value (will be corrected): {item['normalizedName']}')
-            item['fleaMarketFee'] = sys.maxsize
 
         # Sell logic
 
@@ -2603,10 +2600,10 @@ def import_items(database, headers):
                 best_trader_sell_currency = this_currency
                 max_sell = this_price_converted
 
-                if (this_currency not in ['usd', 'euro']):
+                if (best_trader_sell_currency.lower() in ['usd', 'euro']):
                     best_trader_sell_roubles = this_price_converted
                 else:
-                    best_trader_sell_roubles = False
+                    best_trader_sell_roubles = 0
 
         # Buy logic
 
@@ -2635,18 +2632,17 @@ def import_items(database, headers):
                 best_trader_buy = vendor['vendor']['normalizedName']
                 best_trader_buy_currency = this_currency
                 best_trader_level = vendor['vendor']['minTraderLevel']
+                min_buy = this_price_converted
 
                 if (vendor['vendor']['taskUnlock']):
                     best_trader_task_req = vendor['vendor']['taskUnlock']['normalizedName']
                 else:
                     best_trader_task_req = 'N/A'
 
-                min_buy = this_price_converted
-
-                if (this_currency not in ['usd', 'euro']):
+                if (best_trader_buy_currency.lower() in ['usd', 'euro']):
                     best_trader_buy_roubles = this_price_converted
                 else:
-                    best_trader_buy_roubles = False
+                    best_trader_buy_roubles = 0
 
         # Setting inventory values
         if (guid not in database['items'].keys()):
@@ -3045,7 +3041,11 @@ def display_barters(database, barters):
             table_rows.append([f'--> Receive {count} {item_name}'])
 
         if (barter['taskUnlock'] is not None):
-            table_rows.append([f'--> Requires task {database['tasks'][barter["taskUnlock"]["id"]]['name']}'])
+            if (barter['taskUnlock']['id'] in database['tasks'].keys()):
+                table_rows.append([f'--> Requires task {database['tasks'][barter["taskUnlock"]["id"]]['name']}'])
+            else:
+                table_rows.append([f'--> Requires task {barter["taskUnlock"]["id"]} (Unknown task)'])
+                print(f'--> Requires task {barter["taskUnlock"]["id"]} (Unknown task)')
 
         table_rows.append([])
 
@@ -3130,7 +3130,7 @@ def display_items(items):
         else:
             sell_price = format_price(item["best_trader_sell_price"], item["best_trader_sell_currency"])
 
-        if ('best_tarder_buy_roubles' in item.keys()):
+        if ('best_trader_buy_roubles' in item.keys()):
             buy_price = format_price(item["best_trader_buy_price"], item["best_trader_buy_currency"]) + f' ({format_price(item["best_trader_buy_roubles"], 'roubles')})'
         else:
             buy_price = format_price(item["best_trader_buy_price"], item["best_trader_buy_currency"])

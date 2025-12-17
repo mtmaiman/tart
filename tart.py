@@ -3088,6 +3088,7 @@ def display_crafts(database, crafts):
             table_rows.append([f'--> Requires task {database['tasks'][craft["taskUnlock"]["id"]]['name']}'])
 
         table_rows.append([f'--> Takes {str(timedelta(seconds = craft["duration"]))} to complete'])
+        table_rows.append([])
 
     if (not table_wrapper(table_rows, headers = CRAFTS_TABLE, max_chunks = 1)):
         print('Something went wrong.')

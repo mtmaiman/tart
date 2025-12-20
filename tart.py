@@ -145,6 +145,13 @@ operations
 \tset : Sets the player level to {level}
 \t\tlevel : The integer value greater than 0 to set the player level at
 '''
+NOTE_HELP = '''
+> note {delete} [name] {element}\n
+Accesses customizable notes\n
+delete : USing the keyword delete before the name will delete the note
+name : The  name of the note to show or add an element to
+element : The text element to add to the specified note
+'''
 CLEAR_HELP = '''
 > clear\n
 Clears the terminal
@@ -470,6 +477,18 @@ def parser(tracker_file, directory, command):
         else:
             print_debug(f'Executing >> {command[0]} <<')
             check_level(tracker_file, directory)
+    # Notes
+    elif (command[0] == 'note'):
+        if (len(command) > 1):
+            if (command[1] == 'help' or command[1] == 'h'):
+                print_debug(f'Executing >> {command[0]} {command[1]} <<')
+                print(NOTE_HELP)
+            else:
+                print_debug(f'Executing >> {command[0]} {command[1]} <<')
+                note(tracker_file, directory, command[1:])
+        else:
+            print_debug(f'Executing >> {command[0]}<<')
+            note(tracker_file, directory, [command[0]])
     # Clear
     elif (command[0] == 'clear'):
         if (len(command) == 1):
@@ -3178,6 +3197,23 @@ def display_traders(traders):
     print('\n')
     return True
 
+def display_note(name, note):
+    table_rows = []
+
+    for element in note:
+        table_rows.append([element])
+
+    if (not table_rows):
+        print('No notes')
+        return False
+
+    if (not table_wrapper(table_rows, headers = [name], max_chunks = 1)):
+        print('Something went wrong')
+        return False
+
+    print('\n')
+    return True
+
 def display_search(database, tasks, hideout, barters, crafts, items, traders, maps):
     if (tasks):
         display_tasks(database, tasks)
@@ -3413,7 +3449,7 @@ def list_traders(tracker_file, directory):
     database = open_database(tracker_file, directory)
 
     if (not database):
-        print_error('Failed to open database found')
+        print_error('Failed to open database')
         return False
     
     traders = ', '.join(trader['normalizedName'] for guid, trader in database['traders'].items()).strip(', ')
@@ -3424,7 +3460,7 @@ def search(tracker_file, directory, argument, ignore_barters, ignore_crafts):
     database = open_database(tracker_file, directory)
 
     if (not database):
-        print_error('Failed to open database found')
+        print_error('Failed to open database')
         return False
 
     if (datetime.fromisoformat(database['refresh']) < (datetime.now() - timedelta(hours = 24))):
@@ -3466,7 +3502,7 @@ def required_search(tracker_file, directory, argument, ignore_barters, ignore_cr
     database = open_database(tracker_file, directory)
 
     if (not database):
-        print_error('Failed to open database found')
+        print_error('Failed to open database')
         return False
     
     if (datetime.fromisoformat(database['refresh']) < (datetime.now() - timedelta(hours = 24))):
@@ -3501,7 +3537,7 @@ def track(tracker_file, directory, argument):
     database = open_database(tracker_file, directory)
 
     if (not database):
-        print_error('Failed to open database found')
+        print_error('Failed to open database')
         return False
     
     guid = find_completable(argument, database)
@@ -3526,7 +3562,7 @@ def untrack(tracker_file, directory, argument):
     database = open_database(tracker_file, directory)
 
     if (not database):
-        print_error('Failed to open database found')
+        print_error('Failed to open database')
         return False
     
     guid = find_completable(argument, database)
@@ -3552,7 +3588,7 @@ def complete(tracker_file, directory, argument, force, recurse):
     database = open_database(tracker_file, directory)
 
     if (not database):
-        print_error('Failed to open database found')
+        print_error('Failed to open database')
         return False
     
     guid = find_completable(argument, database)
@@ -3589,7 +3625,7 @@ def restart(tracker_file, directory, argument):
     database = open_database(tracker_file, directory)
 
     if (not database):
-        print_error('Failed to open database found')
+        print_error('Failed to open database')
         return False
     
     guid = find_restartable(argument, database)
@@ -3680,7 +3716,7 @@ def check_level(tracker_file, directory):
     database = open_database(tracker_file, directory)
 
     if (not database):
-        print_error('Failed to open database found')
+        print_error('Failed to open database')
         return False
     
     print(f'\nYou are level {database["player_level"]}\n')
@@ -3690,7 +3726,7 @@ def set_level(tracker_file, directory, level):
     database = open_database(tracker_file, directory)
 
     if (not database):
-        print_error('Failed to open database found')
+        print_error('Failed to open database')
         return False
     
     database['player_level'] = level
@@ -3702,12 +3738,54 @@ def level_up(tracker_file, directory):
     database = open_database(tracker_file, directory)
 
     if (not database):
-        print_error('Failed to open database found')
+        print_error('Failed to open database')
         return False
     
     database['player_level'] = database['player_level'] + 1
     write_database(tracker_file, directory, database)
     print(f'\nLevel up! Your level is now {database["player_level"]}\n')
+    return True
+
+# Notes
+def note(tracker_file, directory, argument):
+    database = open_database(tracker_file, directory)
+
+    if (not database):
+        print_error('Failed to open database')
+        return False
+    
+    if (len(argument) == 1 and argument[0] == 'note'):
+        display_note('All Notes', [name for name in database['notes'].keys()])
+        return True
+
+    for name, note in database['notes'].items():
+        if (argument[0] == 'delete'):
+            if (len(argument) > 1 and argument[1] in database['notes'].keys()):
+                del database['notes'][argument[1]]
+                write_database(tracker_file, directory, database)
+                print(f'Deleted note {argument[1]}')
+                return True
+            else:
+                print_error('Could not find note to be deleted')
+                return False
+        if (name == argument[0]):
+            if (len(argument) == 1):
+                display_note(name, note)
+                break
+            else:
+                database['notes'][name].append(' '.join(argument[1:]))
+                write_database(tracker_file, directory, database)
+                print(f'Appended {" ".join(argument[1:])} to note {argument[0]}')
+                break
+    else:
+        if (len(argument) > 1):
+            database['notes'][argument[0]] = [' '.join(argument[1:])]
+            write_database(tracker_file, directory, database)
+            print(f'Created new note {argument[0]} with element {" ".join(argument[1:])}')
+        else:
+            print_error(f'No note found matching {argument[0]}')
+            return False
+    
     return True
 
 # Clear
@@ -3725,6 +3803,7 @@ def import_data(tracker_file, directory):
         'items': {},
         'maps': {},
         'traders': {},
+        'notes': {},
         'player_level': 1,
         'refresh': -1,
         'version': VERSION
@@ -4045,9 +4124,11 @@ def delta(tracker_file, directory):
             database['items'][guid]['consumed_fir'] = item['consumed_fir']
     
     print('Completed items delta import')
+
+    database['notes'] = previous['notes']
     database['player_level'] = previous['player_level']
     database['refresh'] = previous['refresh']
-    print('Restored player level and price refresh data')
+    print('Restored player level, price refresh timeout, and notes')
     write_database(tracker_file, directory, database)
     print('Completed database delta import')
     return True

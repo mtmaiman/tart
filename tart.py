@@ -3768,7 +3768,7 @@ def note(tracker_file, directory, argument):
             else:
                 print_error('Could not find note to be deleted')
                 return False
-        if (name == argument[0]):
+        if (name.lower() == argument[0].lower()):
             if (len(argument) == 1):
                 display_note(name, note)
                 break

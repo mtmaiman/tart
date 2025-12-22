@@ -556,6 +556,9 @@ def parser(tracker_file, directory, command):
         else:
             print_debug(f'Failed >> {command[0]} {command[1]} <<')
             print_error('Command not recognized')
+    # Display toggle (secret command)
+    elif (command[0] == 'dtog'):
+        subprocess.run(['C:\\repos\\projects\\display-toggle\\dtog.py'], check = True)
     # Help
     elif (command[0] == 'help' or command[0] == 'h'):
         print_debug(f'Executing >> {command[0]} <<')

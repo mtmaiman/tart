@@ -1,7 +1,9 @@
 from datetime import datetime, timedelta
 from os import system, name, rename, remove, listdir, path, mkdir, getcwd, environ
 from shutil import get_terminal_size
+import threading
 import subprocess
+import time
 import json
 import sys
 import re
@@ -833,7 +835,7 @@ def string_compare(comparable, comparator: str):
     comparator_words = normalize(comparator).split(' ')
 
     for comparable_word in comparable_words:
-        if (comparable_word not in comparator_words and not comparator.lower().replace('-', '').startswith(comparable.lower().replace('-', ''))):
+        if (comparable_word not in comparator_words and not comparator.lower().replace('-', '').startswith(comparable.lower().replace('-', '')) and not comparator.lower().replace('-', ' ').startswith(comparable.lower().replace('-', ' '))):
             return False
 
     print_debug(f'>> {comparable_words} << == >> {comparator_words} <<')
@@ -1047,6 +1049,22 @@ def hideout_readiness(database, guid = False):
     return True
 
 # Console output
+def progress_bar(stop, width = 20):
+    try:
+        pos = 0
+
+        while (not stop.is_set()):
+            bar = '[' + '.' * pos + ']'
+            sys.stdout.write('\r' + bar)
+            sys.stdout.flush()
+            pos = (pos + 1) % (width + 1)
+            time.sleep(0.2)
+    finally:
+        sys.stdout.write('\r' + ' ' * (width + 2) + '\r')
+        sys.stdout.flush()
+
+    return True
+
 def display_bool(bool_value):
     if (bool_value):
         return 'true'
@@ -2291,10 +2309,19 @@ def import_tasks(database, headers):
             }
         """
     }
-    response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+
+    stop = threading.Event()
+    progress_bar_thread = threading.Thread(target = progress_bar, args = (stop,))
+    progress_bar_thread.start()
+
+    try:
+        response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+    finally:
+        stop.set()
+        progress_bar_thread.join()
 
     if (response.status_code < 200 or response.status_code > 299):
-        print_error(f'Network error [{response.status_code}] {response.json()}')
+        print_error(f'Network error [{response.status_code}] {response.content}')
         return False
     else:
         if ('errors' in response.json().keys()):
@@ -2363,10 +2390,19 @@ def import_hideout(database, headers):
             }
         """
     }
-    response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+
+    stop = threading.Event()
+    progress_bar_thread = threading.Thread(target = progress_bar, args = (stop,))
+    progress_bar_thread.start()
+
+    try:
+        response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+    finally:
+        stop.set()
+        progress_bar_thread.join()
 
     if (response.status_code < 200 or response.status_code > 299):
-        print_error(f'Network error [{response.status_code}] {response.json()}')
+        print_error(f'Network error [{response.status_code}] {response.content}')
         return False
     else:
         if ('errors' in response.json().keys()):
@@ -2422,10 +2458,19 @@ def import_barters(database, headers):
             }
         """
     }
-    response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
 
+    stop = threading.Event()
+    progress_bar_thread = threading.Thread(target = progress_bar, args = (stop,))
+    progress_bar_thread.start()
+
+    try:
+        response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+    finally:
+        stop.set()
+        progress_bar_thread.join()
+    
     if (response.status_code < 200 or response.status_code > 299):
-        print_error(f'Network error [{response.status_code}] {response.json()}')
+        print_error(f'Network error [{response.status_code}] {response.content}')
         return False
     else:
         if ('errors' in response.json().keys()):
@@ -2476,10 +2521,19 @@ def import_crafts(database, headers):
             }
         """
     }
-    response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+    
+    stop = threading.Event()
+    progress_bar_thread = threading.Thread(target = progress_bar, args = (stop,))
+    progress_bar_thread.start()
+
+    try:
+        response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+    finally:
+        stop.set()
+        progress_bar_thread.join()
 
     if (response.status_code < 200 or response.status_code > 299):
-        print_error(f'Network error [{response.status_code}] {response.json()}')
+        print_error(f'Network error [{response.status_code}] {response.content}')
         return False
     else:
         if ('errors' in response.json().keys()):
@@ -2537,10 +2591,19 @@ def import_items(database, headers):
             }
         """
     }
-    response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+
+    stop = threading.Event()
+    progress_bar_thread = threading.Thread(target = progress_bar, args = (stop,))
+    progress_bar_thread.start()
+
+    try:
+        response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+    finally:
+        stop.set()
+        progress_bar_thread.join()
 
     if (response.status_code < 200 or response.status_code > 299):
-        print_error(f'Network error [{response.status_code}] {response.json()}')
+        print_error(f'Network error [{response.status_code}] {response.content}')
         return False
     else:
         if ('errors' in response.json().keys()):
@@ -2581,12 +2644,14 @@ def import_items(database, headers):
         best_trader_sell = 'N/A'
         best_trader_sell_price = 0
         best_trader_sell_currency = 'N/A'
+        best_trader_sell_roubles = 0
         flea_level = 0
 
         # Buying vars
         best_trader_buy = 'N/A'
         best_trader_buy_price = 0
         best_trader_buy_currency = 'N/A'
+        best_trader_buy_roubles = 0
         best_trader_level = 0
         best_trader_task_req = 'N/A'
 
@@ -2710,10 +2775,19 @@ def import_maps(database, headers):
             }
         """
     }
-    response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+    
+    stop = threading.Event()
+    progress_bar_thread = threading.Thread(target = progress_bar, args = (stop,))
+    progress_bar_thread.start()
+
+    try:
+        response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+    finally:
+        stop.set()
+        progress_bar_thread.join()
 
     if (response.status_code < 200 or response.status_code > 299):
-        print_error(f'Network error [{response.status_code}] {response.json()}')
+        print_error(f'Network error [{response.status_code}] {response.content}')
         return False
     else:
         if ('errors' in response.json().keys()):
@@ -2748,10 +2822,19 @@ def import_traders(database, headers):
             }
         """
     }
-    response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+    
+    stop = threading.Event()
+    progress_bar_thread = threading.Thread(target = progress_bar, args = (stop,))
+    progress_bar_thread.start()
+
+    try:
+        response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+    finally:
+        stop.set()
+        progress_bar_thread.join()
 
     if (response.status_code < 200 or response.status_code > 299):
-        print_error(f'Network error [{response.status_code}] {response.json()}')
+        print_error(f'Network error [{response.status_code}] {response.content}')
         return False
     else:
         if ('errors' in response.json().keys()):
@@ -3471,13 +3554,21 @@ def search(tracker_file, directory, argument, ignore_barters, ignore_crafts):
         write_database(tracker_file, directory, database)
         print('Complete')
 
-    tasks = search_tasks(argument, database)
-    hideout = search_hideout(argument, database)
-    barters = search_barters(argument, database)
-    crafts = search_crafts(argument, database)
-    items = search_items(argument, database)
-    traders = search_traders(argument, database)
-    maps = search_maps(argument, database)
+    stop = threading.Event()
+    progress_bar_thread = threading.Thread(target = progress_bar, args = (stop,))
+    progress_bar_thread.start()
+
+    try:
+        tasks = search_tasks(argument, database)
+        hideout = search_hideout(argument, database)
+        barters = search_barters(argument, database)
+        crafts = search_crafts(argument, database)
+        items = search_items(argument, database)
+        traders = search_traders(argument, database)
+        maps = search_maps(argument, database)
+    finally:
+        stop.set()
+        progress_bar_thread.join()
 
     if (not ignore_barters):
         _barters_ = search_barters_by_item(argument, database)
@@ -3513,8 +3604,16 @@ def required_search(tracker_file, directory, argument, ignore_barters, ignore_cr
         write_database(tracker_file, directory, database)
         print('Complete')
     
-    tasks = search_tasks_by_item(argument, database)
-    hideout = search_hideout_by_item(argument, database)
+    stop = threading.Event()
+    progress_bar_thread = threading.Thread(target = progress_bar, args = (stop,))
+    progress_bar_thread.start()
+
+    try:
+        tasks = search_tasks_by_item(argument, database)
+        hideout = search_hideout_by_item(argument, database)
+    finally:
+        stop.set()
+        progress_bar_thread.join()
 
     if (not ignore_barters):
         barters = search_barters_by_item(argument, database, required_only = True)
@@ -3823,6 +3922,12 @@ def import_data(tracker_file, directory):
         print_error('Encountered error while importing traders. Import aborted')
         return False
 
+    database = import_items(database, headers)
+
+    if (not database):
+        print_error('Encountered error while importing items. Import aborted')
+        return False
+
     database = import_tasks(database, headers)
 
     if (not database):
@@ -3845,12 +3950,6 @@ def import_data(tracker_file, directory):
 
     if (not database):
         print_error('Encountered error while importing crafts. Import aborted')
-        return False
-
-    database = import_items(database, headers)
-
-    if (not database):
-        print_error('Encountered error while importing items. Import aborted')
         return False
     
     database = calculate_inventory(database)
@@ -4224,7 +4323,7 @@ def main(args):
     if (not path.isdir(database_directory)):
         mkdir(database_directory)
 
-    if (len(args) > 1 and args[1] == 'debug'):
+    if ((len(args) > 1 and args[1] == 'debug')):
         global DEBUG
         DEBUG = True
         print_debug('Debug mode enabled')

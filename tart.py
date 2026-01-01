@@ -178,7 +178,7 @@ TRADER_TABLE = ['Trader Normalized Name', 'Trader GUID']
 INVENTORY_TABLE = ['Item', 'A/T/N (FIR)']
 INVENTORY_HAVE_TABLE = ['Item', 'Have (FIR)']
 INVENTORY_NEED_TABLE = ['Item', 'Need (FIR)']
-TASK_TABLE = ['Task Name', 'Task Giver', 'Task Status', 'Tracked', 'Kappa Required', 'Map', 'Task GUID']
+TASK_TABLE = ['Task Name', 'Task Giver', 'Task Status', 'Tracked', 'Kappa Required', 'Map', 'Priority', 'Task GUID']
 HIDEOUT_TABLE = ['Station Name', 'Station Status', 'Tracked', 'Station GUID']
 BARTER_TABLE = ['Barter GUID', 'Trader', 'Loyalty Level', 'Barter Status', 'Tracked', 'Restarts']
 CRAFTS_TABLE = ['Craft GUID', 'Station', 'Craft Status', 'Tracked', 'Restarts']
@@ -274,42 +274,9 @@ def parser(tracker_file, directory, command):
             print(LS_HELP)
         else:
             print_debug(f'Failed >> {command[0]} {command[1]} <<')
-            print_error('Command not recognized')
-    # Search
-    elif (command[0] == 'search'):
-        if (len(command) < 2):
-            print_debug(f'Failed >> {command[0]} <<')
-            print_error('Command not recognized')
-        else:
-            if (command[1] == 'help' or command[1] == 'h'):
-                print_debug(f'Executing >> {command[0]} {command[1]} <<')
-                print(SEARCH_HELP)
-            elif (command[-1] == 'barters'):
-                print_debug(f'Executing >> {command[0]} {command[1:-1]} {command[-1]} <<')
-                ignore_barters = False
-                ignore_crafts = True
-                pattern = ' '.join(command[1:-1])
-                search(tracker_file, directory, pattern, ignore_barters, ignore_crafts)
-            elif (command[-1] == 'crafts'):
-                print_debug(f'Executing >> {command[0]} {command[1:-1]} {command[-1]} <<')
-                ignore_barters = True
-                ignore_crafts = False
-                pattern = ' '.join(command[1:-1])
-                search(tracker_file, directory, pattern, ignore_barters, ignore_crafts)
-            elif (command[-1] == 'all'):
-                print_debug(f'Executing >> {command[0]} {command[1:-1]} {command[-1]} <<')
-                ignore_barters = False
-                ignore_crafts = False
-                pattern = ' '.join(command[1:-1])
-                search(tracker_file, directory, pattern, ignore_barters, ignore_crafts)
-            else:
-                print_debug(f'Executing >> {command[0]} {command[1:]} <<')
-                ignore_barters = True
-                ignore_crafts = True
-                pattern = ' '.join(command[1:])
-                search(tracker_file, directory, pattern, ignore_barters, ignore_crafts)
+            print_error('Command not recognized')    
     # Requires
-    elif (command[0] == 'requires'):
+    elif (command[0] == 'requires' or command[0] == 'r'):
         if (len(command) < 2):
             print_debug(f'Failed >> {command[0]} <<')
             print_error('Command not recognized')
@@ -579,10 +546,35 @@ def parser(tracker_file, directory, command):
         write_database(f'{tracker_file}.curr.bak', directory, database)
         print(f'Backup saved')
         return False
-    # Error
+    # Search
     else:
-        print_debug(f'Failed >> {command[0]} <<')
-        print_error('Command not recognized. Type "help" for usage')
+        if (len(command) > 1 and command[0] == 'search' and command[1] == 'h'):
+            print_debug(f'Executing >> {command[0]} {command[1]} <<')
+            print(SEARCH_HELP)
+        elif (command[-1] == 'barters'):
+            print_debug(f'Executing >> {command[0]} {command[1:-1]} {command[-1]} <<')
+            ignore_barters = False
+            ignore_crafts = True
+            pattern = ' '.join(command[0:-1])
+            search(tracker_file, directory, pattern, ignore_barters, ignore_crafts)
+        elif (command[-1] == 'crafts'):
+            print_debug(f'Executing >> {command[0]} {command[1:-1]} {command[-1]} <<')
+            ignore_barters = True
+            ignore_crafts = False
+            pattern = ' '.join(command[0:-1])
+            search(tracker_file, directory, pattern, ignore_barters, ignore_crafts)
+        elif (command[-1] == 'all'):
+            print_debug(f'Executing >> {command[0]} {command[1:-1]} {command[-1]} <<')
+            ignore_barters = False
+            ignore_crafts = False
+            pattern = ' '.join(command[0:-1])
+            search(tracker_file, directory, pattern, ignore_barters, ignore_crafts)
+        else:
+            print_debug(f'Executing >> {command[0]} {command[1:]} <<')
+            ignore_barters = True
+            ignore_crafts = True
+            pattern = ' '.join(command[0:])
+            search(tracker_file, directory, pattern, ignore_barters, ignore_crafts)
     
     return True
 
@@ -919,6 +911,31 @@ def verify_craft(database, guid):
     print_debug(f'Barter verified >> {guid} <<')
     return True
 
+# Task prioritization
+# Only run during database creation)
+def recurse_priority(all_tasks, guid, visited = None):
+    if (visited is None):
+        visited = set()
+
+    follow_on_tasks = 0
+
+    for task in all_tasks:
+        if (task['id'] in visited):
+            continue
+
+        for prereq in task['taskRequirements']:
+            if ('id' in prereq):
+                if (prereq['id'] == guid):
+                    visited.add(task['id'])
+                    follow_on_tasks += 1
+                    follow_on_tasks += recurse_priority(all_tasks, task['id'], visited)
+            elif (prereq['task']['id'] == guid):
+                visited.add(task['id'])
+                follow_on_tasks += 1
+                follow_on_tasks += recurse_priority(all_tasks, task['id'], visited)
+
+    return follow_on_tasks
+
 # Add Items
 def add_item_fir(database, count, guid):
     item_name = database['items'][guid]['normalizedName']
@@ -1055,7 +1072,7 @@ def progress_bar(stop, width = 20):
 
         while (not stop.is_set()):
             bar = '[' + '.' * pos + ']'
-            sys.stdout.write('\r' + bar)
+            sys.stdout.write('\r' + ' ' * (width + 2) + '\r' + bar)
             sys.stdout.flush()
             pos = (pos + 1) % (width + 1)
             time.sleep(0.2)
@@ -1688,6 +1705,12 @@ def track_task(database, guid):
                 print_debug('NIR')
                 database['items'][item_guid]['need_nir'] = database['items'][item_guid]['need_nir'] + count
                 print(f'{count} more {item_name} (NIR) now needed')
+
+    if (task['neededKeys'] is not None and len(task['neededKeys']) > 0):
+        for _key_ in task['neededKeys']:
+            for key in _key_['keys']:
+                item_guid = key['id']
+                database['items'][item_guid]['need_nir'] = 1
 
     database['tasks'][guid]['tracked'] = True
     print(f'Tracked {task["name"]}')
@@ -2352,6 +2375,23 @@ def import_tasks(database, headers):
             task['tracked'] = False
             nonKappa = nonKappa + 1
 
+        if (task['kappaRequired']):
+            priority = 2
+        else:
+            priority = 0
+
+        follow_on_tasks = recurse_priority(response.json()['data']['tasks'], guid)
+
+        if (follow_on_tasks == 0):
+            priority = priority
+        elif (0 < follow_on_tasks < 3):
+            priority += 1
+        elif (2 < follow_on_tasks < 8):
+            priority += 2
+        else:
+            priority += 3
+
+        task['priority'] = priority
         imported_tasks = imported_tasks + 1
         database['tasks'][guid] = task
 
@@ -2927,6 +2967,7 @@ def display_inventory(items, filtered = False):
     return True
 
 def display_have(items):
+    print('\n')
     items = alphabetize_items(items)
     table_rows = []
     
@@ -2957,6 +2998,7 @@ def display_have(items):
     return True
 
 def display_need(items):
+    print('\n')
     items = alphabetize_items(items)
     table_rows = []
     
@@ -2987,6 +3029,7 @@ def display_need(items):
     return True
 
 def display_tasks(database, tasks):
+    print('\n')
     table_rows = []
     duplicates = [] # There are some duplicate tasks for USEC and BEAR (i.e., Textile Part 1 and 2)
     maps = {}
@@ -3015,8 +3058,19 @@ def display_tasks(database, tasks):
             print_debug(f'>> {task["name"]} << has already been seen and will be skipped during printing')
             continue
 
+        priority = task['priority']
+
+        if (priority == 0):
+            priority = 'Very low'
+        elif (0 < priority < 3):
+            priority = 'Low'
+        elif (2 < priority < 5):
+            priority = 'Normal'
+        else:
+            priority = 'Important'
+
         duplicates.append(task['name'])
-        table_rows.append([task['name'], database['traders'][task['trader']['id']]['normalizedName'], task['status'], display_bool(task['tracked']), display_bool(task['kappaRequired']), task['map'], guid])
+        table_rows.append([task['name'], database['traders'][task['trader']['id']]['normalizedName'], task['status'], display_bool(task['tracked']), display_bool(task['kappaRequired']), task['map'], priority, guid])
 
         for objective in task['objectives']:
             objective_string = '-->'
@@ -3064,16 +3118,19 @@ def display_tasks(database, tasks):
     map_string = ''
 
     for map_name, hits in maps.items():
-        map_string = map_string + f'{map_name}: {hits} | '
+        map_string += f'{map_name}: {hits} | '
+
+    map_string += f'(total: {len(tasks)})'
 
     if (not table_wrapper(table_rows, headers = TASK_TABLE, max_chunks = 1)):
         print('Something went wrong.')
 
-    print('\n' + map_string.strip(' |'))
+    print('\n' + map_string)
     print('\n')
     return True
 
 def display_hideout(database, stations):
+    print('\n')
     table_rows = []
 
     for guid, station in stations.items():
@@ -3114,6 +3171,7 @@ def display_hideout(database, stations):
     return True
 
 def display_barters(database, barters):
+    print('\n')
     table_rows = []
 
     for guid, barter in barters.items():
@@ -3158,6 +3216,7 @@ def display_barters(database, barters):
     return True
 
 def display_crafts(database, crafts):
+    print('\n')
     table_rows = []
 
     for guid, craft in crafts.items():
@@ -3199,6 +3258,7 @@ def display_crafts(database, crafts):
     return True
 
 def display_untracked(database, untracked):
+    print('\n')
     table_rows = []
 
     for guid, entry in untracked.items():
@@ -3257,6 +3317,7 @@ def display_items(items):
     return True
 
 def display_maps(maps):
+    print('\n')
     table_rows = []
 
     for guid, map in maps.items():
@@ -3269,6 +3330,7 @@ def display_maps(maps):
     return True
 
 def display_traders(traders):
+    print('\n')
     table_rows = []
 
     for guid, trader in traders.items():
@@ -3281,6 +3343,7 @@ def display_traders(traders):
     return True
 
 def display_note(name, note):
+    print('\n')
     table_rows = []
 
     for element in note:

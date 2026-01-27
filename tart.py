@@ -72,6 +72,7 @@ iterables
 \t\tfilters
 \t\t\tmap : The name of a map to list tasks for
 \t\t\ttrader : The name of a trader to list tasks for
+\t\t\tkappa : Only kappa required tasks
 \tstations : Lists all hideout stations
 \thideout : Lists all hideout stations
 \tbarters : Lists all tracked barters
@@ -745,6 +746,9 @@ def find_trader(text, database):
 def create_filter(text, database):
     filters = {}
 
+    if (string_compare(text, 'kappa')):
+        return 'kappa'
+
     for guid, map in database['maps'].items():
         if (string_compare(text, map['normalizedName']) or guid == text):
             filters[guid] = map
@@ -1383,7 +1387,9 @@ def get_tasks_filtered(database, argument):
         if (not filter):
             return {}
 
-        if (filter in database['maps'].keys() and (filter in task['maps'] or '0' in task['maps'])):
+        if (filter == 'kappa' and task['kappaRequired']):
+            tasks[guid] = task
+        elif (filter in database['maps'].keys() and (filter in task['maps'] or '0' in task['maps'])):
             tasks[guid] = task
         else:
             if (task['trader']['id'] == filter):
@@ -2339,6 +2345,9 @@ def import_tasks(database, headers):
 
     try:
         response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+    except:
+        print_error('Encountered error retrieving data')
+        return False
     finally:
         stop.set()
         progress_bar_thread.join()
@@ -2437,6 +2446,9 @@ def import_hideout(database, headers):
 
     try:
         response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+    except:
+        print_error('Encountered error retrieving data')
+        return False
     finally:
         stop.set()
         progress_bar_thread.join()
@@ -2505,6 +2517,9 @@ def import_barters(database, headers):
 
     try:
         response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+    except:
+        print_error('Encountered error retrieving data')
+        return False
     finally:
         stop.set()
         progress_bar_thread.join()
@@ -2568,6 +2583,9 @@ def import_crafts(database, headers):
 
     try:
         response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+    except:
+        print_error('Encountered error retrieving data')
+        return False
     finally:
         stop.set()
         progress_bar_thread.join()
@@ -2638,6 +2656,9 @@ def import_items(database, headers):
 
     try:
         response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+    except:
+        print_error('Encountered error retrieving data')
+        return False
     finally:
         stop.set()
         progress_bar_thread.join()
@@ -2822,6 +2843,9 @@ def import_maps(database, headers):
 
     try:
         response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+    except:
+        print_error('Encountered error retrieving data')
+        return False
     finally:
         stop.set()
         progress_bar_thread.join()
@@ -2869,6 +2893,9 @@ def import_traders(database, headers):
 
     try:
         response = requests.post(url = 'https://api.tarkov.dev/graphql', headers = headers, json = data)
+    except:
+        print_error('Encountered error retrieving data')
+        return False
     finally:
         stop.set()
         progress_bar_thread.join()
@@ -3220,7 +3247,12 @@ def display_crafts(database, crafts):
     table_rows = []
 
     for guid, craft in crafts.items():
-        table_rows.append([guid, database['hideout'][craft['station']['id'] + '-' + str(craft['level'])]['normalizedName'], craft['status'], display_bool(craft['tracked']), craft['restarts']])
+        station_guid = craft['station']['id'] + '-' + str(craft['level'])
+
+        if (station_guid in database['hideout'].keys()):
+            table_rows.append([guid, database['hideout'][station_guid]['normalizedName'], craft['status'], display_bool(craft['tracked']), craft['restarts']])
+        else:
+            table_rows.append([guid, 'unknown', craft['status'], display_bool(craft['tracked']), craft['restarts']])
 
         for item in craft['requiredItems']:
             item_guid = item['item']['id']
@@ -3615,7 +3647,6 @@ def search(tracker_file, directory, argument, ignore_barters, ignore_crafts):
             'Content-Type': 'application/json'
         })
         write_database(tracker_file, directory, database)
-        print('Complete')
 
     stop = threading.Event()
     progress_bar_thread = threading.Thread(target = progress_bar, args = (stop,))

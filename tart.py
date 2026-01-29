@@ -2152,11 +2152,11 @@ def restart_barter(database, guid):
     barter = database['barters'][guid]
 
     if (barter['status'] == 'incomplete'):
-        print(f'{barter["id"]} is not complete')
+        print(f'{guid} is not complete')
         return False
     
     if (not barter['tracked']):
-        print_error(f'{barter["id"]} is not tracked')
+        print_error(f'{guid} is not tracked')
         return False
 
     for requirement in barter['requiredItems']:
